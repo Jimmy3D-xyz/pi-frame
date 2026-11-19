@@ -54,7 +54,7 @@ echo "==> Installing rclone (for synced folders)"
 # "unauthenticated" since Microsoft's 2024 change (fixed in rclone 1.67).
 # Install the current release from rclone.org, checking its SHA-256.
 python3 - <<'PY' || echo "Warning: couldn't install rclone from rclone.org; synced folders may not work (try again when online)"
-import hashlib, io, os, platform, re, shutil, subprocess, sys, urllib.request, zipfile
+import hashlib, io, os, platform, re, shutil, subprocess, sys, urllib.error, urllib.request, zipfile
 MIN = (1, 67, 0)
 def have():
     exe = shutil.which("rclone")
@@ -72,7 +72,24 @@ if not arch:
     sys.exit("unsupported CPU: " + platform.machine())
 BASE = os.environ.get("PF_RCLONE_BASE", "https://downloads.rclone.org")  # overridable for testing
 DEST = os.environ.get("PF_RCLONE_DEST", "/usr/local/bin")
-get = lambda url: urllib.request.urlopen(url, timeout=60).read()
+UA = "Pi-Frame-installer (rclone download)"
+
+
+def get(url):
+    # Download with curl when it's there (rclone.org refuses Python's default
+    # identity with HTTP 403), else urllib with a proper User-Agent.
+    if shutil.which("curl"):
+        r = subprocess.run(["curl", "-fsSL", "--retry", "3", "--max-time", "300", "-A", UA, url],
+                           capture_output=True)
+        if r.returncode == 0:
+            return r.stdout
+        sys.stderr.write("    curl couldn't download %s: %s\n" % (url, r.stderr.decode(errors="replace").strip()))
+    try:
+        return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=60).read()
+    except urllib.error.HTTPError as e:
+        sys.exit("the server refused %s (HTTP %s)" % (url, e.code))
+    except Exception as e:
+        sys.exit("couldn't download %s (%s)" % (url, e))
 ver = get(BASE + "/version.txt").decode().split()[-1]  # e.g. v1.71.1
 name = "rclone-%s-linux-%s.zip" % (ver, arch)
 blob = get("%s/%s/%s" % (BASE, ver, name))
