@@ -24,8 +24,17 @@ jobs:
 
       - name: Install tools (video, sync, HEIC)
         run: |
-          sudo apt-get update -q -o Acquire::Retries=5
-          sudo apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core
+          # Ubuntu's servers sometimes answer 503, or 404 while an update is
+          # being published: refresh the package list and try again.
+          for attempt in 1 2 3; do
+            sudo apt-get update -q -o Acquire::Retries=5 &&
+            sudo apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends \
+              ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core &&
+            exit 0
+            echo "Package download failed (attempt $attempt); trying again in 30 s"
+            sleep 30
+          done
+          exit 1
 
       - name: Install rclone (current, as the frame's installer does; Ubuntu's is too old)
         run: |
