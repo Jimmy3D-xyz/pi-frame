@@ -24,8 +24,8 @@ jobs:
 
       - name: Install tools (video, sync, HEIC)
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core
+          sudo apt-get update -q -o Acquire::Retries=5
+          sudo apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core
 
       - name: Install rclone (current, as the frame's installer does; Ubuntu's is too old)
         run: |
