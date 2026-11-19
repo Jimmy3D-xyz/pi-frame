@@ -228,6 +228,21 @@ if [ "$IMAGE" = 1 ]; then
   # no keyboard on a frame: don't ask for a username on the screen at first boot;
   # the welcome wizard creates a login if one is wanted (SSH stays off until then)
   systemctl mask userconfig.service 2>/dev/null || true
+  # Raspberry Pi OS (Trixie) ships a placeholder "pi" account with no usable
+  # password, renamed at first boot by the prompt above or by Imager's
+  # settings. Remove it (only while it can't be logged in to), and don't let
+  # cloud-init make a default one: Imager's settings name their own user.
+  if id pi >/dev/null 2>&1; then
+    case "$(getent shadow pi | cut -d: -f2)" in
+      '!'*|'*'*|'') userdel -r pi 2>/dev/null || userdel pi; rm -f /etc/sudoers.d/010_pi-nopasswd
+                    echo "    removed the placeholder 'pi' account" ;;
+      *) echo "    keeping the 'pi' account (it has a password)" ;;
+    esac
+  fi
+  if [ -d /etc/cloud/cloud.cfg.d ]; then
+    printf '# Pi Frame: no default user (the welcome wizard or Imager settings make one)\nusers: []\n' \
+      > /etc/cloud/cloud.cfg.d/99_zz-pi-frame.cfg
+  fi
   systemctl disable ssh.service 2>/dev/null || true
   # a new Pi keeps Wi-Fi off until a country is set; the wizard sets it, but the
   # setup hotspot needs the radio first

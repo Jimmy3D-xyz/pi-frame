@@ -3,6 +3,9 @@
 [← Back to the README](../README.md)
 
 - [Before you start](#before-you-start)
+- [Install with the ready-made image](#install-with-the-ready-made-image) (easiest)
+- [The welcome wizard](#the-welcome-wizard)
+- [Building the image](#building-the-image)
 - [Install with the kit](#install-with-the-kit)
 - [Building the kit](#building-the-kit)
 - [Installing by hand](#installing-by-hand)
@@ -22,9 +25,79 @@
   being checked). The same card written on Windows worked first time.
 - **Connect the monitor before powering on**, so the Pi picks up its resolution.
 
+## Install with the ready-made image
+
+The ready-made image is Raspberry Pi OS Lite (64-bit) with Pi Frame already
+installed. Nothing needs typing on a computer: the frame sets itself up from
+your phone.
+
+1. **Download** `pi-frame-<version>.img.xz` from the repository's
+   [Releases](https://github.com/JimmySte/pi-frame/releases) page.
+2. **Write it** with Raspberry Pi Imager: *Raspberry Pi 4*, then Operating
+   system → **Use custom** → the downloaded file, then your card. When Imager
+   offers to apply OS customisation settings, choose **No**: the frame asks
+   for everything itself. (If you do fill them in, the wizard skips what
+   they covered.)
+3. **Start the frame**: card in, monitor connected, power on. The first start
+   takes a couple of minutes (it grows the system to fill the card and restarts once).
+4. **Join the frame's Wi-Fi.** The screen shows two QR codes: the first joins
+   the frame's own network (`PiFrame-XXXX`), the second opens the setup page.
+   Most phones open it by themselves.
+5. **Answer the [welcome wizard](#the-welcome-wizard)**. When you finish, the
+   frame joins your Wi-Fi and shows a QR code for its page. Switch your phone
+   back to your Wi-Fi and scan it.
+
+With an Ethernet cable plugged in, there's no hotspot: the frame shows a QR
+code for its page straight away, and the wizard opens there.
+
+Moving from another frame? Restore its backup afterwards, under Maintenance →
+Backups.
+
+## The welcome wizard
+
+It opens on a new frame's page until it's finished, and asks for:
+
+- **Name**, e.g. "Living room" (shown on the page and in Home Assistant).
+- **Country**: decides which Wi-Fi channels the frame may use. A new Pi
+  keeps Wi-Fi switched off until it knows this, so the image switches the
+  radio on just for the setup hotspot.
+- **Time zone**, filled in from your phone.
+- **Your Wi-Fi network** and its password (skipped on Ethernet).
+- **A page password** (recommended: backups and updates need one).
+- **An SSH login** (optional): a username and password for working on the Pi
+  from a computer (`ssh name@piframe.local`). Without one, SSH stays switched
+  off. The wizard can only create a login while the Pi has none, so the page
+  can't be used to add one later.
+
+If the frame can't join your Wi-Fi (a mistyped password, say), its setup
+screen comes back: join its network again and choose the network once more.
+Everything else is already saved.
+
+The image itself has no Wi-Fi settings, no login and SSH switched off, and
+the frame's name on the network is `piframe`.
+
+## Building the image
+
+GitHub builds the image when a version tag (e.g. `v0.25.0`) is pushed, and
+publishes a release with the image, the update package and the kit. It can
+also be run by hand from the Actions tab (workflow "Image"), which publishes
+a test release called `pi-frame-test`. It takes about half an hour.
+
+To build one yourself, on a Linux machine with `qemu-user-static` (not
+needed on Arm), `xz-utils`, `fdisk` and `e2fsprogs`:
+
+```sh
+sudo deploy/build-image.sh       # writes dist/pi-frame-<version>.img.xz
+```
+
+It downloads the latest Raspberry Pi OS Lite (64-bit), checks its checksum,
+installs Pi Frame inside it (`install.sh --image`), checks the result,
+shrinks it and compresses it.
+
 ## Install with the kit
 
-The kit is a folder, `pi-frame-kit`, holding the installer, a settings file
+For a card you've written yourself with Raspberry Pi OS Lite, e.g. to keep
+your own Imager settings. The kit is a folder, `pi-frame-kit`, holding the installer, a settings file
 and the app package. It turns a freshly flashed card into a working frame
 with one command.
 

@@ -74,7 +74,13 @@ echo "    users:   $(awk -F: '$3>=1000 && $3<60000 {print $1}' "$ROOT/etc/passwd
 for u in userconfig.service cloud-init.service cloud-init-main.service ssh.service regenerate_ssh_host_keys.service; do
   printf '    %-34s %s\n' "$u" "$(chroot "$ROOT" systemctl is-enabled "$u" 2>/dev/null || echo absent)"
 done
-[ -d "$ROOT/etc/cloud" ] && echo "    cloud-init config: $(ls "$ROOT/etc/cloud/cloud.cfg.d" 2>/dev/null | tr '\n' ' ')"
+echo "    boot files: $(ls "$ROOT/boot/firmware" | grep -vE '\.(dtb|dtbo)$' | grep -v overlays | tr '\n' ' ')"
+for f in "$ROOT"/etc/cloud/cloud.cfg.d/*.cfg; do
+  [ -f "$f" ] && { echo "    --- ${f#$ROOT}"; sed 's/^/      /' "$f"; }
+done
+for f in user-data meta-data network-config; do
+  [ -f "$ROOT/boot/firmware/$f" ] && { echo "    --- bootfs/$f"; sed 's/^/      /' "$ROOT/boot/firmware/$f" | head -40; }
+done
 
 step "Installing Pi Frame $VER inside the image"
 # name lookups inside the image while building; services mustn't start here

@@ -37,26 +37,23 @@ work with it unchanged.
 
 ## Install
 
-1. Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In its
-   settings choose the hostname `piframe`, your Wi-Fi, and switch on SSH.
-2. Copy the **installer kit** (`pi-frame-kit` folder) onto the card's `bootfs` drive.
-3. Boot the Pi with the monitor connected, then:
+1. Download the **ready-made image** (`pi-frame-<version>.img.xz`) from
+   [Releases](https://github.com/JimmySte/pi-frame/releases).
+2. Write it to a microSD card with Raspberry Pi Imager (Operating system →
+   **Use custom**).
+3. Put the card in the Pi, connect the monitor and switch on.
+4. Scan the QR codes on the screen with your phone: one joins the frame's
+   setup Wi-Fi, the other opens a short welcome wizard (Wi-Fi, name, time
+   zone, password).
 
-   ```sh
-   ssh yourname@piframe.local
-   sudo bash /boot/firmware/pi-frame-kit/install-frame.sh
-   ```
-
-4. After it restarts, open `http://piframe.local/` on your phone.
-
-The full guide, including building the kit, moving to a new card and
-updating, is in [Installing and updating](docs/installing.md).
+There's also an installer kit for a card you've written yourself. Both, plus
+moving to a new card and updating, are in [Installing and updating](docs/installing.md).
 
 ## Guides
 
 | | |
 | --- | --- |
-| [Installing and updating](docs/installing.md) | The installer kit, backups and restoring, moving to a new card, software updates |
+| [Installing and updating](docs/installing.md) | The ready-made image and welcome wizard, the installer kit, backups and restoring, moving to a new card, updates |
 | [Using the frame](docs/using.md) | Photos and videos, slideshow styles, on-screen info, live view, Wi-Fi setup |
 | [Synced folders](docs/synced-folders.md) | OneDrive, Google Drive, Dropbox and NAS |
 | [Screen and hardware](docs/screen-and-hardware.md) | Resolution, fades, boot screen, brightness, presence sensor, buttons |
