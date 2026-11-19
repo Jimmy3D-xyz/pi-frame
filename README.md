@@ -2,6 +2,8 @@
 
 # Pi Frame
 
+[![Tests](https://github.com/JimmySte/pi-frame/actions/workflows/tests.yml/badge.svg)](https://github.com/JimmySte/pi-frame/actions/workflows/tests.yml)
+
 A digital photo frame for a Raspberry Pi 4 and an HDMI monitor. Photos and
 videos from the Pi itself, your OneDrive, Google Drive, Dropbox or NAS, run
 from a web page on your phone.

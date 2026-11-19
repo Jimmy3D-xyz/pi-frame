@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11: Raspberry Pi OS Bookworm. 3.13: Raspberry Pi OS Trixie.
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install tools (video, sync, HEIC)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends ffmpeg mpv rclone libheif-examples fonts-dejavu-core
+
+      - name: Install Python packages
+        run: pip install -r requirements.txt qrcode gpiozero pytest
+
+      - name: Run the tests
+        run: python -m pytest tests -q -ra
+
+  package:
+    name: Build the update package and kit
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: bash kit/build-kit.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pi-frame-${{ github.sha }}
+          path: dist/*.zip
+          retention-days: 30
