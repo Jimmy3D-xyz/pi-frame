@@ -13,6 +13,8 @@ list) are accepted, and cmdline.txt is backed up before the first change.
 from __future__ import annotations
 
 import json
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -51,6 +53,8 @@ def handle_request(boot: Path = BOOT, sysfs: str = "/sys/class/drm", reboot: boo
         rc = remake_bootsplash()
         _status("done" if rc == 0 else "failed", "Boot screen updated" if rc == 0 else "Couldn't update the boot screen")
         return rc
+    if req.get("action") == "first_run":
+        return first_run(req)
     if req.get("action") != "set_mode":
         _status("failed", "Unknown request")
         return 1
@@ -77,6 +81,78 @@ def handle_request(boot: Path = BOOT, sysfs: str = "/sys/class/drm", reboot: boo
     if reboot:
         time.sleep(1)
         subprocess.run(["systemctl", "reboot"], check=False)
+    return 0
+
+
+def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kw)
+
+
+def set_wifi_country(cc: str, boot: Path = BOOT) -> str | None:
+    """The Wi-Fi country (which channels may be used); also unblocks the radio."""
+    if shutil.which("raspi-config"):
+        r = _run(["raspi-config", "nonint", "do_wifi_country", cc])
+        if r.returncode == 0:
+            return None
+    # without raspi-config: set it now, and on the kernel command line for later boots
+    _run(["iw", "reg", "set", cc])
+    _run(["rfkill", "unblock", "wifi"])
+    cmdline = boot / "cmdline.txt"
+    if cmdline.exists():
+        line = re.sub(r" ?cfg80211\.ieee80211_regdom=\S+", "", cmdline.read_text().strip())
+        cmdline.write_text(f"{line} cfg80211.ieee80211_regdom={cc}\n")
+    return None
+
+
+def set_timezone(tz: str) -> str | None:
+    if not (Path("/usr/share/zoneinfo") / tz).is_file():
+        return f"unknown time zone {tz}"
+    r = _run(["timedatectl", "set-timezone", tz])
+    if r.returncode != 0:  # e.g. no systemd-timedated: set it by hand
+        Path("/etc/localtime").unlink(missing_ok=True)
+        Path("/etc/localtime").symlink_to(Path("/usr/share/zoneinfo") / tz)
+        Path("/etc/timezone").write_text(tz + "\n")
+    return None
+
+
+def add_login(user: str, pw_hash: str, passwd: str = "/etc/passwd") -> str | None:
+    """Create the person's login and switch SSH on, only while the Pi has no login."""
+    from photoframe.firstrun import RESERVED, USERNAME_RE, login_users
+
+    if login_users(passwd):
+        return "this Pi already has a login"
+    if not USERNAME_RE.match(user) or user in RESERVED or not pw_hash.startswith("$6$"):
+        return "that username or password can't be used"
+    groups = [g for g in ("sudo", "adm", "video", "render", "audio", "gpio", "i2c", "plugdev", "netdev",
+                          "systemd-journal") if _run(["getent", "group", g]).returncode == 0]
+    r = _run(["useradd", "--create-home", "--shell", "/bin/bash", "--groups", ",".join(groups),
+              "--password", pw_hash, user])
+    if r.returncode != 0:
+        return "couldn't create the login: " + (r.stderr or r.stdout).strip()[-200:]
+    # SSH: host keys are made on first boot; start it now and at every boot
+    _run(["systemctl", "enable", "--now", "ssh"])
+    return None
+
+
+def first_run(req: dict) -> int:
+    """The welcome wizard's system settings."""
+    problems = []
+    cc = str(req.get("country", ""))
+    if re.fullmatch(r"[A-Z]{2}", cc):
+        if (e := set_wifi_country(cc)):
+            problems.append(e)
+    tz = str(req.get("timezone", ""))
+    if tz:
+        if (e := set_timezone(tz)):
+            problems.append(e)
+    ssh = req.get("ssh")
+    if ssh:
+        if (e := add_login(str(ssh.get("username", "")), str(ssh.get("hash", "")))):
+            problems.append(e)
+    if problems:
+        _status("failed", "; ".join(problems).capitalize())
+        return 1
+    _status("done", "Set up")
     return 0
 
 

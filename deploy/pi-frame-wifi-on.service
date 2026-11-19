@@ -1,0 +1,15 @@
+[Unit]
+Description=Pi Frame: switch the Wi-Fi radio on for first-run setup
+# A new Raspberry Pi OS card keeps Wi-Fi switched off until it's told which
+# country it's in. The welcome wizard sets the country; until then the
+# frame's setup hotspot needs the radio on.
+ConditionPathExists=/var/lib/pi-photoframe/.first-run
+After=systemd-rfkill.service
+
+[Service]
+Type=oneshot
+# the Wi-Fi chip can appear a few seconds into boot: wait for it, briefly
+ExecStart=/bin/sh -c 'for i in $(seq 30); do for r in /sys/class/rfkill/rfkill*; do [ "$(cat "$r/type" 2>/dev/null)" = wlan ] && echo 0 > "$r/soft" && exit 0; done; sleep 0.5; done; true'
+
+[Install]
+WantedBy=multi-user.target

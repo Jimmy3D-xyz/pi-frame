@@ -1,0 +1,70 @@
+name: Image
+
+# The ready-made Pi Frame image (Raspberry Pi OS Lite + Pi Frame, booting into
+# first-run setup). Built when a version tag is pushed (v0.25.0 …), or by hand
+# from the Actions tab. Published as a GitHub release with the update package
+# and the installer kit.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish as a test release (pi-frame-test)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools (Arm emulation, image tools)
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update -q -o Acquire::Retries=5 &&
+            sudo apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends \
+              qemu-user-static binfmt-support xz-utils fdisk e2fsprogs zip &&
+            break
+            sleep 30
+          done
+          sudo update-binfmts --enable qemu-aarch64 || true
+          ls /proc/sys/fs/binfmt_misc/ | grep -i aarch64
+
+      - name: Build the image
+        run: sudo bash deploy/build-image.sh dist
+
+      - name: Build the update package and kit
+        run: bash kit/build-kit.sh dist
+
+      - name: Publish
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ver=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' photoframe/__init__.py)
+          if [ "${{ github.event_name }}" = push ]; then
+            tag="${GITHUB_REF_NAME}"; title="Pi Frame $ver"; flags=""
+          else
+            tag="pi-frame-test"; title="Pi Frame $ver (test build)"; flags="--prerelease"
+            gh release delete "$tag" --yes --cleanup-tag || true
+          fi
+          cat > notes.md <<EOF
+          **Ready-made image**: write \`pi-frame-$ver.img.xz\` to a microSD card with Raspberry Pi Imager
+          (Operating system → Use custom), put it in a Raspberry Pi 4, and switch it on with the monitor connected.
+          The frame starts a Wi-Fi hotspot and shows a QR code; scan it and the welcome wizard does the rest.
+          See [Installing](docs/installing.md).
+
+          - \`pi-photoframe.zip\`: the update package (Maintenance → Software update)
+          - \`pi-frame-kit.zip\`: the installer kit, for setting up a card you've written yourself
+
+          Built from $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%d).
+          EOF
+          sed -i 's/^          //' notes.md
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$title" --notes-file notes.md $flags \
+            dist/pi-frame-*.img.xz dist/pi-frame-*.img.xz.sha256 dist/pi-photoframe.zip dist/pi-frame-kit.zip

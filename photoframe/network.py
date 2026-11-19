@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 HOTSPOT_CON = "photoframe-setup"
 HOTSPOT_IP = "10.42.0.1"  # NetworkManager's default for shared (hotspot) mode
 BOOT_GRACE = 120  # seconds to wait for Wi-Fi after starting
+NO_SAVED_GRACE = 15  # ...when there's no saved Wi-Fi network to wait for (a new frame)
 MAX_CONNECTING = 300  # never cut off a connection attempt sooner than this
 DROPOUT_GRACE = 300  # how long a lost connection may last before setup mode
 RETRY_EVERY = 180  # in setup mode, retry saved networks this often...
@@ -250,6 +251,16 @@ class WifiManager:
                 return parts[1]
         return ""
 
+    def saved_wifi(self) -> list[str]:
+        """Wi-Fi networks NetworkManager knows (not counting the setup hotspot)."""
+        r = _nmcli("-t", "-f", "NAME,TYPE", "connection", "show")
+        out = []
+        for line in r.stdout.splitlines():
+            f = _split(line)
+            if len(f) >= 2 and f[1] == "802-11-wireless" and f[0] != HOTSPOT_CON:
+                out.append(f[0])
+        return out
+
     def _on_wifi(self, name: str) -> bool:
         return any(n == name and d == self.iface for n, _t, d in self.active())
 
@@ -364,10 +375,16 @@ class WifiManager:
         # Scan first: a Pi's single radio usually can't scan while it's an AP.
         networks = self.scan()
         password = self.status.hotspot_password or f"{random.randint(0, 99_999_999):08d}"
-        r = _nmcli(
-            "device", "wifi", "hotspot", "ifname", self.iface, "con-name", HOTSPOT_CON,
-            "ssid", self.hotspot_ssid, "password", password,
-        )
+        args = ("device", "wifi", "hotspot", "ifname", self.iface, "con-name", HOTSPOT_CON,
+                "ssid", self.hotspot_ssid, "password", password)
+        r = _nmcli(*args)
+        if r.returncode != 0:
+            # a new Pi keeps its Wi-Fi radio switched off until it's told the country
+            log.warning("setup hotspot didn't start (%s); switching the Wi-Fi radio on and trying again",
+                        r.stderr.strip())
+            _nmcli("radio", "wifi", "on")
+            time.sleep(3)
+            r = _nmcli(*args)
         if r.returncode != 0:
             log.error("could not start setup hotspot: %s", r.stderr.strip())
             self._set(mode="offline", message="Couldn't start the setup hotspot.")
@@ -443,6 +460,7 @@ class WifiManager:
         next_link_check = time.monotonic() + FIRST_LINK_CHECK
         last_rejoin = -1e9
         last_retry = time.monotonic()
+        no_saved: bool | None = None  # checked once, the first time Wi-Fi isn't up
         while not self._stop.is_set():
             mode = self.status.mode
             if mode == "connecting":
@@ -503,6 +521,12 @@ class WifiManager:
                         self._set(mode="offline", message="Wi-Fi connection lost")
                 booting = now - started < BOOT_GRACE + 5
                 limit = BOOT_GRACE if booting or mode == "unknown" else DROPOUT_GRACE
+                if mode == "unknown" and no_saved is None:
+                    no_saved = not self.saved_wifi()
+                    if no_saved:
+                        log.info("no saved Wi-Fi networks: starting the setup hotspot soon")
+                if mode == "unknown" and no_saved:
+                    limit = min(limit, NO_SAVED_GRACE)
                 waited = now - offline_since
                 state = self.device_state()
                 # Don't cut off a connection NetworkManager is still making
@@ -517,8 +541,8 @@ class WifiManager:
                 if not_trying >= 2:  # two checks in a row, so one odd nmcli answer can't trigger it
                     not_trying = 0
                     reason = (
-                        "The frame couldn't connect to Wi-Fi."
-                        if mode == "unknown"
+                        "Let's get your frame on Wi-Fi." if mode == "unknown" and no_saved
+                        else "The frame couldn't connect to Wi-Fi." if mode == "unknown"
                         else "The frame lost its Wi-Fi connection."
                     )
                     log.warning("no Wi-Fi after %.0fs (device %s); starting setup hotspot", waited, state or "unknown")

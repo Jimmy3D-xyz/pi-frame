@@ -5,6 +5,9 @@
 #   sudo ./deploy/install.sh --mode 1920x1200 also force the HDMI resolution (32-bit colour)
 #   sudo ./deploy/install.sh --update         pull latest code and restart
 #   sudo ./deploy/install.sh --no-boot-splash keep the normal boot text (undo: deploy/bootsplash.py remove)
+#   ./deploy/install.sh --image               (inside a Raspberry Pi OS image being built: see
+#                                             deploy/build-image.sh) nothing is started, and the
+#                                             image boots into the first-run setup
 set -euo pipefail
 
 APP_DIR=/opt/pi-photoframe
@@ -13,18 +16,26 @@ SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 MODE=""
 UPDATE=0
 BOOTSPLASH=1
+IMAGE=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --mode) MODE="$2"; shift 2 ;;
     --update) UPDATE=1; shift ;;
     --no-boot-splash) BOOTSPLASH=0; shift ;;
-    -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
+    --image) IMAGE=1; shift ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
 
 [ "$(id -u)" -eq 0 ] || { echo "Run with sudo." >&2; exit 1; }
+
+# Starting and restarting services: not inside an image being built (nothing runs there)
+live() { [ "$IMAGE" = 1 ] || "$@"; }
+enable_now() {
+  if [ "$IMAGE" = 1 ]; then systemctl enable "$@"; else systemctl enable --now "$@"; fi
+}
 
 if [ "$UPDATE" -eq 1 ]; then
   if [ -d "$APP_DIR/.git" ]; then git -C "$APP_DIR" pull --ff-only; fi
@@ -140,7 +151,8 @@ install -m 644 "$APP_DIR/deploy/wifi-powersave-off.conf" /etc/NetworkManager/con
 
 echo "==> Keeping the text console off the screen"
 # The login prompt on tty1 would otherwise draw over the photos.
-systemctl disable --now getty@tty1.service 2>/dev/null || true
+if [ "$IMAGE" = 1 ]; then systemctl disable getty@tty1.service 2>/dev/null || true
+else systemctl disable --now getty@tty1.service 2>/dev/null || true; fi
 
 CMDLINE=/boot/firmware/cmdline.txt
 [ -f "$CMDLINE" ] || CMDLINE=/boot/cmdline.txt
@@ -163,7 +175,7 @@ fi
 
 echo "==> Monitor control over HDMI (DDC/CI brightness and standby)"
 echo i2c-dev > /etc/modules-load.d/pi-frame.conf
-modprobe i2c-dev || true
+live modprobe i2c-dev || true
 
 echo "==> Installing the web updater (Maintenance tab → Software update)"
 install -m 755 "$APP_DIR/deploy/update.sh" /usr/local/sbin/pi-photoframe-update
@@ -188,7 +200,7 @@ Storage=persistent
 SystemMaxUse=48M
 JCONF
 systemd-tmpfiles --create --prefix /var/log/journal 2>/dev/null || true
-systemctl restart systemd-journald
+live systemctl restart systemd-journald
 
 if [ "$BOOTSPLASH" = 1 ] && [ -f /boot/firmware/cmdline.txt -o -f /boot/cmdline.txt ]; then
   echo "==> Boot screen: Pi Frame logo instead of the rainbow and boot text"
@@ -199,13 +211,35 @@ fi
 
 # the frame (tty group) keeps the console in graphics mode; restore the standard permissions now
 # (the boot step does this at every start too)
-if [ -c /dev/tty1 ]; then chown root:tty /dev/tty1 && chmod 620 /dev/tty1 || true; fi
+if [ "$IMAGE" != 1 ] && [ -c /dev/tty1 ]; then chown root:tty /dev/tty1 && chmod 620 /dev/tty1 || true; fi
 
-systemctl daemon-reload
+live systemctl daemon-reload
 systemctl enable pi-photoframe.service
-systemctl enable --now pi-photoframe-update.path
-systemctl enable --now pi-frame-system.path
+enable_now pi-photoframe-update.path
+enable_now pi-frame-system.path
 systemctl enable pi-frame-splash-refresh.service
+
+if [ "$IMAGE" = 1 ]; then
+  echo "==> Ready-made image: first-run setup"
+  # the name it answers to (piframe.local); Raspberry Pi Imager's settings can still change it
+  echo piframe > /etc/hostname
+  if grep -q '^127\.0\.1\.1' /etc/hosts; then sed -i 's/^127\.0\.1\.1.*/127.0.1.1\tpiframe/' /etc/hosts
+  else printf '127.0.1.1\tpiframe\n' >> /etc/hosts; fi
+  # no keyboard on a frame: don't ask for a username on the screen at first boot;
+  # the welcome wizard creates a login if one is wanted (SSH stays off until then)
+  systemctl mask userconfig.service 2>/dev/null || true
+  systemctl disable ssh.service 2>/dev/null || true
+  # a new Pi keeps Wi-Fi off until a country is set; the wizard sets it, but the
+  # setup hotspot needs the radio first
+  install -m 644 "$APP_DIR/deploy/pi-frame-wifi-on.service" /etc/systemd/system/pi-frame-wifi-on.service
+  systemctl enable pi-frame-wifi-on.service
+  # the web page opens the welcome wizard until it's done
+  touch "$DATA_DIR/.first-run"
+  chown photoframe:photoframe "$DATA_DIR/.first-run"
+  echo "Done: the image boots into Pi Frame's first-run setup."
+  exit 0
+fi
+
 systemctl restart avahi-daemon
 systemctl restart pi-photoframe.service
 

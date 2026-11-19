@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b2622">
+<title>Pi Frame · Welcome</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --mat: #e9ece8; --paper: #f7f8f6; --ink: #22302f; --ink-soft: #5c6a68;
+    --sage: #5b7f74; --sage-deep: #466459; --line: #c8d0cb; --warn: #a4473b;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--mat); color: var(--ink); font: 16px/1.5 var(--sans);
+         padding: 0 0 env(safe-area-inset-bottom); }
+  .brandbar { background: #2b2622; color: #f4f1ea; padding: calc(.75rem + env(safe-area-inset-top)) 1.25rem .75rem;
+              display: flex; align-items: center; gap: .8rem; }
+  .brandbar img { width: 38px; height: 38px; }
+  .wordmark { font-family: var(--serif); font-size: 1.4rem; font-weight: 600; line-height: 1; }
+  .wordmark .pi { color: #e8b04a; font-style: italic; }
+  main { max-width: 520px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-family: var(--serif); font-size: 1.7rem; line-height: 1.2; margin: 0 0 .4rem; }
+  p { margin: 0 0 1rem; }
+  .muted { color: var(--ink-soft); }
+  .stepno { font-size: .85rem; color: var(--ink-soft); letter-spacing: .02em; margin-bottom: .3rem; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem; margin-top: 1.25rem; }
+  .nets { display: grid; gap: .4rem; margin-bottom: 1rem; }
+  .net { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; border: 1px solid var(--line);
+         border-radius: 8px; background: #fff; cursor: pointer; min-height: 48px; }
+  .net:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .net input { accent-color: var(--sage); width: 1.1rem; height: 1.1rem; }
+  .net .name { flex: 1; word-break: break-word; }
+  .bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+  .bars i { width: 4px; background: var(--line); border-radius: 1px; }
+  .bars i.on { background: var(--sage); }
+  .lock { font-size: .8rem; color: var(--ink-soft); }
+  label.field { display: grid; gap: .3rem; margin-bottom: 1rem; }
+  label.field span { font-weight: 600; font-size: .95rem; }
+  label.field small { color: var(--ink-soft); font-size: .85rem; }
+  input[type=text], input[type=password], select { font: inherit; border: 1px solid var(--line); border-radius: 6px;
+         padding: .6rem .7rem; background: #fff; width: 100%; color: var(--ink); min-height: 44px; }
+  .check { display: flex; gap: .6rem; align-items: flex-start; margin-bottom: 1rem; cursor: pointer; }
+  .check input { accent-color: var(--sage); width: 1.15rem; height: 1.15rem; margin-top: .2rem; flex: none; }
+  .buttons { display: flex; gap: .6rem; margin-top: .4rem; }
+  .btn { font: inherit; border: 1px solid var(--sage); background: var(--sage); color: #fff; padding: .7rem 1.2rem;
+         border-radius: 999px; cursor: pointer; min-height: 48px; flex: 1; }
+  .btn:hover { background: var(--sage-deep); }
+  .btn.ghost { background: transparent; color: var(--sage-deep); flex: 0 0 auto; }
+  .btn[disabled] { opacity: .5; }
+  .link { background: none; border: 0; color: var(--sage-deep); text-decoration: underline; padding: 0; font: inherit; cursor: pointer; }
+  .error { color: var(--warn); }
+  .summary { margin: 0 0 1rem; padding: 0; list-style: none; }
+  .summary li { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-top: 1px solid var(--line); }
+  .summary li:first-child { border-top: 0; }
+  .summary b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  .done { font-family: var(--serif); font-size: 1.3rem; }
+  code { font-size: .95em; background: #fff; border: 1px solid var(--line); padding: .05rem .35rem; border-radius: 4px; }
+  a { color: var(--sage-deep); }
+  :focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header class="brandbar"><img src="/static/favicon.svg" alt=""><span class="wordmark"><span class="pi">Pi</span> Frame</span></header>
+<main>
+  <form id="wizard" novalidate>
+    <!-- 1. about the frame -->
+    <section data-step="about">
+      <p class="stepno"></p>
+      <h1>Welcome to your Pi Frame</h1>
+      <p class="muted">A few questions and it's ready. It takes about two minutes.</p>
+      <div class="card">
+        <label class="field"><span>Name</span><input type="text" id="name" maxlength="40" value="Pi Frame">
+          <small>Shown on the web page and in Home Assistant, e.g. “Living room”.</small></label>
+        <label class="field"><span>Country</span><select id="country"></select>
+          <small>Decides which Wi-Fi channels the frame may use.</small></label>
+        <label class="field"><span>Time zone</span><select id="timezone"></select>
+          <small>For the clock, the screen schedule and night-time brightness.</small></label>
+      </div>
+    </section>
+
+    <!-- 2. Wi-Fi -->
+    <section data-step="wifi" hidden>
+      <p class="stepno"></p>
+      <h1>Your Wi-Fi</h1>
+      <p class="muted">Pick your home network. The frame joins it when you finish.</p>
+      <div class="card">
+        <div class="nets" id="nets" role="radiogroup" aria-label="Wi-Fi networks"><p class="muted">Looking for networks…</p></div>
+        <div id="other" hidden>
+          <label class="field"><span>Network name</span><input type="text" id="ssid" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        </div>
+        <label class="field" id="wpw-row"><span>Password</span>
+          <input type="password" id="wpw" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="check" id="wshow-row"><input type="checkbox" id="wshow"> Show password</label>
+      </div>
+    </section>
+
+    <!-- 3. page password -->
+    <section data-step="password" hidden>
+      <p class="stepno"></p>
+      <h1>Protect this page</h1>
+      <p class="muted">Anyone on your Wi-Fi can open the frame's page. A password keeps them out, and it's needed
+        for backups and software updates.</p>
+      <div class="card">
+        <label class="field"><span>Page password</span>
+          <input type="password" id="pw" autocomplete="new-password" minlength="8"><small>At least 8 characters.</small></label>
+        <label class="field"><span>Type it again</span><input type="password" id="pw2" autocomplete="new-password"></label>
+        <label class="check"><input type="checkbox" id="pwshow"> Show passwords</label>
+        <button type="button" class="link" id="pw-skip">Skip for now</button>
+      </div>
+    </section>
+
+    <!-- 4. SSH login -->
+    <section data-step="ssh" hidden>
+      <p class="stepno"></p>
+      <h1>Logging in to the Pi</h1>
+      <p class="muted">Not needed to use the frame. An SSH login lets you (or someone helping you) work on the Pi
+        from a computer. Without one, SSH stays switched off.</p>
+      <div class="card">
+        <label class="check"><input type="checkbox" id="ssh-on"> Create an SSH login</label>
+        <div id="ssh-fields" hidden>
+          <label class="field"><span>Username</span><input type="text" id="ssh-user" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="32"
+            placeholder="e.g. alex"><small>Lower-case letters and numbers, starting with a letter.</small></label>
+          <label class="field"><span>Password</span><input type="password" id="ssh-pw" autocomplete="new-password"><small>At least 8 characters. Keep it somewhere safe: it can't be shown again.</small></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. check and finish -->
+    <section data-step="review" hidden>
+      <p class="stepno"></p>
+      <h1>Ready?</h1>
+      <div class="card">
+        <ul class="summary" id="summary"></ul>
+        <p class="muted" id="review-note"></p>
+      </div>
+    </section>
+
+    <p class="error" id="error" role="alert" hidden></p>
+    <div class="buttons" id="nav">
+      <button type="button" class="btn ghost" id="back" hidden>Back</button>
+      <button type="submit" class="btn" id="next">Next</button>
+    </div>
+  </form>
+
+  <section id="finished" hidden>
+    <h1 id="fin-title">All set</h1>
+    <div class="card" id="fin-body"></div>
+  </section>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let info = {}, steps = [], at = 0, skipPassword = false;
+
+// ---------- countries and time zones, guessed from the phone
+const CODES = "AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" ");
+function fillCountries() {
+  let names;
+  try { names = new Intl.DisplayNames([navigator.language || "en"], { type: "region" }); } catch { names = null; }
+  const list = CODES.map(c => [c, names ? (names.of(c) || c) : c]).sort((a, b) => a[1].localeCompare(b[1]));
+  const guess = (navigator.languages || [navigator.language]).map(l => (l || "").split("-")[1]).find(r => r && CODES.includes(r.toUpperCase()));
+  $("#country").innerHTML = `<option value="">Choose…</option>` + list.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join("");
+  if (guess) $("#country").value = guess.toUpperCase();
+}
+function fillZones() {
+  let zones = [];
+  try { zones = Intl.supportedValuesOf("timeZone"); } catch {}
+  const here = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ""; } })();
+  if (here && !zones.includes(here)) zones.push(here);
+  if (!zones.length) zones = ["UTC"];
+  zones.sort();
+  $("#timezone").innerHTML = zones.map(z => `<option value="${esc(z)}">${esc(z.replace(/_/g, " "))}</option>`).join("");
+  $("#timezone").value = here || "UTC";
+}
+
+// ---------- Wi-Fi list
+function bars(signal) {
+  const n = signal > 75 ? 4 : signal > 50 ? 3 : signal > 25 ? 2 : 1;
+  return `<span class="bars" aria-label="Signal ${signal}%">${[6, 9, 12, 14].map((h, i) =>
+    `<i style="height:${h}px" class="${i < n ? "on" : ""}"></i>`).join("")}</span>`;
+}
+async function loadNetworks() {
+  let nets = [];
+  try { const r = await fetch("/api/wifi/networks"); if (r.ok) nets = await r.json(); } catch {}
+  const box = $("#nets");
+  box.innerHTML = nets.map((n, i) => `
+    <label class="net"><input type="radio" name="net" value="${esc(n.ssid)}" data-secure="${n.secure}" ${i === 0 ? "checked" : ""}>
+      <span class="name">${esc(n.ssid)}</span>${n.secure ? '<span class="lock">secured</span>' : ""}${bars(n.signal)}</label>`).join("")
+    + `<label class="net"><input type="radio" name="net" value="__other" ${nets.length ? "" : "checked"}>
+         <span class="name">Other or hidden network…</span></label>`;
+  box.querySelectorAll("input").forEach(i => i.onchange = syncNet);
+  syncNet();
+}
+function syncNet() {
+  const sel = document.querySelector('input[name="net"]:checked');
+  const other = sel && sel.value === "__other";
+  $("#other").hidden = !other;
+  const secure = other || (sel && sel.dataset.secure === "true");
+  $("#wpw-row").hidden = $("#wshow-row").hidden = !secure;
+}
+function chosenWifi() {
+  const sel = document.querySelector('input[name="net"]:checked');
+  const other = !sel || sel.value === "__other";
+  return { ssid: other ? $("#ssid").value.trim() : sel.value,
+           password: $("#wpw-row").hidden ? "" : $("#wpw").value, hidden: other };
+}
+$("#wshow").onchange = (e) => $("#wpw").type = e.target.checked ? "text" : "password";
+$("#pwshow").onchange = (e) => { $("#pw").type = $("#pw2").type = e.target.checked ? "text" : "password"; };
+$("#ssh-on").onchange = (e) => { $("#ssh-fields").hidden = !e.target.checked; };
+
+// ---------- steps
+function show(i) {
+  at = i;
+  document.querySelectorAll("[data-step]").forEach(s => s.hidden = s.dataset.step !== steps[i]);
+  const cur = document.querySelector(`[data-step="${steps[i]}"]`);
+  cur.querySelector(".stepno").textContent = `Step ${i + 1} of ${steps.length}`;
+  $("#back").hidden = i === 0;
+  $("#next").textContent = steps[i] === "review" ? "Finish setup" : "Next";
+  $("#error").hidden = true;
+  if (steps[i] === "review") review();
+  window.scrollTo(0, 0);
+  const first = cur.querySelector("input:not([type=checkbox]):not([type=radio]), select");
+  if (first && i > 0) first.focus({ preventScroll: true });
+}
+function fail(msg) { $("#error").textContent = msg; $("#error").hidden = false; return false; }
+function valid(step) {
+  if (step === "about") {
+    if (!$("#name").value.trim()) return fail("Give the frame a name.");
+    if (!$("#country").value) return fail("Choose the country the frame is in.");
+  }
+  if (step === "wifi") {
+    const w = chosenWifi();
+    if (!w.ssid) return fail("Enter the network name.");
+    if (!$("#wpw-row").hidden && w.password.length < 8) return fail("Wi-Fi passwords are at least 8 characters.");
+  }
+  if (step === "password" && !skipPassword) {
+    if ($("#pw").value.length < 8) return fail("Use at least 8 characters, or choose “Skip for now”.");
+    if ($("#pw").value !== $("#pw2").value) return fail("The two passwords don't match.");
+  }
+  if (step === "ssh" && $("#ssh-on").checked) {
+    if (!/^[a-z][a-z0-9_-]{0,31}$/.test($("#ssh-user").value.trim())) return fail("Use lower-case letters and numbers for the username, starting with a letter.");
+    if ($("#ssh-pw").value.length < 8) return fail("The SSH password needs at least 8 characters.");
+  }
+  return true;
+}
+$("#pw-skip").onclick = () => { skipPassword = true; $("#pw").value = $("#pw2").value = ""; show(at + 1); };
+$("#pw").oninput = () => { skipPassword = false; };
+$("#back").onclick = () => show(at - 1);
+
+function answers() {
+  const a = { name: $("#name").value.trim(), country: $("#country").value, timezone: $("#timezone").value,
+              password: skipPassword ? "" : $("#pw").value };
+  if (steps.includes("wifi")) a.wifi = chosenWifi();
+  if (steps.includes("ssh") && $("#ssh-on").checked) a.ssh = { username: $("#ssh-user").value.trim(), password: $("#ssh-pw").value };
+  return a;
+}
+function review() {
+  const a = answers();
+  const country = $("#country").selectedOptions[0]?.textContent || a.country;
+  const rows = [["Name", a.name], ["Country", country], ["Time zone", a.timezone.replace(/_/g, " ")]];
+  if (a.wifi) rows.push(["Wi-Fi", a.wifi.ssid]);
+  else if (info.ssid) rows.push(["Wi-Fi", `${info.ssid} (connected)`]);
+  rows.push(["Page password", a.password ? "Set" : "None"]);
+  if (steps.includes("ssh")) rows.push(["SSH login", a.ssh ? a.ssh.username : "None (SSH off)"]);
+  $("#summary").innerHTML = rows.map(([k, v]) => `<li><span>${esc(k)}</span><b>${esc(v)}</b></li>`).join("");
+  $("#review-note").textContent = a.wifi
+    ? `When you finish, the frame joins ${a.wifi.ssid} and your phone drops off the frame's own Wi-Fi.`
+    : "When you finish, the frame starts showing photos (once you've added some).";
+}
+
+$("#wizard").onsubmit = async (e) => {
+  e.preventDefault();
+  if (!valid(steps[at])) return;
+  if (steps[at] !== "review") return show(at + 1);
+  const a = answers();
+  $("#next").disabled = $("#back").disabled = true;
+  $("#next").textContent = "Setting up…";
+  try {
+    const r = await fetch("/api/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(a) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.message || `Something went wrong (${r.status})`);
+    finished(a, body);
+  } catch (ex) {
+    fail(ex.message);
+    $("#next").disabled = $("#back").disabled = false;
+    $("#next").textContent = "Finish setup";
+  }
+};
+
+function finished(a, body) {
+  $("#wizard").hidden = true;
+  $("#finished").hidden = false;
+  const url = info.url || "http://piframe.local/";
+  const signIn = a.password ? `<p>It asks for the page password you just chose (the username can be anything).</p>` : "";
+  const ssh = a.ssh ? `<p>To log in from a computer: <code>ssh ${esc(a.ssh.username)}@${esc(info.hostname || "piframe")}.local</code></p>` : "";
+  if (body.joining) {
+    $("#fin-title").textContent = `Joining ${body.joining}…`;
+    $("#fin-body").innerHTML = `
+      <p>Your phone will drop off the frame's Wi-Fi now. Watch the frame's screen:</p>
+      <p><b>If it connects</b>, it shows a QR code. Switch your phone back to <b>${esc(body.joining)}</b>, then scan
+        the code, or open <a href="${esc(url)}">${esc(url)}</a>.</p>${signIn}
+      <p><b>If it can't connect</b> (a mistyped Wi-Fi password, say), its setup screen comes back. Join the frame's
+        Wi-Fi again and choose the network once more. Everything else is already saved.</p>${ssh}`;
+  } else {
+    $("#fin-title").textContent = "All set";
+    $("#fin-body").innerHTML = `<p class="done">Your frame is ready.</p>
+      <p>Next, add some photos: <a href="/">open the frame's page</a>.</p>${signIn}${ssh}
+      <p class="muted">Moving from another frame? Restore its backup under Maintenance → Backups.</p>`;
+  }
+}
+
+async function start() {
+  fillCountries();
+  fillZones();
+  try { info = await (await fetch("/api/setup")).json(); } catch {}
+  if (info.first_run === false) { location.replace("/"); return; }
+  if (info.name) $("#name").value = info.name;
+  const onHotspot = info.wifi_mode === "setup" || info.wifi_mode === "connecting";
+  const online = info.wifi_mode === "online";
+  steps = ["about"];
+  if (onHotspot || (!online && info.wifi_mode !== "disabled")) { steps.push("wifi"); loadNetworks(); }
+  steps.push("password");
+  if (!info.has_login) steps.push("ssh");
+  steps.push("review");
+  show(0);
+}
+start();
+</script>
+</body>
+</html>

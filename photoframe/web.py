@@ -29,6 +29,7 @@ from .uploads import UploadError, Uploads
 from .updater import UpdateError, Updates
 from .cloud import CloudError, OneDrive
 from .backup import BackupError, Backups, backup_name
+from . import firstrun
 from .video import is_video
 
 log = logging.getLogger(__name__)
@@ -71,9 +72,13 @@ def create_app(frame: Frame) -> Flask:
     def in_setup_mode() -> bool:
         return frame.wifi is not None and frame.wifi.status.mode in ("setup", "connecting")
 
+    def first_run() -> bool:
+        return firstrun.is_first_run(frame.data_dir)
+
     def is_setup_path() -> bool:
         return (request.path in ("/setup", "/favicon.ico") or request.path.startswith("/api/wifi/")
-                or request.path.startswith("/static/"))
+                or request.path.startswith("/static/")
+                or (first_run() and request.path.startswith("/api/setup")))
 
     # ---------- captive portal while the setup hotspot is up ----------
     @app.before_request
@@ -108,6 +113,8 @@ def create_app(frame: Frame) -> Flask:
     # ---------- UI ----------
     @app.get("/")
     def index():
+        if first_run():
+            return send_file(STATIC / "welcome.html")
         return send_file(STATIC / "index.html")
 
     @app.get("/static/<path:name>")
@@ -128,7 +135,49 @@ def create_app(frame: Frame) -> Flask:
 
     @app.get("/setup")
     def setup_page():
-        return send_file(STATIC / "setup.html")
+        return send_file(STATIC / ("welcome.html" if first_run() else "setup.html"))
+
+    # ---------- first run: the welcome wizard ----------
+    @app.get("/api/setup")
+    def setup_status():
+        st = frame.wifi.status if frame.wifi is not None else None
+        return jsonify({
+            "first_run": first_run(), "hostname": socket.gethostname(),
+            "url": f"http://{socket.gethostname()}.local/",
+            "name": cfg.get("device_name"), "has_login": bool(firstrun.login_users()),
+            "wifi_mode": st.mode if st else "disabled", "ssid": st.ssid if st else "",
+            "password_set": bool(cfg.get("http_password")),
+        })
+
+    @app.post("/api/setup")
+    def setup_finish():
+        if not first_run():
+            return _err("This frame is already set up.", 409)
+        try:
+            a = firstrun.check(request.get_json(silent=True) or {})
+            req = {"action": "first_run", "country": a["country"], "timezone": a["timezone"]}
+            if a.get("ssh"):
+                req["ssh"] = {"username": a["ssh"]["username"], "hash": firstrun.hash_password(a["ssh"]["password"])}
+        except firstrun.SetupError as e:
+            return _err(str(e))
+        if a.get("wifi") and frame.wifi is None:
+            return _err("Wi-Fi setup isn't available on this device")
+        helper = Path("/etc/systemd/system/pi-frame-system.path").exists() or app.config.get("SETUP_HELPER")
+        if helper:
+            res = (app.config.get("SETUP_HELPER") or firstrun.ask_helper)(frame.data_dir, req)
+            if res.get("state") != "done":
+                return _err(res.get("message") or "Couldn't apply the settings")
+        # the frame's own settings last: the page password takes effect with them
+        cfg.update({"device_name": a["name"], "timezone": a["timezone"], "http_password": a["password"]})
+        firstrun.finish(frame.data_dir)
+        log.info("first-run setup done: %s, %s, %s%s", a["name"], a["country"], a["timezone"],
+                 f", SSH login {a['ssh']['username']}" if a.get("ssh") else "")
+        if a.get("wifi"):
+            w = a["wifi"]
+            frame.wifi.connect(w["ssid"], w["password"], w["hidden"])
+            return _ok(f"Joining {w['ssid']}", joining=w["ssid"])
+        frame.refresh_overlay()
+        return _ok("All set")
 
     # ---------- Wi-Fi ----------
     @app.get("/api/wifi/status")
