@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.11: Raspberry Pi OS Bookworm. 3.13: Raspberry Pi OS Trixie.
-        python: ["3.11", "3.13"]
+        # Raspberry Pi OS Trixie's Python (what new cards get, and what the frame runs)
+        python: ["3.13"]
     steps:
       - uses: actions/checkout@v5
 

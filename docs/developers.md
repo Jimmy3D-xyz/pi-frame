@@ -168,6 +168,6 @@ check `docker build` succeeds first.
 3. `kit/build-kit.sh` makes `dist/pi-photoframe.zip` (for web updates) and
    `dist/pi-frame-kit.zip` (for new cards).
 
-Every push to GitHub runs the tests automatically (on Python 3.11 and 3.13,
-matching Raspberry Pi OS Bookworm and Trixie), then builds both zips. They're
+Every push to GitHub runs the tests automatically (on Python 3.13, as in
+Raspberry Pi OS Trixie), then builds both zips. They're
 on the run's page under the Actions tab, kept for 30 days.
