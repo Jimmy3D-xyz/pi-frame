@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b2622">
+<title>Pi Frame · Wi-Fi</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --mat: #e9ece8; --paper: #f7f8f6; --ink: #22302f; --ink-soft: #5c6a68;
+    --sage: #5b7f74; --sage-deep: #466459; --line: #c8d0cb; --warn: #a4473b;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--mat); color: var(--ink); font: 16px/1.5 var(--sans);
+         padding: 0 0 env(safe-area-inset-bottom); }
+  .brandbar { background: #2b2622; color: #f4f1ea; padding: calc(.75rem + env(safe-area-inset-top)) 1.25rem .75rem;
+              display: flex; align-items: center; gap: .8rem; }
+  .brandbar img { width: 38px; height: 38px; }
+  .wordmark { font-family: var(--serif); font-size: 1.4rem; font-weight: 600; line-height: 1; }
+  .wordmark .pi { color: #e8b04a; font-style: italic; }
+  main { max-width: 520px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { font-family: var(--serif); font-size: 1.7rem; line-height: 1.2; margin: 0 0 .4rem; }
+  p { margin: 0 0 1rem; }
+  .muted { color: var(--ink-soft); }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem; margin-top: 1.25rem; }
+  .nets { display: grid; gap: .4rem; margin-bottom: 1rem; }
+  .net { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; border: 1px solid var(--line);
+         border-radius: 8px; background: #fff; cursor: pointer; min-height: 48px; }
+  .net:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .net input { accent-color: var(--sage); width: 1.1rem; height: 1.1rem; }
+  .net .name { flex: 1; word-break: break-word; }
+  .bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+  .bars i { width: 4px; background: var(--line); border-radius: 1px; }
+  .bars i.on { background: var(--sage); }
+  .lock { font-size: .8rem; color: var(--ink-soft); }
+  label.field { display: grid; gap: .3rem; margin-bottom: 1rem; }
+  label.field span { font-weight: 600; font-size: .95rem; }
+  input[type=text], input[type=password] { font: inherit; border: 1px solid var(--line); border-radius: 6px;
+         padding: .6rem .7rem; background: #fff; width: 100%; }
+  .row { display: flex; gap: .5rem; align-items: center; }
+  .btn { font: inherit; border: 1px solid var(--sage); background: var(--sage); color: #fff; padding: .7rem 1.2rem;
+         border-radius: 999px; cursor: pointer; min-height: 48px; width: 100%; }
+  .btn:hover { background: var(--sage-deep); }
+  .btn[disabled] { opacity: .5; }
+  .link { background: none; border: 0; color: var(--sage-deep); text-decoration: underline; padding: 0; font: inherit; cursor: pointer; }
+  .error { color: var(--warn); }
+  .done { font-family: var(--serif); font-size: 1.25rem; }
+  code { font-size: .95em; background: #fff; border: 1px solid var(--line); padding: .05rem .35rem; border-radius: 4px; }
+  :focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<header class="brandbar"><img src="/static/favicon.svg" alt=""><span class="wordmark"><span class="pi">Pi</span> Frame</span></header>
+<main>
+  <h1>Connect the frame to Wi-Fi</h1>
+  <p class="muted" id="intro">Pick your home network and enter its password.</p>
+
+  <form class="card" id="form">
+    <div class="nets" id="nets" role="radiogroup" aria-label="Wi-Fi networks">
+      <p class="muted">Looking for networks…</p>
+    </div>
+    <div id="other" hidden>
+      <label class="field"><span>Network name</span><input type="text" id="ssid" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+    </div>
+    <label class="field"><span>Password</span>
+      <input type="password" id="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </label>
+    <p class="row" style="margin-top:-.4rem"><label class="row"><input type="checkbox" id="show"> Show password</label></p>
+    <p class="error" id="error" hidden></p>
+    <button class="btn" id="go">Connect</button>
+  </form>
+
+  <div class="card" id="after" hidden>
+    <p class="done" id="after-title"></p>
+    <p>Your phone will disconnect from the frame's Wi-Fi now. Watch the frame's screen:</p>
+    <p>If it connects, your photos come back. Switch your phone back to your home Wi-Fi, then open <code id="frame-url">the frame</code> to manage it.</p>
+    <p>If it can't connect, the setup screen comes back so you can try again.</p>
+  </div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let status = {};
+
+function bars(signal) {
+  const n = signal > 75 ? 4 : signal > 50 ? 3 : signal > 25 ? 2 : 1;
+  return `<span class="bars" aria-label="Signal ${signal}%">${[6, 9, 12, 14].map((h, i) =>
+    `<i style="height:${h}px" class="${i < n ? "on" : ""}"></i>`).join("")}</span>`;
+}
+
+async function load() {
+  try { status = await (await fetch("/api/wifi/status")).json(); } catch {}
+  if (status.url) $("#frame-url").textContent = status.url;
+  if (status.mode === "online") {
+    $("#intro").textContent = `The frame is connected to ${status.ssid}. Choosing another network disconnects it; if that fails, the frame starts its setup hotspot.`;
+  }
+  let nets = [];
+  try {
+    const r = await fetch("/api/wifi/networks");
+    if (r.ok) nets = await r.json();
+  } catch {}
+  const box = $("#nets");
+  box.innerHTML = nets.map((n, i) => `
+    <label class="net"><input type="radio" name="net" value="${esc(n.ssid)}" data-secure="${n.secure}" ${i === 0 ? "checked" : ""}>
+      <span class="name">${esc(n.ssid)}</span>${n.secure ? '<span class="lock">secured</span>' : ""}${bars(n.signal)}</label>`).join("")
+    + `<label class="net"><input type="radio" name="net" value="__other" ${nets.length ? "" : "checked"}>
+         <span class="name">Other or hidden network…</span></label>`;
+  box.querySelectorAll("input").forEach(i => i.onchange = sync);
+  sync();
+}
+function sync() {
+  const sel = document.querySelector('input[name="net"]:checked');
+  const other = sel && sel.value === "__other";
+  $("#other").hidden = !other;
+  const secure = other || (sel && sel.dataset.secure === "true");
+  $("#password").closest("label").hidden = !secure;
+  $("#show").closest("p").hidden = !secure;
+}
+$("#show").onchange = (e) => $("#password").type = e.target.checked ? "text" : "password";
+
+$("#form").onsubmit = async (e) => {
+  e.preventDefault();
+  const sel = document.querySelector('input[name="net"]:checked');
+  const other = !sel || sel.value === "__other";
+  const ssid = other ? $("#ssid").value.trim() : sel.value;
+  const password = $("#password").closest("label").hidden ? "" : $("#password").value;
+  const err = $("#error");
+  if (!ssid) { err.textContent = "Enter the network name."; err.hidden = false; return; }
+  if (password && password.length < 8) { err.textContent = "Wi-Fi passwords are at least 8 characters."; err.hidden = false; return; }
+  $("#go").disabled = true; err.hidden = true;
+  try {
+    const r = await fetch("/api/wifi/connect", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ssid, password, hidden: other }) });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.message || "Something went wrong");
+    $("#form").hidden = true; $("#after").hidden = false;
+    $("#after-title").textContent = `Connecting to ${ssid}…`;
+  } catch (ex) {
+    err.textContent = ex.message; err.hidden = false; $("#go").disabled = false;
+  }
+};
+load();
+</script>
+</body>
+</html>

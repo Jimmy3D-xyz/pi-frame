@@ -1,0 +1,38 @@
+[Unit]
+Description=Pi Frame photo frame (pi-photoframe, esp32-photoframe compatible)
+After=network-online.target avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=photoframe
+Group=photoframe
+SupplementaryGroups=video render audio systemd-journal gpio tty i2c
+WorkingDirectory=/opt/pi-photoframe
+Environment=PYTHONUNBUFFERED=1
+Environment=PHOTOFRAME_DATA=/var/lib/pi-photoframe
+Environment=PHOTOFRAME_DISPLAY=fb
+Environment=PHOTOFRAME_PORT=80
+# Optional: extra commands to switch the monitor off/on, for screens that
+# ignore HDMI blanking. Example for HDMI-CEC capable screens:
+#Environment="PHOTOFRAME_SCREEN_OFF_CMD=cec-ctl -d /dev/cec0 --to 0 --standby"
+#Environment="PHOTOFRAME_SCREEN_ON_CMD=cec-ctl -d /dev/cec0 --to 0 --image-view-on"
+# Video sound: pick an ALSA device if the default doesn't reach the screen
+# (list them with: aplay -L). Example for the Pi 4's first HDMI port:
+#Environment=PHOTOFRAME_AUDIO_DEVICE=alsa/hdmi:CARD=vc4hdmi0,DEV=0
+ExecStart=/usr/bin/python3 -m photoframe
+# NET_BIND_SERVICE: listen on port 80. NET_RAW: ping the router for the Wi-Fi
+# link check (it falls back to a plain TCP probe if this is unavailable).
+# SYS_TTY_CONFIG: put the screen's console in graphics mode, so kernel
+# messages can't draw over the photos.
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_TTY_CONFIG
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SYS_TTY_CONFIG
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/pi-photoframe
+PrivateTmp=yes
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

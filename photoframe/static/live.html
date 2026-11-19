@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Pi Frame · Live</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8e4da; cursor: default; }
+  .stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  .stage img { position: absolute; max-width: 100%; max-height: 100%; width: auto; height: auto;
+               object-fit: contain; opacity: 0; transition: opacity 1s ease; }
+  .stage img.on { opacity: 1; }
+  .msg { position: fixed; inset: auto 0 45% 0; text-align: center; color: #8a857b; font-size: 1.05rem; }
+  .bar { position: fixed; left: 0; right: 0; top: 0; display: flex; gap: .6rem; align-items: center;
+         padding: calc(.7rem + env(safe-area-inset-top)) 1rem .7rem; background: linear-gradient(rgba(0,0,0,.65), transparent);
+         transition: opacity .4s; }
+  .bar.hide { opacity: 0; pointer-events: none; }
+  body.idle { cursor: none; }
+  .bar img { width: 28px; height: 28px; }
+  .bar .name { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-weight: 600; font-size: 1.1rem; }
+  .bar .name i { color: #e8b04a; }
+  .bar .sp { flex: 1; }
+  .bar a, .bar button { color: #e8e4da; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+                        border-radius: 999px; padding: .35rem .85rem; font: inherit; text-decoration: none; cursor: pointer; }
+  .badge { position: fixed; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); background: rgba(0,0,0,.6);
+           border-radius: 999px; padding: .3rem .8rem; font-size: .85rem; display: none; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"><img id="a" alt=""><img id="b" alt=""></div>
+<div class="msg" id="msg">Connecting to the frame…</div>
+<div class="bar" id="bar">
+  <img src="/static/favicon.svg" alt=""><span class="name"><i>Pi</i> Frame · Live</span><span class="sp"></span>
+  <button type="button" id="fs">Full screen</button>
+  <a href="/">Settings</a>
+</div>
+<div class="badge" id="badge"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+let shown = null, front = $("#a"), back = $("#b"), timer = null;
+
+async function tick() {
+  let st;
+  try {
+    const r = await fetch("/api/status", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    st = await r.json();
+  } catch (e) {
+    $("#msg").textContent = "Can't reach the frame. Retrying…";
+    $("#msg").hidden = false;
+    timer = setTimeout(tick, 5000);
+    return;
+  }
+  const off = !st.screen_on;
+  $("#msg").hidden = !off && shown !== null;
+  if (off) {
+    $("#msg").textContent = "The frame's screen is off";
+    front.classList.remove("on");
+    shown = null;
+  } else if (st.thumb_version !== shown) {
+    const want = st.thumb_version;
+    back.onload = () => {
+      if (want !== st.thumb_version) return;
+      back.classList.add("on");
+      front.classList.remove("on");
+      [front, back] = [back, front];
+      shown = want;
+      $("#msg").hidden = true;
+    };
+    back.onerror = () => { $("#msg").textContent = "Nothing on the frame's screen yet"; $("#msg").hidden = false; };
+    back.src = `/api/current_image?size=large&v=${want}`;
+  }
+  const v = st.playing;
+  $("#badge").style.display = v ? "block" : "none";
+  if (v) $("#badge").textContent = "▶ A video is playing on the frame";
+  timer = setTimeout(tick, 2000);
+}
+
+// controls fade away when idle; any movement or tap brings them back
+let idle;
+function wake() {
+  $("#bar").classList.remove("hide"); document.body.classList.remove("idle");
+  clearTimeout(idle);
+  idle = setTimeout(() => { $("#bar").classList.add("hide"); document.body.classList.add("idle"); }, 3000);
+}
+["mousemove", "touchstart", "keydown", "click"].forEach(ev => document.addEventListener(ev, wake, { passive: true }));
+wake();
+
+$("#fs").onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || (() => {})).call(document.documentElement);
+};
+document.addEventListener("fullscreenchange", () => { $("#fs").textContent = document.fullscreenElement ? "Exit full screen" : "Full screen"; });
+
+// keep a tablet or phone from going to sleep while it's showing the frame
+let lock = null;
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && document.visibilityState === "visible") lock = await navigator.wakeLock.request("screen"); } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { keepAwake(); clearTimeout(timer); tick(); } });
+keepAwake();
+tick();
+</script>
+</body>
+</html>

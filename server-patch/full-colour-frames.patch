@@ -1,0 +1,152 @@
+diff --git a/backend/internal/handler/fullcolor.go b/backend/internal/handler/fullcolor.go
+new file mode 100644
+index 0000000..5045217
+--- /dev/null
++++ b/backend/internal/handler/fullcolor.go
+@@ -0,0 +1,113 @@
++package handler
++
++import (
++	"bytes"
++	"fmt"
++	"image"
++	"image/jpeg"
++	"log"
++	"net/http"
++	"os"
++	"path/filepath"
++	"strings"
++	"time"
++
++	"github.com/aitjcize/esp32-photoframe-server/backend/internal/model"
++	"github.com/labstack/echo/v4"
++	xdraw "golang.org/x/image/draw"
++)
++
++// Full-colour frames (LCD/HDMI screens such as pi-photoframe) report
++// display_type "rgb" in /api/system-info and send "X-Display-Type: rgb" on
++// every fetch. They need none of the e-paper tone mapping or palette
++// dithering, so they get a plain JPEG, upright in its logical orientation,
++// sized to at least cover the screen. The frame does its own fit/cover
++// scaling and rotation.
++func wantsFullColor(c echo.Context, device *model.Device, deviceFound bool) bool {
++	if strings.EqualFold(c.Request().Header.Get("X-Display-Type"), "rgb") {
++		return true
++	}
++	return deviceFound && device.IsFullColor()
++}
++
++func (h *ImageHandler) serveFullColor(c echo.Context, device *model.Device, deviceFound bool,
++	img image.Image, logicalW, logicalH int) error {
++	// Keep the display type in step for the dashboard, like width/height.
++	if deviceFound && device.DisplayType != "rgb" {
++		h.db.Model(device).Update("display_type", "rgb")
++	}
++
++	out := scaleToCover(img, logicalW, logicalH)
++
++	var buf bytes.Buffer
++	if err := jpeg.Encode(&buf, out, &jpeg.Options{Quality: 90}); err != nil {
++		return respondError(c, http.StatusInternalServerError, "jpeg encode: "+err.Error())
++	}
++
++	// Thumbnail, served the same way as the e-paper path's.
++	thumb := scaleToFit(out, 400, 400)
++	var tbuf bytes.Buffer
++	if err := jpeg.Encode(&tbuf, thumb, &jpeg.Options{Quality: 80}); err == nil {
++		thumbID := fmt.Sprintf("%d", time.Now().UnixNano())
++		thumbPath := filepath.Join(h.dataDir, fmt.Sprintf("thumb_%s.jpg", thumbID))
++		if err := os.WriteFile(thumbPath, tbuf.Bytes(), 0644); err == nil {
++			c.Response().Header().Set("X-Thumbnail-URL",
++				fmt.Sprintf("%s/served-image-thumbnail/%s", h.deviceBaseURL(c), thumbID))
++		} else {
++			log.Printf("Failed to save served thumbnail: %v", err)
++		}
++	}
++
++	h.applyConfigSync(c, device, deviceFound)
++
++	body := buf.Bytes()
++	c.Response().Header().Set("X-Image-Layout", "logical")
++	c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
++	return c.Blob(http.StatusOK, "image/jpeg", body)
++}
++
++// scaleToCover downscales (never upscales) so the image still covers w x h.
++func scaleToCover(src image.Image, w, h int) image.Image {
++	b := src.Bounds()
++	sw, sh := b.Dx(), b.Dy()
++	if sw == 0 || sh == 0 || w <= 0 || h <= 0 {
++		return src
++	}
++	scale := float64(w) / float64(sw)
++	if s := float64(h) / float64(sh); s > scale {
++		scale = s
++	}
++	if scale >= 1 {
++		return src
++	}
++	return resize(src, int(float64(sw)*scale+0.5), int(float64(sh)*scale+0.5))
++}
++
++// scaleToFit downscales so the image fits inside w x h.
++func scaleToFit(src image.Image, w, h int) image.Image {
++	b := src.Bounds()
++	sw, sh := b.Dx(), b.Dy()
++	if sw == 0 || sh == 0 {
++		return src
++	}
++	scale := float64(w) / float64(sw)
++	if s := float64(h) / float64(sh); s < scale {
++		scale = s
++	}
++	if scale >= 1 {
++		return src
++	}
++	return resize(src, int(float64(sw)*scale+0.5), int(float64(sh)*scale+0.5))
++}
++
++func resize(src image.Image, w, h int) image.Image {
++	if w < 1 {
++		w = 1
++	}
++	if h < 1 {
++		h = 1
++	}
++	dst := image.NewRGBA(image.Rect(0, 0, w, h))
++	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), xdraw.Src, nil)
++	return dst
++}
+diff --git a/backend/internal/handler/image.go b/backend/internal/handler/image.go
+index dfd52d3..bb4f438 100644
+--- a/backend/internal/handler/image.go
++++ b/backend/internal/handler/image.go
+@@ -442,6 +442,11 @@ func (h *ImageHandler) ServeImage(c echo.Context) error {
+ 		imgWithOverlay = img
+ 	}
+ 
++	// 2.5 Full-colour (LCD) frames skip the e-paper pipeline entirely.
++	if wantsFullColor(c, &device, deviceFound) {
++		return h.serveFullColor(c, &device, deviceFound, imgWithOverlay, logicalW, logicalH)
++	}
++
+ 	// 3. Tone Mapping + Thumbnail (CLI)
+ 	// Always pass native panel dimensions. The CLI handles orientation
+ 	// internally (swaps dims, processes, rotates output to native layout).
+diff --git a/backend/internal/model/model.go b/backend/internal/model/model.go
+index d3dfddc..ffe2b73 100644
+--- a/backend/internal/model/model.go
++++ b/backend/internal/model/model.go
+@@ -122,6 +122,12 @@ func (d *Device) AfterFind(tx *gorm.DB) error {
+ 	return nil
+ }
+ 
++// IsFullColor reports whether this device drives a full-colour screen (LCD/HDMI)
++// that should receive plain RGB images instead of dithered e-paper output.
++func (d *Device) IsFullColor() bool {
++	return d.DisplayType == "rgb"
++}
++
+ // IsGrayscale reports whether this device drives a grayscale (GC16) panel.
+ func (d *Device) IsGrayscale() bool {
+ 	return strings.HasPrefix(d.DisplayType, "gc") || d.BoardName == "seeedstudio_reterminal_e1003"

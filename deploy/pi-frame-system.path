@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for Pi Frame system requests from the web page (e.g. screen resolution)
+
+[Path]
+PathExists=/var/lib/pi-photoframe/system/request.json
+Unit=pi-frame-system.service
+
+[Install]
+WantedBy=multi-user.target
