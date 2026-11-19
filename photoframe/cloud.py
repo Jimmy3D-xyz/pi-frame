@@ -176,6 +176,7 @@ class OneDrive:
         self._sync_lock = threading.Lock()
         self._auth_proc: subprocess.Popen | None = None
         self._auth_out: list[str] = []
+        self._auth_reader: threading.Thread | None = None
         self._stop = threading.Event()
         self.progress: dict = {}  # link id -> {"done", "total", "current"}
         self._auth_provider = "onedrive"
@@ -294,7 +295,8 @@ class OneDrive:
             args + ["--auth-no-open-browser"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
         )
-        threading.Thread(target=self._read_auth_output, daemon=True).start()
+        self._auth_reader = threading.Thread(target=self._read_auth_output, daemon=True)
+        self._auth_reader.start()
         deadline = time.time() + 20
         local = None
         while time.time() < deadline and local is None:
@@ -321,11 +323,11 @@ class OneDrive:
         raise CloudError("sign-in helper didn't give a login address")
 
     def _read_auth_output(self) -> None:
-        proc = self._auth_proc
+        proc, out = self._auth_proc, self._auth_out  # this sign-in's own; a newer one gets a fresh list
         if proc is None or proc.stdout is None:
             return
         for line in proc.stdout:
-            self._auth_out.append(line.rstrip("\n"))
+            out.append(line.rstrip("\n"))
 
     def cancel_auth(self) -> None:
         if self._auth_proc and self._auth_proc.poll() is None:
@@ -363,12 +365,17 @@ class OneDrive:
                 raise CloudError(f"the sign-in helper didn't accept the code ({e})") from e
             deadline = time.time() + 45
             while time.time() < deadline:
+                finished = self._auth_proc.poll() is not None
+                if finished:  # let the last of its output be read in before deciding
+                    reader = getattr(self, "_auth_reader", None)
+                    if reader is not None:
+                        reader.join(timeout=3)
                 text = "\n".join(self._auth_out)
                 m = re.search(r"--->\s*(\{.*?\})\s*<---", text, re.S)
                 if m:
                     token = m.group(1)
                     break
-                if self._auth_proc.poll() is not None and "<---" not in text:
+                if finished:
                     break
                 time.sleep(0.2)
             self.cancel_auth()
