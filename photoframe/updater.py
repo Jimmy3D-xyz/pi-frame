@@ -12,6 +12,7 @@ import json
 import os
 import re
 import stat
+import threading
 import time
 import zipfile
 from pathlib import Path
@@ -65,10 +66,17 @@ def inspect_package(path: Path) -> dict:
     return {"current": __version__, "new": new, "direction": direction}
 
 
+NOT_INSTALLED = ("The updater isn't set up on this Pi yet. Run install.sh once over SSH "
+                 "(sudo ./deploy/install.sh), then web updates will work.")
+
+
 class Updates:
     def __init__(self, data_dir: Path):
         self.dir = data_dir / "update"
         self.dir.mkdir(exist_ok=True)
+        # the web page and the update screen both ask for the status: one at a time,
+        # so they can't both try to take back an update nobody picked up
+        self._lock = threading.Lock()
 
     @property
     def staged(self) -> Path:
@@ -111,6 +119,10 @@ class Updates:
         os.replace(tmp, self.dir / "status.json")
 
     def status(self) -> dict:
+        with self._lock:
+            return self._status()
+
+    def _status(self) -> dict:
         try:
             st = json.loads((self.dir / "status.json").read_text())
         except (OSError, json.JSONDecodeError):
@@ -123,10 +135,8 @@ class Updates:
                 os.replace(self.dir / "pending.zip", self.staged)
             except OSError:
                 pass
-            self._write_status("not-installed", "")
-            st = {"state": "not-installed", "t": st.get("t"),
-                  "message": "The updater isn't set up on this Pi yet. Run install.sh once over SSH "
-                             "(sudo ./deploy/install.sh), then web updates will work."}
+            self._write_status("not-installed", NOT_INSTALLED)
+            st = {"state": "not-installed", "t": st.get("t"), "message": NOT_INSTALLED}
         try:
             log = (self.dir / "log.txt").read_text()[-4000:]
         except OSError:

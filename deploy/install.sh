@@ -48,6 +48,11 @@ apt-get update -q || echo "Warning: couldn't refresh package lists; using what's
 apt-get install -y -q --no-install-recommends python3 python3-flask python3-pil python3-numpy \
   python3-requests python3-waitress python3-qrcode fonts-dejavu-core \
   avahi-daemon dnsmasq-base polkitd ffmpeg mpv libgl1-mesa-dri iw libheif-examples python3-gpiozero python3-lgpio ddcutil python3-kms++
+# Newer Debian ships the HEIC (iPhone photo) decoder as a separate, merely
+# recommended plugin, which --no-install-recommends would leave out.
+if apt-cache show libheif-plugin-libde265 >/dev/null 2>&1; then
+  apt-get install -y -q --no-install-recommends libheif-plugin-libde265 || echo "Warning: couldn't install the HEIC decoder"
+fi
 
 echo "==> Installing rclone (for synced folders)"
 # Debian's rclone (1.60) is too old: OneDrive downloads fail with

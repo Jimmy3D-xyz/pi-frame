@@ -25,7 +25,14 @@ jobs:
       - name: Install tools (video, sync, HEIC)
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends ffmpeg mpv rclone libheif-examples libheif-plugin-x265 fonts-dejavu-core
+          sudo apt-get install -y -q --no-install-recommends ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core
+
+      - name: Install rclone (current, as the frame's installer does; Ubuntu's is too old)
+        run: |
+          curl -fsSL -o /tmp/rclone.zip https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip -q /tmp/rclone.zip -d /tmp/rclone
+          sudo install -m 755 /tmp/rclone/rclone-*-linux-amd64/rclone /usr/local/bin/rclone
+          rclone version | head -1
 
       - name: Install Python packages
         run: pip install -r requirements.txt qrcode gpiozero pytest
