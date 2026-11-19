@@ -78,10 +78,13 @@ the frame's name on the network is `piframe`.
 
 ## Building the image
 
-GitHub builds the image when a version tag (e.g. `v0.25.0`) is pushed, and
-publishes a release with the image, the update package and the kit. It can
-also be run by hand from the Actions tab (workflow "Image"), which publishes
-a test release called `pi-frame-test`. It takes about half an hour.
+GitHub builds a new image for feature versions (tags like `v0.26.0`) and
+publishes a release with the image, the update package and the kit. It takes
+about half an hour, so small fixes (`v0.26.1`…) get a release with just the
+update package and the kit: a frame set up from the latest image updates
+itself from the Maintenance tab. The image can also be built by hand from the
+Actions tab (workflow "Image"), e.g. when Raspberry Pi releases a new version
+of its OS; that publishes a test release called `pi-frame-test`.
 
 To build one yourself, on a Linux machine with `qemu-user-static` (not
 needed on Arm), `xz-utils`, `fdisk` and `e2fsprogs`:

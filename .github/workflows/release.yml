@@ -1,0 +1,39 @@
+name: Release
+
+# Small fixes (tags like v0.26.1): a release with the update package and the
+# installer kit, but no new image. A frame set up from the latest image
+# updates itself to this from the Maintenance tab. Feature versions (v0.26.0)
+# are released by image.yml instead, with a new image.
+on:
+  push:
+    tags: ["v*", "!v*.*.0"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the update package and kit
+        run: bash kit/build-kit.sh dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ver=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' photoframe/__init__.py)
+          img=$(gh release list --exclude-pre-releases --limit 50 --json tagName -q '.[].tagName' \
+                | grep -E '^v[0-9]+\.[0-9]+\.0$' | head -1 || true)
+          {
+            echo "**Update**: upload \`pi-photoframe.zip\` on the frame's Maintenance tab → Software update."
+            echo
+            echo "- \`pi-frame-kit.zip\`: the installer kit, for setting up a card you've written yourself"
+            if [ -n "$img" ]; then
+              echo "- New frame? Use the ready-made image from [$img](https://github.com/${GITHUB_REPOSITORY}/releases/tag/$img), then update to this version from the Maintenance tab."
+            fi
+            echo
+            echo "Built from $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%d)."
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" --title "Pi Frame $ver" \
+            --notes-file notes.md dist/pi-photoframe.zip dist/pi-frame-kit.zip

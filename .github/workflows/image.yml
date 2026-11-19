@@ -1,12 +1,14 @@
 name: Image
 
 # The ready-made Pi Frame image (Raspberry Pi OS Lite + Pi Frame, booting into
-# first-run setup). Built when a version tag is pushed (v0.25.0 …), or by hand
-# from the Actions tab. Published as a GitHub release with the update package
-# and the installer kit.
+# first-run setup). Built for feature versions (tags like v0.26.0), or by hand
+# from the Actions tab (e.g. after a change to the first start, or a new
+# Raspberry Pi OS). Published as a GitHub release with the update package and
+# the installer kit. Small fixes (v0.26.1 …) get a release without an image:
+# see release.yml.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*.*.0"]
   workflow_dispatch:
     inputs:
       publish:
@@ -60,7 +62,7 @@ jobs:
           **Ready-made image**: write \`pi-frame-$ver.img.xz\` to a microSD card with Raspberry Pi Imager
           (Operating system → Use custom), put it in a Raspberry Pi 4, and switch it on with the monitor connected.
           The frame starts a Wi-Fi hotspot and shows a QR code; scan it and the welcome wizard does the rest.
-          See [Installing](docs/installing.md).
+          See [Installing](https://github.com/JimmySte/pi-frame/blob/main/docs/installing.md).
 
           - \`pi-photoframe.zip\`: the update package (Maintenance → Software update)
           - \`pi-frame-kit.zip\`: the installer kit, for setting up a card you've written yourself

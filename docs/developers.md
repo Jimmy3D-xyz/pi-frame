@@ -163,10 +163,20 @@ check `docker build` succeeds first.
 
 ## Releasing
 
-1. Bump `__version__` in `photoframe/__init__.py`.
-2. Run the tests.
-3. `kit/build-kit.sh` makes `dist/pi-photoframe.zip` (for web updates) and
-   `dist/pi-frame-kit.zip` (for new cards).
+1. Bump `__version__` in `photoframe/__init__.py`: the last number for a
+   small fix (0.26.1), the middle one for new features (0.27.0).
+2. Run the tests, commit and push.
+3. Tag it (`git tag v0.27.0 && git push origin v0.27.0`). GitHub then publishes
+   a release:
+   - **feature versions** (`vX.Y.0`): a new ready-made image, the update
+     package and the kit (workflow "Image", about half an hour);
+   - **small fixes**: the update package and the kit only (workflow
+     "Release", a minute or two).
+
+Build a new image by hand (Actions → Image → Run workflow) when the first
+start changes (the wizard, `install.sh`, Wi-Fi setup) in a small fix, or
+when Raspberry Pi releases a new OS. `kit/build-kit.sh` makes the two zips
+locally.
 
 Every push to GitHub runs the tests automatically (on Python 3.13, as in
 Raspberry Pi OS Trixie), then builds both zips. They're
