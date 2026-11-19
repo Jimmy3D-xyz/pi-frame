@@ -37,8 +37,9 @@ with one command.
    drive appears, then copy the whole `pi-frame-kit` folder onto it.
    - To set the resolution, edit `kit.conf`: `RESOLUTION="2560x1440"`. Leave it
      empty to use the screen's own default; you can change it later from the website.
-   - To bring back an old frame's photos and settings, put its
-     `frame-backup.tgz` inside the `pi-frame-kit` folder (see [Backing up](#backing-up)).
+   - To bring back an old frame's photos and settings, put a backup of it
+     inside the `pi-frame-kit` folder (see [Backing up](#backing-up)). If
+     there are several, the newest is used.
 3. **Boot and run the installer.** Put the card in the Pi and power on. The
    first boot sets itself up and may restart, so give it 2–3 minutes. Then,
    from Terminal (Mac) or PowerShell (Windows):
@@ -114,24 +115,55 @@ similar messages.
 
 ## Backing up
 
-Everything that makes your frame yours (photos, videos, albums, settings,
-synced-folder sign-ins) lives in `/var/lib/pi-photoframe`. To back it up,
-stop the frame first, so nothing changes while it's being copied:
+Maintenance → Backups. Backups are only made and restored once the page has
+a password, because they hold your sign-ins.
+
+**Two kinds of backup:**
+
+- **Settings**: settings, albums, synced-folder sign-ins and links, and the
+  frame's identity (so Home Assistant and the image server still know it).
+  A few kilobytes.
+- **Everything**: the same, plus the photos and videos you added. Photos from
+  synced folders are left out, because they download again by themselves.
+
+**Download one** with the Settings or Everything button. The file is named
+like `piframe-backup-2026-11-20-0300-full.tgz`.
+
+**Automatic backups** run every day, week or month at a time you choose,
+and keep the last few (4 by default). They can go to:
+
+- **Your NAS**: the NAS account needs permission to write to the backup
+  folder. If you gave the frame a read-only account for syncing, give it
+  write access to one folder (e.g. `Backups/Pi Frame`).
+- **OneDrive, Dropbox or Google Drive**: the connection you use for synced
+  folders. Google Drive connections made before version 0.24 are read-only:
+  disconnect and sign in again to allow backups. The frame can then only
+  change files it made itself.
+- **This frame's SD card**: handy before trying something risky, but no help
+  if the card fails.
+
+The Maintenance tab shows the last backup and warns if one fails. A failed
+automatic backup is tried again a few hours later.
+
+**Restore** from Maintenance → Backups → Choose a backup file, or from a
+backup kept on the frame. The frame first keeps a copy of its current
+settings (listed under "Backups on this frame"), then puts back the backup's
+photos, settings and sign-ins, and restarts. Photos already on the frame stay.
+Synced folders download their photos again afterwards.
+
+**Over SSH**, a backup can be made with:
 
 ```sh
-sudo systemctl stop pi-photoframe
-sudo tar czf ~/frame-backup.tgz -C /var/lib pi-photoframe
-sudo systemctl start pi-photoframe
+cd /opt/pi-photoframe
+sudo -u photoframe python3 -m photoframe.backup create --kind full --out /tmp/piframe-backup.tgz
+python3 -m photoframe.backup inspect /tmp/piframe-backup.tgz     # check one, and see what's in it
 ```
 
-Then copy it to your computer, run from your computer (not the Pi):
+Backups made by hand with
+`tar czf frame-backup.tgz -C /var/lib pi-photoframe` (as these docs used to
+say) still restore, from the website or the kit.
 
-```sh
-scp yourname@piframe.local:frame-backup.tgz .
-```
-
-Synced folders don't need backing up: they download again on their own.
-The backup holds sign-in tokens and the page password, so keep it somewhere private.
+Keep backups somewhere private: they hold sign-in tokens and the page password.
 
 ## Moving to a new SD card
 
@@ -139,11 +171,13 @@ Build a fresh card rather than cloning the old one. A clone copies any
 damage along with everything else, and a fresh install takes about the same
 time:
 
-1. Back up the old frame (above), if it still starts. If it doesn't, put the
-   old card in a Linux PC or another Pi and copy its
+1. Download an **Everything** backup from the old frame (Maintenance →
+   Backups), or use its latest automatic backup. If the old frame doesn't
+   start, put its card in a Linux PC or another Pi and copy its
    `/var/lib/pi-photoframe` folder instead.
-2. Follow [Install with the kit](#install-with-the-kit), with
-   `frame-backup.tgz` in the kit folder.
+2. Follow [Install with the kit](#install-with-the-kit), with the backup in
+   the kit folder. (Or install with an empty kit and restore the backup from
+   the website afterwards.)
 
 The boot screen and screen settings are remade for whatever monitor the new
 card starts with.

@@ -6,8 +6,10 @@
 #
 #     sudo bash /boot/firmware/pi-frame-kit/install-frame.sh
 #
-# It installs Pi Frame, sets the screen resolution from kit.conf, restores
-# frame-backup.tgz if you put one in the folder, then restarts the Pi.
+# It installs Pi Frame, sets the screen resolution from kit.conf, restores a
+# backup if you put one in the folder (a backup downloaded from the frame's
+# Maintenance tab, e.g. piframe-backup-2026-11-20-0300-full.tgz, or an older
+# frame-backup.tgz), then restarts the Pi.
 # Everything it does is logged to /var/log/pi-frame-kit.log.
 set -euo pipefail
 
@@ -73,16 +75,36 @@ args=()
 [ -n "$RESOLUTION" ] && args+=(--mode "$RESOLUTION")
 bash "$SRC/deploy/install.sh" "${args[@]}"
 
-# ---- restore the backup
-if [ -f "$KIT/frame-backup.tgz" ]; then
-  echo "==> Restoring photos and settings from frame-backup.tgz"
+# ---- restore the backup (the newest, if there are several)
+BACKUP=""
+for f in "$KIT"/*.tgz; do
+  [ -f "$f" ] || continue
+  case "$(basename "$f")" in *backup*) ;; *) continue ;; esac
+  if [ -z "$BACKUP" ] || [ "$f" -nt "$BACKUP" ]; then BACKUP="$f"; fi
+done
+if [ -n "$BACKUP" ]; then
+  echo "==> Restoring photos and settings from $(basename "$BACKUP")"
+  # only a Pi Frame backup: everything in it must sit in a pi-photoframe folder, with no links
+  if ! python3 - "$BACKUP" <<'PY'
+import sys, tarfile
+with tarfile.open(sys.argv[1]) as t:
+    for m in t:
+        n = m.name.rstrip("/").removeprefix("./")
+        if not (n == "pi-photoframe" or n.startswith("pi-photoframe/")) or ".." in n.split("/") \
+                or not (m.isfile() or m.isdir()):
+            sys.exit(f"unexpected entry in the backup: {m.name}")
+PY
+  then
+    echo "!! $(basename "$BACKUP") isn't a Pi Frame backup (or it's damaged); Pi Frame is installed, but nothing was restored"
+    exit 1
+  fi
   systemctl stop pi-photoframe 2>/dev/null || true
-  tar xzf "$KIT/frame-backup.tgz" -C "$DATA_PARENT"
+  tar xzf "$BACKUP" -C "$DATA_PARENT"
   chown -R photoframe:photoframe "$DATA_PARENT/pi-photoframe" 2>/dev/null || true
   # the boot logo is remade for this screen by the installer and at start-up
   echo "    restored"
 else
-  echo "==> No frame-backup.tgz in the kit: starting with an empty frame"
+  echo "==> No backup in the kit: starting with an empty frame"
 fi
 
 touch "$KIT/.installed" 2>/dev/null || true

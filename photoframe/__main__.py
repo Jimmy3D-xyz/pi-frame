@@ -84,6 +84,13 @@ def main(argv: list[str] | None = None) -> int:
     frame.cloud = OneDrive(data_dir, storage, frame)
     threading.Thread(target=frame.cloud.run, name="onedrive", daemon=True).start()
 
+    from .backup import Backups
+
+    frame.backups = Backups(data_dir, cfg, frame.cloud, frame)
+    if frame.backups.just_restored:
+        frame.cloud.reconcile()  # synced photos aren't in backups: fetch them again
+    threading.Thread(target=frame.backups.run, name="backups", daemon=True).start()
+
     from .buttons import Buttons
 
     frame.buttons = Buttons(frame)

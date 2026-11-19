@@ -223,6 +223,12 @@
   .mcard { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem; min-width: 0; }
   .mcard h3 { font-family: var(--serif); font-size: 1.08rem; margin: 0 0 .6rem; }
   .mcard h4 { font-size: .9rem; margin: .9rem 0 .3rem; }
+  .blist { list-style: none; margin: 0; padding: 0; font-size: .9rem; }
+  .blist li { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; padding: .45rem 0; border-top: 1px solid var(--line); }
+  .blist li:first-child { border-top: 0; }
+  .blist .bname { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+  .blist .bname small { display: block; color: var(--ink-soft); }
+  .blist .link-btn { font-size: .85rem; }
   .kv { display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem; margin: 0; font-size: .92rem; }
   .kv dt { color: var(--ink-soft); }
   .kv dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -684,6 +690,61 @@
             <pre id="u-log" style="white-space:pre-wrap;font-size:.75rem;max-height:16rem;overflow:auto;background:var(--mat);padding:.6rem;border-radius:6px"></pre></details>
           <p class="note">If an update fails, or the frame doesn't start properly afterwards, the previous version is put back automatically.</p>
         </div></details></section>
+        <section class="mcard fold"><details data-fold="backup"><summary><h3>Backups</h3><span class="fold-sum" id="sum-backup"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+          <div id="b-nopass" class="note" hidden>Backups hold your sign-ins (OneDrive, NAS…), so they're only made and restored once this page has a password. Set one under <b>Page password</b>.</div>
+          <div id="b-main">
+            <h4 style="margin-top:0">Download a backup</h4>
+            <div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap">
+              <a class="btn small" id="b-dl-settings" href="/api/backup/download?kind=settings" download>Settings</a>
+              <a class="btn small" id="b-dl-full" href="/api/backup/download?kind=full" download>Everything</a>
+            </div>
+            <p class="note" id="b-dl-note">Settings: settings, albums, sign-ins and synced folders. Everything: those plus the photos and videos you added. Photos from synced folders download again by themselves, so they're never included.</p>
+
+            <h4>Automatic backups</h4>
+            <label class="toggle" style="margin-bottom:.7rem"><input type="checkbox" id="b-auto"> Back up automatically</label>
+            <div id="b-auto-opts" hidden>
+              <label class="field" style="margin-bottom:.7rem"><span>Keep them on</span><select id="b-where"></select>
+                <small id="b-where-note"></small></label>
+              <label class="field" id="b-folder-row" style="margin-bottom:.7rem"><span>In the folder</span>
+                <input type="text" id="b-folder" maxlength="200" placeholder="Pi Frame backups"></label>
+              <div class="row">
+                <label class="field" style="margin-bottom:.7rem"><span>What</span><select id="b-kind">
+                  <option value="full">Everything</option><option value="settings">Settings only</option></select></label>
+                <label class="field" style="margin-bottom:.7rem"><span>How often</span><select id="b-every">
+                  <option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option></select></label>
+              </div>
+              <div class="row">
+                <label class="field" style="margin-bottom:.7rem"><span>At</span><input type="time" id="b-time"></label>
+                <label class="field" style="margin-bottom:.7rem"><span>Keep the last</span><select id="b-keep">
+                  <option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="12">12</option></select></label>
+              </div>
+            </div>
+            <p id="b-last" class="note" style="margin-top:0"></p>
+            <div class="actions"><button type="button" class="btn small" id="b-now">Back up now</button></div>
+
+            <div id="b-local-box" hidden>
+              <h4>Backups on this frame</h4>
+              <ul class="blist" id="b-local"></ul>
+            </div>
+
+            <h4>Restore</h4>
+            <div id="b-pick">
+              <label class="btn small" style="cursor:pointer">Choose a backup file (.tgz)
+                <input type="file" id="b-file" accept=".tgz,.gz,application/gzip,application/x-gzip" hidden></label>
+              <div class="progress" id="b-progress" hidden><div></div></div>
+              <p class="note" id="b-progress-text" hidden></p>
+            </div>
+            <div id="b-staged" hidden>
+              <p style="margin:0 0 .6rem" id="b-staged-text"></p>
+              <div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap">
+                <button type="button" class="btn small primary" id="b-restore">Restore</button>
+                <button type="button" class="btn small" id="b-discard">Cancel</button>
+              </div>
+            </div>
+            <p id="b-rstatus" role="status" aria-live="polite" style="margin:.8rem 0 0" hidden></p>
+            <p class="note">Restoring brings back the backup's settings, sign-ins and photos. Photos already on the frame are kept, and the current settings are saved on the frame first, in case you want them back.</p>
+          </div>
+        </div></details></section>
         <section class="mcard fold"><details data-fold="password"><summary><h3>Page password</h3><span class="fold-sum" id="sum-password"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
           <p id="pw-state" style="margin:0 0 .7rem"></p>
           <form id="pw-form" class="field" style="margin:0">
@@ -925,7 +986,7 @@ $("#screen").onclick = async () => {
 
 /* ---------- tabs ---------- */
 document.querySelectorAll('[role="tab"]').forEach(tab => tab.onclick = () => {
-  if (tab.id === "t-maint") { loadMaint(); loadUpdate(); loadResolution(); }
+  if (tab.id === "t-maint") { loadMaint(); loadUpdate(); loadResolution(); loadBackup(); }
   if (tab.id === "t-source") loadOneDrive();
   if (tab.id === "t-display") { loadButtons(); loadMonitor(); loadFadeInfo(); loadPresence(); }
   document.querySelectorAll('[role="tab"]').forEach(t => {
@@ -1671,6 +1732,157 @@ $("#pw-remove").onclick = () => {
   if (!confirm("Remove the password? Anyone on your Wi-Fi will be able to change the frame, and web updates will be switched off.")) return;
   act(async () => { await api("/api/config", { json: { http_password: "" } }); toast("Password removed"); loadUpdate(); });
 };
+
+/* ---------- backups ---------- */
+let bk = null, bkTimer = null, bkWatching = false, bkUploading = false;
+const fmtDate = (t) => new Date(t * 1000).toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
+const fmtWhen = (t) => { const d = new Date(t * 1000);
+  return `${d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}, ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`; };
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+function backupContents(x) {
+  const bits = [];
+  if (x.settings !== false) bits.push("settings");
+  if (x.photos) bits.push(plural(x.photos, "photo"));
+  if (x.videos) bits.push(plural(x.videos, "video"));
+  return bits.join(", ").replace(/, ([^,]*)$/, " and $1");
+}
+function statusLine(icon, cls, text) {
+  const color = cls === "bad" ? "color:var(--warn)" : cls === "good" ? "color:var(--sage-deep)" : "";
+  return (icon === "spin" ? '<span class="spin" aria-hidden="true"></span> ' : icon) + `<span style="${color}">${escapeHtml(text)}</span>`;
+}
+function showBackup(b) {
+  bk = b;
+  $("#b-nopass").hidden = b.password_set;
+  $("#b-main").hidden = !b.password_set;
+  const last = b.last;
+  if (!b.auto) foldSum("backup", last && last.ok ? `Last backup ${fmtAgo(last.t)}` : "Not backing up automatically");
+  else if (last && !last.ok) foldSum("backup", "The last backup didn't work", "warn");
+  else foldSum("backup", b.last_ok_t ? `Last backup ${fmtAgo(b.last_ok_t)} · ${b.where_label}` : `Automatic, to ${b.where_label}`, "ok");
+  if (!b.password_set) return;
+  // downloads, with sizes
+  const est = b.estimate;
+  if (est) {
+    $("#b-dl-settings").textContent = `Settings (${fmtBytes(est.settings.bytes)})`;
+    const what = [est.full.photos ? plural(est.full.photos, "photo") : "", est.full.videos ? plural(est.full.videos, "video") : ""].filter(Boolean).join(", ");
+    $("#b-dl-full").textContent = `Everything (${fmtBytes(est.full.bytes)}${what ? ` · ${what}` : ""})`;
+  }
+  // automatic backups
+  $("#b-auto").checked = b.auto;
+  $("#b-auto-opts").hidden = !b.auto;
+  const sel = $("#b-where");
+  if (document.activeElement !== sel) {
+    sel.innerHTML = b.destinations.map(d => `<option value="${escapeHtml(d.where)}"${d.ok ? "" : " disabled"}>${escapeHtml(d.label)}${d.account && d.provider !== "smb" ? ` (${escapeHtml(d.account)})` : ""}</option>`).join("");
+    if (!b.destinations.some(d => d.where === b.where)) sel.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(b.where)}">${escapeHtml(b.where_label)} (not connected)</option>`);
+    sel.value = b.where;
+  }
+  const dest = b.destinations.find(d => d.where === b.where);
+  const notes = b.destinations.filter(d => !d.ok).map(d => `${d.label}: ${d.note}`);
+  $("#b-where-note").textContent = [dest ? dest.note : "Not connected: choose another place, or connect it again under Photo source → Synced folders.", ...notes].filter(Boolean).join(" ");
+  $("#b-folder-row").hidden = b.where === "frame";
+  for (const [id, key] of [["#b-folder", "folder"], ["#b-kind", "kind"], ["#b-every", "every"], ["#b-time", "time"], ["#b-keep", "keep"]])
+    if (document.activeElement !== $(id)) $(id).value = String(b[key]);
+  // last and next
+  let line = "";
+  if (b.running) line = statusLine("spin", "", `Backing up to ${b.running.where}…`);
+  else if (last && last.ok) line = statusLine("✓ ", "good", `Last backup ${fmtWhen(last.t)}: ${last.kind === "full" ? "everything" : "settings"}, ${fmtBytes(last.bytes)}, to ${last.where}.`);
+  else if (last) line = statusLine("✗ ", "bad", `${fmtWhen(last.t)}: ${last.message}`);
+  if (b.auto && b.next && !b.running) line += (line ? "<br>" : "") + `Next: ${b.next <= Date.now() / 1000 + 60 ? "in the next few minutes" : escapeHtml(fmtWhen(b.next))}.`;
+  $("#b-last").innerHTML = line;
+  $("#b-last").hidden = !line;
+  $("#b-now").disabled = !!b.running;
+  $("#b-now").textContent = `Back up now to ${b.where === "frame" ? "this frame" : b.where_label}`;
+  // kept on the frame
+  $("#b-local-box").hidden = !b.local.length;
+  $("#b-local").innerHTML = b.local.map(f => `<li><span class="bname">${f.before_restore ? "Settings before a restore" : f.kind === "full" ? "Everything" : "Settings"}
+      <small>${escapeHtml(fmtWhen(f.t))} · ${fmtBytes(f.bytes)}</small></span>
+      <a class="link-btn" href="/api/backup/file/${encodeURIComponent(f.name)}" download>Download</a>
+      <button type="button" class="link-btn" data-restore="${escapeHtml(f.name)}">Restore</button>
+      <button type="button" class="link-btn" data-del="${escapeHtml(f.name)}">Delete</button></li>`).join("");
+  $("#b-local").querySelectorAll("[data-restore]").forEach(el => el.onclick = () => startRestore(el.dataset.restore, "this backup"));
+  $("#b-local").querySelectorAll("[data-del]").forEach(el => el.onclick = () => {
+    if (confirm("Delete this backup from the frame?")) act(async () => { await api(`/api/backup/file/${encodeURIComponent(el.dataset.del)}`, { method: "DELETE" }); loadBackup(); }, "Deleted");
+  });
+  // restore
+  const st = b.staged && !b.staged.partial ? b.staged : null;
+  const rs = b.restore;
+  const restoring = rs && rs.state === "restoring";
+  $("#b-pick").hidden = !!st || restoring;
+  if (!bkUploading) { $("#b-progress").hidden = true; $("#b-progress-text").hidden = !(b.staged && b.staged.partial);
+    if (b.staged && b.staged.partial) $("#b-progress-text").textContent = `${b.staged.name}: ${MB(b.staged.received)} of ${MB(b.staged.size)} MB uploaded. Choose the same file again to carry on.`; }
+  $("#b-staged").hidden = !st || restoring;
+  if (st) {
+    const from = st.made_by_hand ? "A backup made by hand" : `A backup made ${fmtDate(st.created)}${st.device_name ? ` of “${st.device_name}”` : ""}`;
+    $("#b-staged-text").innerHTML = `<b>${escapeHtml(st.name)}</b><br>${escapeHtml(from)}: ${escapeHtml(backupContents(st))}.`;
+  }
+  const show = rs && (restoring || rs.state === "failed" || rs.state === "done");
+  $("#b-rstatus").hidden = !show;
+  if (show) $("#b-rstatus").innerHTML = restoring ? statusLine("spin", "", rs.message) : rs.state === "done" ? statusLine("✓ ", "good", rs.message) : statusLine("✗ ", "bad", rs.message);
+}
+async function loadBackup() {
+  clearTimeout(bkTimer);
+  let b;
+  try { b = await api("/api/backup"); }
+  catch (e) {
+    if (bkWatching) {  // the frame is restarting with the restored settings
+      $("#b-rstatus").hidden = false;
+      $("#b-rstatus").innerHTML = statusLine("spin", "", "The frame is restarting with the restored settings…");
+      bkTimer = setTimeout(loadBackup, 2000);
+    }
+    return;
+  }
+  if (bkWatching && b.restore && b.restore.state === "done") { bkWatching = false; toast(b.restore.message); setTimeout(() => location.reload(), 2500); }
+  if (bkWatching && b.restore && b.restore.state === "failed") bkWatching = false;
+  showBackup(b);
+  if (b.running || bkWatching) bkTimer = setTimeout(loadBackup, 2000);
+}
+const saveBackup = (values, msg) => act(async () => { await api("/api/config", { json: values }); await loadBackup(); }, msg);
+$("#b-auto").onchange = (e) => saveBackup({ backup_auto: e.target.checked }, e.target.checked ? "Automatic backups on" : "Automatic backups off");
+$("#b-where").onchange = (e) => saveBackup({ backup_where: e.target.value }, "Saved");
+$("#b-folder").onchange = (e) => saveBackup({ backup_folder: e.target.value.trim() || "Pi Frame backups" }, "Saved");
+$("#b-kind").onchange = (e) => saveBackup({ backup_kind: e.target.value }, "Saved");
+$("#b-every").onchange = (e) => saveBackup({ backup_every: e.target.value }, "Saved");
+$("#b-time").onchange = (e) => { if (e.target.value) saveBackup({ backup_time: e.target.value }, "Saved"); };
+$("#b-keep").onchange = (e) => saveBackup({ backup_keep: Number(e.target.value) }, "Saved");
+$("#b-now").onclick = () => act(async () => { const r = await api("/api/backup/now", { method: "POST" }); toast(r.message); loadBackup(); });
+$("#b-file").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  const bar = $("#b-progress"), txt = $("#b-progress-text");
+  bkUploading = true; bar.hidden = false; txt.hidden = false; txt.textContent = "Starting the upload…";
+  try {
+    const st = await api("/api/backup/restore/start", { json: { name: f.name, size: f.size, last_modified: f.lastModified } });
+    let pos = st.received;
+    while (pos < f.size) {
+      const end = Math.min(f.size, pos + st.chunk);
+      for (let tries = 0; ; tries++) {
+        try {
+          const resp = await fetch(`/api/backup/restore/upload?offset=${pos}`, { method: "PUT", body: f.slice(pos, end) });
+          const body = await resp.json().catch(() => ({}));
+          if (resp.status === 409) { pos = body.received; break; }  // the frame already had this piece
+          if (!resp.ok) { const err = new Error(body.message || `Upload failed (${resp.status})`); err.fatal = resp.status < 500; throw err; }
+          pos = body.received; break;
+        } catch (err) {
+          if (err.fatal || tries >= 5) throw err;
+          txt.textContent = "Connection lost; trying again…";
+          await new Promise(r => setTimeout(r, 2000 * (tries + 1)));
+        }
+      }
+      bar.firstElementChild.style.width = `${pos / f.size * 100}%`;
+      txt.textContent = pos < f.size ? `Uploading: ${MB(pos)} of ${MB(f.size)} MB` : "Checking the backup…";
+    }
+  } catch (err) { toast(err.message, true); }
+  bkUploading = false; bar.hidden = true; bar.firstElementChild.style.width = "0"; txt.hidden = true;
+  loadBackup();
+};
+function startRestore(from, what) {
+  if (!confirm(`Restore ${what}? Its settings and sign-ins replace the current ones, its photos are put back (photos already on the frame stay), and the frame restarts. The current settings are kept on the frame first.`)) return;
+  act(async () => {
+    await api("/api/backup/restore", { json: { from } });
+    bkWatching = true; loadBackup();
+  });
+}
+$("#b-restore").onclick = () => startRestore("upload", "this backup");
+$("#b-discard").onclick = () => act(async () => { await api("/api/backup/restore/upload", { method: "DELETE" }); loadBackup(); });
 /* ---------- synced folders (OneDrive, Google Drive, Dropbox, NAS) ---------- */
 let od = null, odPath = "", odRemote = "onedrive", odTimer = null, odProvider = "onedrive";
 const everyWords = { 1: "Every hour", 3: "Every 3 hours", 6: "Every 6 hours", 12: "Every 12 hours", 24: "Once a day" };
@@ -1997,7 +2209,7 @@ $("#lb-close").onclick = closeLightbox;
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#lightbox").hidden) closeLightbox(); });
 /* ---------- collapsible maintenance cards ---------- */
 const FOLD_KEY = "pf-open-cards";
-const AREA_CARD = { "Network": "net", "Power": "power", "SD card": "storage", "Videos": "library", "Synced folders": "library" };
+const AREA_CARD = { "Network": "net", "Power": "power", "SD card": "storage", "Videos": "library", "Synced folders": "library", "Backups": "backup" };
 let foldAutoOpened = new Set();
 function foldState() { try { return new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || "[]")); } catch { return new Set(); } }
 document.querySelectorAll("details[data-fold]").forEach(d => {

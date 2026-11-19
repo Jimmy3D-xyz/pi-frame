@@ -28,6 +28,7 @@ from .storage import StorageError
 from .uploads import UploadError, Uploads
 from .updater import UpdateError, Updates
 from .cloud import CloudError, OneDrive
+from .backup import BackupError, Backups, backup_name
 from .video import is_video
 
 log = logging.getLogger(__name__)
@@ -63,6 +64,9 @@ def create_app(frame: Frame) -> Flask:
     if getattr(frame, "cloud", None) is None:
         frame.cloud = OneDrive(frame.data_dir, storage, frame)
     cloud = frame.cloud
+    if getattr(frame, "backups", None) is None:
+        frame.backups = Backups(frame.data_dir, cfg, cloud, frame)
+    backups = frame.backups
 
     def in_setup_mode() -> bool:
         return frame.wifi is not None and frame.wifi.status.mode in ("setup", "connecting")
@@ -685,6 +689,7 @@ def create_app(frame: Frame) -> Flask:
                          "accounts": [{"source": a["label"], "name": a["name"], "connected": a["connected"]} for a in cs["accounts"]],
                          "links": [{k: l.get(k) for k in ("source", "folder", "album", "last_sync", "last_ok", "last_result",
                                                              "files", "connected")} for l in cs["links"]]}
+        h["backup"] = backups.health()
         h["summary"] = health.summarise(h)
         return h
 
@@ -842,6 +847,102 @@ def create_app(frame: Frame) -> Flask:
             return _cloud_err(e)
         threading.Thread(target=cloud.sync, args=(link_id,), daemon=True).start()
         return _ok("Syncing")
+
+    # ---------- backups ----------
+    def _backup_password():
+        if not cfg.get("http_password"):
+            return _err("Set a password for this page first (Maintenance → Page password). Backups hold your "
+                        "sign-ins, so they're only made and restored when the page is protected.", 403)
+        return None
+
+    @app.get("/api/backup")
+    def backup_status():
+        try:
+            est = backups.estimate()
+        except Exception as e:  # noqa: BLE001
+            log.warning("couldn't size up a backup: %s", e)
+            est = None
+        return jsonify({**backups.status(), "estimate": est, "password_set": bool(cfg.get("http_password"))})
+
+    @app.get("/api/backup/download")
+    def backup_download():
+        if (resp := _backup_password()) is not None:
+            return resp
+        kind = request.args.get("kind", "settings")
+        try:
+            body = backups.stream(kind)
+        except BackupError as e:
+            return _err(str(e))
+        return Response(body, mimetype="application/gzip", headers={
+            "Content-Disposition": f'attachment; filename="{backup_name(kind)}"', "Cache-Control": "no-store"})
+
+    @app.post("/api/backup/now")
+    def backup_now():
+        if (resp := _backup_password()) is not None:
+            return resp
+        if backups.running:
+            return _err("A backup is already running", 409)
+        threading.Thread(target=lambda: backups.back_up(auto=False), name="backup", daemon=True).start()
+        return _ok(f"Backing up to {backups.where_label()}")
+
+    @app.get("/api/backup/file/<name>")
+    def backup_file(name):
+        if (resp := _backup_password()) is not None:
+            return resp
+        try:
+            path = backups.local_path(name)
+        except BackupError as e:
+            return _err(str(e), 404)
+        return send_file(path, mimetype="application/gzip", as_attachment=True, download_name=path.name)
+
+    @app.delete("/api/backup/file/<name>")
+    def backup_file_delete(name):
+        try:
+            backups.delete_local(name)
+        except BackupError as e:
+            return _err(str(e), 404)
+        return _ok("Backup deleted")
+
+    @app.post("/api/backup/restore/start")
+    def backup_restore_start():
+        if (resp := _backup_password()) is not None:
+            return resp
+        d = request.get_json(silent=True) or {}
+        try:
+            return jsonify(backups.restore_start(str(d.get("name", "")), int(d.get("size", 0)),
+                                                 int(d.get("last_modified", 0))))
+        except (TypeError, ValueError) as e:
+            return _err(str(e) if isinstance(e, BackupError) else "size must be a number")
+
+    @app.put("/api/backup/restore/upload")
+    def backup_restore_upload():
+        if (resp := _backup_password()) is not None:
+            return resp
+        try:
+            offset = int(request.args.get("offset", "-1"))
+            length = int(request.headers.get("Content-Length", "0"))
+            r = backups.restore_append(offset, request.stream, length)
+        except BackupError as e:
+            return _err(str(e))
+        except ValueError:
+            return _err("offset must be a number")
+        return jsonify(r), (409 if r.get("mismatch") else 200)
+
+    @app.delete("/api/backup/restore/upload")
+    def backup_restore_discard():
+        backups.restore_discard()
+        return _ok("Discarded")
+
+    @app.post("/api/backup/restore")
+    def backup_restore():
+        if (resp := _backup_password()) is not None:
+            return resp
+        src = str((request.get_json(silent=True) or {}).get("from", "upload"))
+        try:
+            info = backups.restore_begin(None if src == "upload" else backups.local_path(src))
+        except BackupError as e:
+            return _err(str(e))
+        return _ok("Restoring. The frame restarts when it's done.", backup=info)
 
     # ---------- software update from the Maintenance tab ----------
     def _need_password():

@@ -96,6 +96,14 @@ DEFAULT_CONFIG: dict = {
     "video_normalize": True,  # even out loudness between videos (measured at import)
     "video_boost_db": 0,  # 0, 6 or 12: extra gain with a limiter, for quiet soundtracks
     "video_max_seconds": 0,  # 0 = play the whole video
+    # automatic backups
+    "backup_auto": False,
+    "backup_where": "frame",   # "frame", or a synced-folder connection (onedrive, gdrive, dropbox, nas, nas2…)
+    "backup_folder": "Pi Frame backups",
+    "backup_kind": "full",     # full | settings
+    "backup_every": "weekly",  # daily | weekly | monthly
+    "backup_time": "03:00",
+    "backup_keep": 4,
 }
 
 # Firmware defaults (Spectra 6 measured palette). Irrelevant to an LCD but
@@ -138,6 +146,8 @@ _ENUMS = {
     "overlay_fun": {"off", "jokes", "facts", "both"},
     "overlay_size": {"small", "medium", "large"},
     "weather_units": {"c", "f"},
+    "backup_kind": {"full", "settings"},
+    "backup_every": {"daily", "weekly", "monthly"},
 }
 
 
@@ -309,6 +319,16 @@ class ConfigStore:
                 raise ConfigError("welcome_seconds must be 0 to 600")
             if key == "timezone" and (len(val) > 63 or not val.isprintable()):
                 raise ConfigError("timezone must be 0-63 printable characters")
+            if key == "backup_time" and not _valid_hhmm(val):
+                raise ConfigError("backup_time must be HH:MM")
+            if key == "backup_keep" and not 1 <= val <= 30:
+                raise ConfigError("backup_keep must be 1 to 30")
+            if key == "backup_where" and not re.fullmatch(r"frame|[a-z][a-z0-9]{1,15}", val):
+                raise ConfigError("backup_where must be 'frame' or a connected service")
+            if key == "backup_folder":
+                val = val.strip().strip("/")
+                if not val or len(val) > 200 or ".." in val.split("/") or not val.isprintable():
+                    raise ConfigError("choose a folder name for the backups")
             if key == "image_url" and len(val) > 1024:
                 raise ConfigError("image_url too long")
             clean[key] = val

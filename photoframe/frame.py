@@ -101,6 +101,7 @@ class Frame:
         self._next_clip: float | None = None
         self._base_details: dict = {}
         self.cloud = None  # OneDrive folder sync, set by __main__ (or the web app)
+        self.backups = None  # backups and restoring, set by __main__ (or the web app)
         self.notice: str | None = None  # None | "empty" | "wifi" while a card is on screen
         self.wifi = None  # WifiManager, when running on a Pi with NetworkManager
 

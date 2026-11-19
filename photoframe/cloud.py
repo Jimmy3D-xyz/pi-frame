@@ -47,6 +47,9 @@ PROVIDERS = {
     "dropbox": {"label": "Dropbox", "backend": "dropbox", "oauth": True},
     "smb": {"label": "NAS", "backend": "smb", "oauth": False},
 }
+# Google Drive: read everything (for syncing), and write only files the frame
+# made itself (its backups). Connections made before 0.24 are read-only.
+GDRIVE_SCOPE = "drive.readonly,drive.file"
 BATCH = 20  # files per download batch
 SPARE_BYTES = 500 * 1024 * 1024
 FIRST_SYNC_DELAY = 90  # seconds after start-up
@@ -193,6 +196,24 @@ class OneDrive:
         for link in self.state["links"]:
             link.setdefault("remote", REMOTE)
 
+    def reconcile(self) -> None:
+        """After restoring a backup: forget synced files that aren't on the
+        frame (backups leave them out), so the next sync downloads them again."""
+        for link in self.state["links"]:
+            manifest = self._manifest(link["id"])
+            if not manifest:
+                continue
+            album = self.storage.root / link.get("album", "")
+            have = {p.stem for p in album.iterdir() if p.is_file()} if album.is_dir() else set()
+            missing = [p for p in manifest if managed_stem(link["id"], p) not in have]
+            if missing:
+                for p in missing:
+                    manifest.pop(p)
+                self._save_manifest(link["id"], manifest)
+                link["last_sync"] = None  # sync soon
+                log.info("%d synced files for album '%s' aren't on the frame; they'll download again",
+                         len(missing), link.get("album"))
+
     # ---------------------------------------------------------------- basics
     @staticmethod
     def available() -> bool:
@@ -287,7 +308,7 @@ class OneDrive:
         args = ["rclone", "--config", os.devnull, "authorize", info["backend"]]
         if provider == "gdrive":
             # read-only access; optionally the user's own Google API key (faster)
-            blob = {"scope": "drive.readonly"}
+            blob = {"scope": GDRIVE_SCOPE}
             if client_id.strip():
                 blob.update(client_id=client_id.strip(), client_secret=client_secret.strip())
             args.append(_b64(blob))
@@ -402,7 +423,7 @@ class OneDrive:
                 name, extra = owner.get("displayName") or label, {"drive_type": drive.get("driveType")}
             elif provider == "gdrive":
                 user = google_user(access)
-                values = {"type": "drive", "scope": "drive.readonly", "token": token_json, **self._auth_client}
+                values = {"type": "drive", "scope": GDRIVE_SCOPE, "token": token_json, **self._auth_client}
                 name, extra = user.get("displayName") or user.get("emailAddress") or label, {
                     "email": user.get("emailAddress"), "own_key": bool(self._auth_client.get("client_id"))}
             elif provider == "dropbox":
@@ -508,6 +529,70 @@ class OneDrive:
         out = self._rclone(*args, self._remote(folder, remote), timeout=600, remote=remote)
         wanted = IMAGE_EXTS | VIDEO_EXTS
         return [f for f in json.loads(out or "[]") if Path(f["Path"]).suffix.lower() in wanted]
+
+    # ---------------------------------------------------------------- backups
+    def can_back_up(self, remote: str) -> tuple[bool, str]:
+        """Whether backups can be saved through this connection, and if not, why."""
+        cp = self._read_conf()
+        if not cp.has_section(remote):
+            return False, "Not connected"
+        if cp.get(remote, "type", fallback="") == "drive" and "drive.file" not in cp.get(remote, "scope", fallback=""):
+            return False, "Connected read-only. Disconnect and sign in to Google Drive again to allow backups."
+        acct = self._account(remote) or {}
+        if acct.get("provider") == "smb":
+            return True, "The NAS account needs permission to save in the backup folder."
+        return True, ""
+
+    def _write_error(self, remote: str, raw: str) -> str:
+        e = raw.lower()
+        acct = self._account(remote) or {}
+        label = acct.get("name") if acct.get("provider") == "smb" else self._label(remote)
+        if acct.get("provider") == "smb" and ("access denied" in e or "access_denied" in e or "read-only" in e):
+            return (f"{label} didn't let the frame save there. Give the NAS account permission to write to "
+                    "the backup folder, or choose another folder.")
+        if "insufficient" in e and "scope" in e or "insufficientpermissions" in e:
+            return f"{label} is connected read-only. Disconnect and sign in again to allow backups."
+        if "accessdenied" in e or "access denied" in e or "forbidden" in e or "403" in e:
+            return f"{label} didn't let the frame save in that folder."
+        if "quota" in e or "insufficient_space" in e or "no space" in e or "disk full" in e:
+            return f"{label} is full, so the backup couldn't be saved."
+        return _friendly(raw, label or "the backup place", acct.get("provider") == "smb", acct.get("host", ""))
+
+    def backup_upload(self, remote: str, folder: str, name: str, src) -> int:
+        """Save a backup streamed from `src` as folder/name. Returns its size."""
+        self._refresh_nas(remote)
+        target = f"{self._remote(folder, remote)}/{name}" if self._norm(folder) else f"{remote}:{name}"
+        try:
+            self._rclone("mkdir", self._remote(folder, remote), timeout=120, remote=remote)
+        except CloudError:
+            pass  # rcat says what's wrong, more usefully
+        tmp = self.storage.root.parent / "tmp"
+        tmp.mkdir(exist_ok=True)
+        env = {**os.environ, "TMPDIR": str(tmp)}  # some services need the file buffered before sending
+        cmd = ["rclone", "--config", str(self.conf), "--low-level-retries", "5", "rcat", target]
+        try:
+            r = subprocess.run(cmd, stdin=src, capture_output=True, text=True, env=env, timeout=12 * 3600)
+        except subprocess.TimeoutExpired as e:
+            raise CloudError("The backup took over 12 hours to save, so it was stopped.") from e
+        if r.returncode != 0:
+            raw = (r.stderr or r.stdout).strip()
+            log.warning("rclone rcat failed: %s", raw[-600:])
+            raise CloudError(self._write_error(remote, raw))
+        out = self._rclone("lsjson", "--files-only", "--no-mimetype", target, timeout=120, remote=remote)
+        items = json.loads(out or "[]")
+        return int(items[0]["Size"]) if items else 0
+
+    def backup_list(self, remote: str, folder: str) -> list[dict]:
+        try:
+            out = self._rclone("lsjson", "--files-only", "--no-mimetype", "--max-depth", "1",
+                               self._remote(folder, remote), timeout=120, remote=remote)
+        except CloudError:
+            return []
+        return json.loads(out or "[]")
+
+    def backup_delete(self, remote: str, folder: str, name: str) -> None:
+        target = f"{self._remote(folder, remote)}/{name}" if self._norm(folder) else f"{remote}:{name}"
+        self._rclone("deletefile", target, timeout=120, remote=remote)
 
     def _label(self, remote: str) -> str:
         acct = self._account(remote)

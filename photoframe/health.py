@@ -263,6 +263,10 @@ def summarise(h: dict) -> list[dict]:
             n = sum(l.get("files") or 0 for l in links)
             add("Synced folders", "ok", f"{len(links)} folder{'s' if len(links) != 1 else ''} in sync ({n} files)")
 
+    b = h.get("backup")
+    if b:
+        add("Backups", b["level"], b["text"])
+
     lib = h.get("library") or {}
     failed = [j for j in lib.get("jobs", []) if j["status"] == "failed"]
     if failed:

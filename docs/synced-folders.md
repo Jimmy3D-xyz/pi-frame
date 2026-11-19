@@ -25,7 +25,8 @@ frame keeps an album in step with it:
 Or, on a computer with rclone, run `rclone authorize "onedrive"` (or
 `"drive"`, `"dropbox"`) and paste the token it prints.
 
-Google Drive access is read-only.
+Google Drive access is read-only, apart from files the frame makes itself
+([automatic backups](installing.md#backing-up), if you choose Google Drive for them).
 
 ### Google Drive with your own API key (optional)
 

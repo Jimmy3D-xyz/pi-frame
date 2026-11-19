@@ -35,6 +35,7 @@ A Python (Flask) app, started with `python3 -m photoframe`.
 | `photoframe/presence.py`, `buttons.py` | Presence sensor and physical buttons (gpiozero) |
 | `photoframe/health.py` | The Maintenance tab's checks |
 | `photoframe/updater.py` | Checking and handing over web updates |
+| `photoframe/backup.py` | Backups (also a command: `python3 -m photoframe.backup create\|inspect`), automatic backups, restoring |
 | `photoframe/sysmodes.py` | Reading the screen's resolutions and the boot setting |
 | `photoframe/static/` | The web pages (`index.html`, `setup.html`, `live.html`), icons, wiring diagram |
 | `photoframe/data/fun.json` | The jokes and facts |
@@ -127,6 +128,12 @@ errors or placeholder values. Pi Frame adds:
 | `GET /api/maintenance`, `GET /api/maintenance/events` | Health and recent activity |
 | `POST /api/maintenance/check-network\|restart\|reboot`, `GET /api/maintenance/diagnostics` | Maintenance actions |
 | `GET/DELETE /api/maintenance/update`, `POST /api/maintenance/update/upload\|install` | Software updates |
+| `GET /api/backup` | Backup settings, sizes, last and next backup, backups kept on the frame |
+| `GET /api/backup/download?kind=settings\|full` | Download a new backup |
+| `POST /api/backup/now` | Back up now, to the chosen place |
+| `GET/DELETE /api/backup/file/<name>` | A backup kept on the frame |
+| `POST /api/backup/restore/start`, `PUT /api/backup/restore/upload?offset=…`, `DELETE /api/backup/restore/upload` | Upload a backup to restore, in pieces |
+| `POST /api/backup/restore` | Restore it (`{"from": "upload"}` or a kept backup's name); the frame restarts |
 
 When the page has a password, the API needs it too (HTTP basic auth). Extra
 config fields beyond the firmware's are listed with their defaults in

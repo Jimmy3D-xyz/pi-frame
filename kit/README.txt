@@ -10,7 +10,8 @@ PI FRAME INSTALLER KIT
    - Take the card out and put it back in, so "bootfs" appears.
    - Copy the whole pi-frame-kit folder onto bootfs.
    - Optional: set RESOLUTION in kit.conf (e.g. "2560x1440").
-   - Optional: put your frame-backup.tgz inside the pi-frame-kit folder on
+   - Optional: put a backup (downloaded from the frame's Maintenance tab, or
+     an older frame-backup.tgz) inside the pi-frame-kit folder on
      bootfs, to bring back your photos, videos and settings.
    - Eject the card.
 

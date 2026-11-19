@@ -268,11 +268,11 @@ def test_google_drive_and_dropbox_sign_in(tmp_path, fake_rclone):
     assert acct["name"] == "Alex S" and fake_rclone["g"] == "AT-GOOG"
     args = [json.loads(l) for l in fake_rclone["args_file"].read_text().splitlines()]
     blob = args[-1][args[-1].index("drive") + 1]
-    assert json.loads(base64.urlsafe_b64decode(blob + "=" * (-len(blob) % 4))) == {"scope": "drive.readonly"}
+    assert json.loads(base64.urlsafe_b64decode(blob + "=" * (-len(blob) % 4))) == {"scope": "drive.readonly,drive.file"}
     od.start_auth("dropbox")
     assert od.finish_auth("http://localhost:53682/?code=DBX&state=st4te123")["name"] == "Alex Dropbox"
     conf = od._read_conf()
-    assert conf.get("gdrive", "type") == "drive" and conf.get("gdrive", "scope") == "drive.readonly"
+    assert conf.get("gdrive", "type") == "drive" and conf.get("gdrive", "scope") == "drive.readonly,drive.file"
     assert conf.get("dropbox", "type") == "dropbox" and "AT-DBX" in conf.get("dropbox", "token")
     st = od.status()
     assert {a["label"] for a in st["accounts"]} == {"Google Drive", "Dropbox"} and all(a["connected"] for a in st["accounts"])
@@ -391,3 +391,41 @@ def test_status_reports_rclone_version(tmp_path, monkeypatch):
     monkeypatch.setattr(cloudmod, "rclone_version", lambda: (1, 60, 1))
     st = OneDrive(tmp_path, Storage(tmp_path, PANEL)).status()
     assert st["rclone_version"] == "1.60.1" and st["rclone_old_for_onedrive"] is True
+
+
+# ---------------------------------------------------------------- saving backups
+def test_backups_saved_through_rclone(tmp_path):
+    od = OneDrive(tmp_path, Storage(tmp_path, PANEL))
+    od._set_remote("dest", {"type": "local"})
+    assert od.can_back_up("dest")[0]
+    folder = str(tmp_path / "remote" / "Pi Frame backups")
+    src = tmp_path / "b.tgz"
+    src.write_bytes(os.urandom(300_000))
+    with open(src, "rb") as f:
+        assert od.backup_upload("dest", folder, "piframe-backup-2026-01-01-0300-full.tgz", f) == 300_000
+    saved = Path(folder) / "piframe-backup-2026-01-01-0300-full.tgz"
+    assert saved.read_bytes() == src.read_bytes()
+    assert [x["Name"] for x in od.backup_list("dest", folder)] == [saved.name]
+    od.backup_delete("dest", folder, saved.name)
+    assert not saved.exists() and od.backup_list("dest", str(tmp_path / "nowhere")) == []
+
+
+def test_google_drive_connected_read_only_cant_take_backups(tmp_path):
+    od = OneDrive(tmp_path, Storage(tmp_path, PANEL))
+    od._set_remote("gdrive", {"type": "drive", "scope": "drive.readonly", "token": "{}"})
+    ok, why = od.can_back_up("gdrive")
+    assert not ok and "sign in to Google Drive again" in why
+    od._set_remote("gdrive", {"type": "drive", "scope": "drive.readonly,drive.file", "token": "{}"})
+    assert od.can_back_up("gdrive")[0]
+
+
+def test_after_a_restore_missing_synced_photos_download_again(tmp_path):
+    st = Storage(tmp_path, PANEL)
+    od = OneDrive(tmp_path, st)
+    st.create_album("Wedding")
+    od.state["links"] = [{"id": "l1", "remote": "onedrive", "folder": "W", "album": "Wedding", "every_hours": 1,
+                          "last_sync": time.time()}]
+    od._save_manifest("l1", {"a.jpg": {"size": 1, "mtime": "x"}, "b.jpg": {"size": 1, "mtime": "x"}})
+    photo(tmp_path / "albums" / "Wedding" / f"{managed_stem('l1', 'a.jpg')}.jpg", (1, 2, 3), (40, 30))
+    od.reconcile()
+    assert list(od._manifest("l1")) == ["a.jpg"] and od.state["links"][0]["last_sync"] is None

@@ -93,6 +93,14 @@ in to the website, a one-off update package can set a temporary SSH
 password (ask for one, and delete it afterwards). Otherwise, put the card
 in a computer, or reflash it with the kit and your backup.
 
+**An automatic backup to the NAS fails with "didn't let the frame save there".**
+The NAS account can read but not write. Give it write permission on the
+backup folder (or choose a different folder or place), then press Back up now.
+
+**Google Drive isn't offered for backups ("connected read-only").**
+Google Drive connections made before version 0.24 can only read. Disconnect
+it under Photo source → Synced folders and sign in again; synced albums are kept.
+
 **SSH says the host key has changed.**
 Expected after reflashing a card: `ssh-keygen -R piframe.local`.
 

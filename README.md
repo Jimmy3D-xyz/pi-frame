@@ -23,6 +23,8 @@ work with it unchanged.
 - **On-screen info**: clock, weather, when and where each photo was taken, jokes and fun facts
 - **Looks after itself**: screen schedule, presence sensor, monitor brightness and standby over HDMI,
   automatic Wi-Fi repair with a setup hotspot, a health page, and safe updates from the website
+- **Backups**: download one, or back up automatically to your NAS, OneDrive, Dropbox or Google Drive,
+  and restore from the website or onto a new card
 - **Physical buttons** for previous, next, and screen / power
 - **Live view** of what's on the frame, from any browser
 
@@ -54,7 +56,7 @@ updating, is in [Installing and updating](docs/installing.md).
 
 | | |
 | --- | --- |
-| [Installing and updating](docs/installing.md) | The installer kit, backups, moving to a new card, software updates |
+| [Installing and updating](docs/installing.md) | The installer kit, backups and restoring, moving to a new card, software updates |
 | [Using the frame](docs/using.md) | Photos and videos, slideshow styles, on-screen info, live view, Wi-Fi setup |
 | [Synced folders](docs/synced-folders.md) | OneDrive, Google Drive, Dropbox and NAS |
 | [Screen and hardware](docs/screen-and-hardware.md) | Resolution, fades, boot screen, brightness, presence sensor, buttons |
