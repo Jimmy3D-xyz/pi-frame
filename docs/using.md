@@ -146,8 +146,9 @@ IP address and network once Wi-Fi connects. The Next button skips it.
 **No photos**: with nothing to show, the frame shows a QR code for its web
 page. The first photo you add replaces it straight away.
 
-**Wi-Fi setup**: if the frame isn't online within 2 minutes of starting, or
-loses Wi-Fi for more than 5 minutes, it starts its own hotspot called
+**Wi-Fi setup**: if the frame isn't online within 2 minutes of starting
+(15 seconds when it has no Wi-Fi network saved, as on a new frame), or loses
+Wi-Fi for more than 5 minutes, it starts its own hotspot called
 `PiFrame-XXXX` and shows two QR codes:
 
 1. Join the frame's Wi-Fi (the password is on the screen and changes each boot).

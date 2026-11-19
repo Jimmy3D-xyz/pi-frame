@@ -240,8 +240,10 @@ if [ "$IMAGE" = 1 ]; then
     esac
   fi
   if [ -d /etc/cloud/cloud.cfg.d ]; then
-    printf '# Pi Frame: no default user (the welcome wizard or Imager settings make one)\nusers: []\n' \
-      > /etc/cloud/cloud.cfg.d/99_zz-pi-frame.cfg
+    # (Raspberry Pi Imager's settings, when used, come in user-data and take precedence)
+    printf '%s\n' '# Pi Frame: no default user (the welcome wizard or Imager settings make one),' \
+      '# and keep the name piframe unless Imager settings give another' \
+      'users: []' 'hostname: piframe' > /etc/cloud/cloud.cfg.d/99_zz-pi-frame.cfg
   fi
   systemctl disable ssh.service 2>/dev/null || true
   # a new Pi keeps Wi-Fi off until a country is set; the wizard sets it, but the

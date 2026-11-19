@@ -37,7 +37,9 @@ jobs:
           ls /proc/sys/fs/binfmt_misc/ | grep -i aarch64
 
       - name: Build the image
-        run: sudo bash deploy/build-image.sh dist
+        run: |
+          sudo bash deploy/build-image.sh dist
+          sudo chown -R "$(id -u):$(id -g)" dist
 
       - name: Build the update package and kit
         run: bash kit/build-kit.sh dist
