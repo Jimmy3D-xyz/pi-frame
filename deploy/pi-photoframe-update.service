@@ -1,0 +1,8 @@
+[Unit]
+Description=Install a Pi Frame update uploaded from the web page
+
+[Service]
+Type=oneshot
+# A copy outside /opt/pi-photoframe, so replacing the app can't disturb it mid-run.
+ExecStart=/usr/local/sbin/pi-photoframe-update
+TimeoutStartSec=20min

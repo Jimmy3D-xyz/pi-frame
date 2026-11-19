@@ -1,0 +1,6 @@
+[Unit]
+Description=Apply a Pi Frame system request (e.g. screen resolution)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/pi-photoframe/deploy/system_helper.py request

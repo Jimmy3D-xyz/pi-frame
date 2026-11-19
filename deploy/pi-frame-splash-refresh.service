@@ -1,0 +1,10 @@
+[Unit]
+Description=Remake the Pi Frame boot logo if the screen size changed
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/pi-photoframe/deploy/system_helper.py refresh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+// Let the pi-photoframe service manage Wi-Fi (setup hotspot, joining networks)
+// through NetworkManager, and reboot the Pi from the Maintenance tab, without
+// running as root.
+polkit.addRule(function(action, subject) {
+    if (subject.user != "photoframe") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0) {
+        return polkit.Result.YES;
+    }
+    // reboot (Maintenance tab) and power off (hold the screen button)
+    if (action.id == "org.freedesktop.login1.reboot" ||
+        action.id == "org.freedesktop.login1.reboot-multiple-sessions" ||
+        action.id == "org.freedesktop.login1.reboot-ignore-inhibit" ||
+        action.id == "org.freedesktop.login1.power-off" ||
+        action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+        action.id == "org.freedesktop.login1.power-off-ignore-inhibit") {
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});

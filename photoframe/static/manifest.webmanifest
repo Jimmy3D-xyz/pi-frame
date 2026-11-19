@@ -1,0 +1,25 @@
+{
+ "name": "Pi Frame",
+ "short_name": "Pi Frame",
+ "start_url": "/",
+ "display": "standalone",
+ "background_color": "#e9ece8",
+ "theme_color": "#2b2622",
+ "icons": [
+  {
+   "src": "/static/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "/static/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "/static/favicon.svg",
+   "sizes": "any",
+   "type": "image/svg+xml"
+  }
+ ]
+}
