@@ -15,9 +15,9 @@ jobs:
         # 3.11: Raspberry Pi OS Bookworm. 3.13: Raspberry Pi OS Trixie.
         python: ["3.11", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -25,7 +25,7 @@ jobs:
       - name: Install tools (video, sync, HEIC)
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends ffmpeg mpv rclone libheif-examples fonts-dejavu-core
+          sudo apt-get install -y -q --no-install-recommends ffmpeg mpv rclone libheif-examples libheif-plugin-x265 fonts-dejavu-core
 
       - name: Install Python packages
         run: pip install -r requirements.txt qrcode gpiozero pytest
@@ -38,10 +38,10 @@ jobs:
     needs: test
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build
         run: bash kit/build-kit.sh dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: pi-frame-${{ github.sha }}
           path: dist/*.zip
