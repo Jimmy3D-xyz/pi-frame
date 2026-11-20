@@ -257,7 +257,10 @@ if [ "$IMAGE" = 1 ]; then
   exit 0
 fi
 
-systemctl restart avahi-daemon
+# Reload, not restart: a restart makes avahi announce the name afresh, and it can
+# hear its own earlier announcement, think "piframe" is taken and become piframe-2.
+systemctl enable --now avahi-daemon 2>/dev/null || true
+systemctl reload avahi-daemon 2>/dev/null || true
 systemctl restart pi-photoframe.service
 
 echo
