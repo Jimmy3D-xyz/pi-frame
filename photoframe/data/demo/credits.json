@@ -1,0 +1,194 @@
+[
+ {
+  "file": "01-water-lily-pond.jpg",
+  "title": "Water Lily Pond",
+  "creator": "Claude Monet",
+  "date": "1900",
+  "source": "https://www.artic.edu/artworks/87088",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1686,
+   1499
+  ]
+ },
+ {
+  "file": "02-the-aurora-borealis-blankets-the-earth.jpg",
+  "title": "The aurora borealis over Earth, from the International Space Station",
+  "creator": "NASA (JSC)",
+  "date": "2024-10-30",
+  "source": "https://images.nasa.gov/details/iss072e159172",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1920,
+   1280
+  ]
+ },
+ {
+  "file": "03-distant-view-of-niagara-falls.jpg",
+  "title": "Distant View of Niagara Falls",
+  "creator": "Thomas Cole",
+  "date": "1830",
+  "source": "https://www.artic.edu/artworks/90048",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1686,
+   1306
+  ]
+ },
+ {
+  "file": "04-saturn-from-far-and-near-cassini-huygens.jpg",
+  "title": "Saturn, from Cassini",
+  "creator": "NASA (JPL)",
+  "date": "2004-05-26",
+  "source": "https://images.nasa.gov/details/PIA05983",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1024,
+   1024
+  ]
+ },
+ {
+  "file": "05-the-departure-of-the-boats-tretat.jpg",
+  "title": "The Departure of the Boats, Étretat",
+  "creator": "Claude Monet",
+  "date": "1885",
+  "source": "https://www.artic.edu/artworks/81540",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1686,
+   1330
+  ]
+ },
+ {
+  "file": "06-iss070e091714.jpg",
+  "title": "The edge of the Earth, from the International Space Station",
+  "creator": "NASA (JSC)",
+  "date": "2024-02-10",
+  "source": "https://images.nasa.gov/details/iss070e091714",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1280,
+   1920
+  ]
+ },
+ {
+  "file": "07-mountain-brook.jpg",
+  "title": "Mountain Brook",
+  "creator": "Albert Bierstadt",
+  "date": "1863",
+  "source": "https://www.artic.edu/artworks/146701",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1563,
+   1920
+  ]
+ },
+ {
+  "file": "08-james-webb-space-telescope-nircam-image-.jpg",
+  "title": "The Cosmic Cliffs of the Carina Nebula, from the Webb telescope",
+  "creator": "NASA (STScI (Webb))",
+  "date": "2022-07-12",
+  "source": "https://images.nasa.gov/details/carina_nebula",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1920,
+   1111
+  ]
+ },
+ {
+  "file": "09-seascape.jpg",
+  "title": "Seascape",
+  "creator": "Pierre-Auguste Renoir",
+  "date": "1879",
+  "source": "https://www.artic.edu/artworks/81557",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1686,
+   1329
+  ]
+ },
+ {
+  "file": "10-the-clear-blue-waters-surrounding-the-ba.jpg",
+  "title": "The Bahamas, from the International Space Station",
+  "creator": "NASA (JSC)",
+  "date": "2024-07-24",
+  "source": "https://images.nasa.gov/details/iss071e449837",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1920,
+   1280
+  ]
+ },
+ {
+  "file": "11-landscape-with-two-poplars.jpg",
+  "title": "Landscape with Two Poplars",
+  "creator": "Vasily Kandinsky",
+  "date": "1912",
+  "source": "https://www.artic.edu/artworks/8980",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1686,
+   1328
+  ]
+ },
+ {
+  "file": "12-lake-powell-colorado-river-utah-and-gran.jpg",
+  "title": "Lake Powell and the Grand Canyon, from Skylab",
+  "creator": "NASA (JSC)",
+  "date": "1973-06-22",
+  "source": "https://images.nasa.gov/details/SL2-04-018",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1872,
+   1920
+  ]
+ },
+ {
+  "file": "13-still-life-with-flowers.jpg",
+  "title": "Still Life with Flowers",
+  "creator": "Odilon Redon",
+  "date": "1905",
+  "source": "https://www.artic.edu/artworks/110982",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1314,
+   1920
+  ]
+ },
+ {
+  "file": "14-glaciers-flow-downhill-from-the-himalaya.jpg",
+  "title": "Himalayan glaciers, from the International Space Station",
+  "creator": "NASA (JSC)",
+  "date": "2026-05-20",
+  "source": "https://images.nasa.gov/details/iss074e0603585",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1920,
+   1280
+  ]
+ },
+ {
+  "file": "15-view-of-cotopaxi.jpg",
+  "title": "View of Cotopaxi",
+  "creator": "Frederic Edwin Church",
+  "date": "1857",
+  "source": "https://www.artic.edu/artworks/76571",
+  "license": "Public domain (Art Institute of Chicago, CC0)",
+  "size": [
+   1686,
+   1119
+  ]
+ },
+ {
+  "file": "16-view-of-skylab-space-station-cluster-in-.jpg",
+  "title": "Skylab above the clouds",
+  "creator": "NASA (JSC)",
+  "date": "1974-02-08",
+  "source": "https://images.nasa.gov/details/sl4-143-4707",
+  "license": "NASA image, not subject to copyright in the US",
+  "size": [
+   1920,
+   1897
+  ]
+ }
+]
