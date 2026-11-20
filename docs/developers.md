@@ -169,7 +169,7 @@ check `docker build` succeeds first.
 3. Tag it (`git tag v0.27.0 && git push origin v0.27.0`). GitHub then publishes
    a release:
    - **feature versions** (`vX.Y.0`): a new ready-made image, the update
-     package and the kit (workflow "Image", about half an hour);
+     package and the kit (workflow "Image", about 10 minutes);
    - **small fixes**: the update package and the kit only (workflow
      "Release", a minute or two).
 

@@ -15,8 +15,8 @@ on:
         description: "Publish as a test release (pi-frame-test)"
         type: boolean
         default: true
-      arm:
-        description: "Build on GitHub's Arm machines (no emulation needed)"
+      intel:
+        description: "Build on an Intel machine, with Arm emulation (slower; Arm is the default)"
         type: boolean
         default: false
 
@@ -25,7 +25,9 @@ permissions:
 
 jobs:
   image:
-    runs-on: ${{ inputs.arm && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    # Arm, like the Pi: everything runs natively (about 6 minutes, against 15
+    # with emulation on Intel)
+    runs-on: ${{ inputs.intel && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
@@ -35,7 +37,7 @@ jobs:
           for attempt in 1 2 3; do
             sudo apt-get update -q -o Acquire::Retries=5 &&
             sudo apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends \
-              $( [ "$(uname -m)" = aarch64 ] || echo qemu-user-static binfmt-support ) xz-utils fdisk e2fsprogs zip &&
+              $( [ "$(uname -m)" = aarch64 ] || echo qemu-user-static binfmt-support ) xz-utils fdisk e2fsprogs zerofree zip &&
             break
             sleep 30
           done

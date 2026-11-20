@@ -6,7 +6,7 @@
 #   sudo deploy/build-image.sh [output-folder]        (default: dist/)
 #
 # Runs on an x86 or Arm Linux machine (GitHub Actions does it: see
-# .github/workflows/image.yml). Needs: curl, xz, sfdisk, e2fsprogs, losetup,
+# .github/workflows/image.yml). Needs: curl, xz, sfdisk, e2fsprogs, zerofree, losetup,
 # and qemu-user-static with binfmt support when not on Arm.
 #
 #   PF_BASE_URL   the Raspberry Pi OS image to start from (default: the latest Lite 64-bit)
@@ -146,6 +146,13 @@ bsize="$(dumpe2fs -h "${LOOP}p2" 2>/dev/null | awk -F: '/^Block size/ {gsub(/ /,
 spare=$((300 * 1024 * 1024))
 fs_bytes=$((blocks * bsize + spare))
 resize2fs "${LOOP}p2" "$((fs_bytes / 1024))K" >/dev/null
+# blank the free space (deleted package downloads, etc.), so it compresses to
+# nothing; fstrim does this on some machines but not all
+if command -v zerofree >/dev/null; then
+  zerofree "${LOOP}p2"
+else
+  echo "    (zerofree isn't installed: the image will be bigger than it needs to be)"
+fi
 start="$(partx -g -o START -n 2 "$IMG" | tr -d ' ')"  # in 512-byte sectors
 losetup -d "$LOOP"; LOOP=""
 sectors=$(((fs_bytes + 511) / 512))
