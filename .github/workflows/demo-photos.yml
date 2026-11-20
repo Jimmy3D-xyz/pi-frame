@@ -1,7 +1,7 @@
 name: Demo photos
 
-# The sample photos for the frame's demo mode, from the Met's Open Access
-# collection (public domain) and NASA's image library. Run by hand:
+# The sample photos for the frame's demo mode, from the Art Institute of
+# Chicago's open access collection (public domain) and NASA's image library. Run by hand:
 #   explore: candidates + a contact sheet, pushed to the demo-photos-explore branch
 #   fetch:   the ones chosen in deploy/demo_photos.json, committed to main
 on:

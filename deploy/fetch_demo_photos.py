@@ -2,8 +2,8 @@
 """Fetch the sample photos for the frame's demo (shop) mode.
 
 Sources, both free of copyright restrictions:
-  - The Metropolitan Museum of Art's Open Access collection: only objects the
-    Met marks as public domain (isPublicDomain), released under CC0.
+  - The Art Institute of Chicago's open-access collection: only artworks it
+    marks as public domain (is_public_domain), whose images it releases under CC0.
   - NASA's image library (images.nasa.gov): NASA imagery is generally not
     subject to copyright in the United States. Items credited to anyone other
     than NASA (or that mention copyright) are skipped.
@@ -33,11 +33,13 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 REPO = Path(__file__).resolve().parents[1]
 CHOSEN = REPO / "deploy" / "demo_photos.json"
 OUT = REPO / "photoframe" / "data" / "demo"
-MET = "https://collectionapi.metmuseum.org/public/collection/v1"
+AIC = "https://api.artic.edu/api/v1"
+AIC_IIIF = "https://www.artic.edu/iiif/2"
+AIC_FIELDS = "id,title,artist_title,artist_display,date_display,image_id,is_public_domain,classification_title,thumbnail"
 NASA = "https://images-api.nasa.gov"
 UA = {"User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)"}
 LONG_EDGE = 2048
-MET_QUERIES = ["landscape", "seascape", "mountains", "river", "garden", "flowers", "harbor", "snow", "sunset", "autumn"]
+ART_QUERIES = ["landscape", "seascape", "mountains", "river", "garden", "flowers", "harbor", "snow", "sunset", "autumn"]
 NASA_QUERIES = ["earth from space station", "aurora from space station", "milky way", "Saturn Cassini",
                 "Grand Canyon from space", "Himalayas from space", "Bahamas from space", "nebula Webb"]
 
@@ -58,29 +60,37 @@ def get(url: str, **kw) -> requests.Response:
     return r
 
 
-# ---------------------------------------------------------------- the Met
-def met_object(oid: int) -> dict | None:
-    o = get(f"{MET}/objects/{oid}").json()
-    if not o.get("isPublicDomain") or not o.get("primaryImage"):
+# ---------------------------------------------------------------- Art Institute of Chicago
+def _aic(o: dict) -> dict | None:
+    if not o.get("is_public_domain") or not o.get("image_id"):
         return None
-    return {"source": "met", "id": oid, "title": o.get("title") or "Untitled",
-            "creator": o.get("artistDisplayName") or "Unknown artist", "date": o.get("objectDate") or "",
-            "url": o["primaryImage"], "page": o.get("objectURL") or f"https://www.metmuseum.org/art/collection/search/{oid}",
-            "license": "Public domain (The Met Open Access, CC0)", "kind": o.get("classification") or ""}
+    return {"source": "aic", "id": o["id"], "title": o.get("title") or "Untitled",
+            "creator": o.get("artist_title") or (o.get("artist_display") or "Unknown artist").split("\n")[0],
+            "date": o.get("date_display") or "",
+            "url": f"{AIC_IIIF}/{o['image_id']}/full/2048,/0/default.jpg",
+            "page": f"https://www.artic.edu/artworks/{o['id']}",
+            "license": "Public domain (Art Institute of Chicago, CC0)", "kind": o.get("classification_title") or ""}
 
 
-def met_candidates(per_query: int = 3) -> list[dict]:
+def art_object(oid: int) -> dict | None:
+    return _aic(get(f"{AIC}/artworks/{oid}", params={"fields": AIC_FIELDS}).json()["data"])
+
+
+def art_candidates(per_query: int = 3) -> list[dict]:
     out, seen = [], set()
-    for q in MET_QUERIES:
-        ids = get(f"{MET}/search", params={"q": q, "hasImages": "true", "isHighlight": "true"}).json().get("objectIDs") or []
+    for q in ART_QUERIES:
+        r = get(f"{AIC}/artworks/search", params={
+            "q": q, "limit": 40, "fields": AIC_FIELDS,
+            "query[bool][must][][term][is_public_domain]": "true",
+            "query[bool][must][][term][classification_title]": "painting"}).json()
         n = 0
-        for oid in ids[:40]:
-            if oid in seen:
+        for o in r.get("data", []):
+            if o["id"] in seen:
                 continue
-            seen.add(oid)
-            o = met_object(oid)
-            if o and o["kind"].lower().startswith("paint"):
-                out.append(o)
+            seen.add(o["id"])
+            c = _aic(o)
+            if c and "paint" in c["kind"].lower():
+                out.append(c)
                 n += 1
                 if n >= per_query:
                     break
@@ -158,7 +168,7 @@ def contact_sheet(cands: list[dict], images: list[Image.Image], path: Path) -> N
 
 def explore(out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    cands = met_candidates() + nasa_candidates()
+    cands = art_candidates() + nasa_candidates()
     images, kept = [], []
     for c in cands:
         try:
@@ -181,7 +191,7 @@ def fetch() -> None:
         old.unlink()
     credits = []
     for n, pick in enumerate(chosen, 1):
-        c = met_object(int(pick["id"])) if pick["source"] == "met" else nasa_item(str(pick["id"]))
+        c = art_object(int(pick["id"])) if pick["source"] == "aic" else nasa_item(str(pick["id"]))
         if not c:
             sys.exit(f"{pick} is no longer available as public domain: choose another")
         im = load(c["url"])
