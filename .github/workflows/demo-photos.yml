@@ -1,0 +1,52 @@
+name: Demo photos
+
+# The sample photos for the frame's demo mode, from the Met's Open Access
+# collection (public domain) and NASA's image library. Run by hand:
+#   explore: candidates + a contact sheet, pushed to the demo-photos-explore branch
+#   fetch:   the ones chosen in deploy/demo_photos.json, committed to main
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "explore or fetch"
+        type: choice
+        options: [explore, fetch]
+        default: explore
+
+permissions:
+  contents: write
+
+jobs:
+  photos:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install requests pillow
+      - name: Fonts for the contact sheet
+        run: sudo apt-get install -y -q fonts-dejavu-core >/dev/null 2>&1 || true
+
+      - name: Explore
+        if: inputs.mode == 'explore'
+        run: |
+          python3 deploy/fetch_demo_photos.py explore explore
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan demo-photos-explore
+          git rm -rq --cached .
+          git add -f explore/contact.jpg explore/candidates.json
+          git commit -qm "Demo photo candidates"
+          git push -f origin demo-photos-explore
+
+      - name: Fetch the chosen photos
+        if: inputs.mode == 'fetch'
+        run: |
+          python3 deploy/fetch_demo_photos.py fetch
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git add photoframe/data/demo
+          git diff --cached --quiet && { echo "No changes"; exit 0; }
+          git commit -qm "Demo photos: fetched from the Met Open Access and NASA (see credits.json)"
+          git push origin HEAD:main
