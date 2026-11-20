@@ -43,6 +43,7 @@ DEFAULT_CONFIG: dict = {
     "screen_off_time": "22:30",
     "transition": "fade",  # fade | none
     "transition_ms": 1500,
+    "transition_effects": "all",  # fade | moves (zooms and slides too) | all (and 3D turns); with transition "fade"
     "local_collage": True,  # pair two mismatched-orientation photos in storage mode
     "welcome_seconds": 30,  # welcome/QR screen after starting; 0 = off
     # slideshow style: classic (one photo at a time), story (collage, then each of
@@ -148,8 +149,9 @@ _ENUMS = {
     "rotation_mode": {"storage", "url"},
     "sd_rotation_mode": {"random", "sequential"},
     "transition": {"fade", "none"},
+    "transition_effects": {"fade", "moves", "all"},
     "overlay_corner": {"bottom-left", "bottom-right", "top-left", "top-right"},
-    "slideshow_style": {"classic", "story", "spotlight"},
+    "slideshow_style": {"classic", "story", "spotlight", "living"},
     "overlay_fun": {"off", "jokes", "facts", "both"},
     "overlay_size": {"small", "medium", "large"},
     "weather_units": {"c", "f"},

@@ -366,14 +366,15 @@
           <label><input type="radio" name="sstyle" value="classic"><span>Classic</span></label>
           <label><input type="radio" name="sstyle" value="story"><span>Story</span></label>
           <label><input type="radio" name="sstyle" value="spotlight"><span>Spotlight</span></label>
+          <label><input type="radio" name="sstyle" value="living"><span>Living collage</span></label>
         </div>
         <p class="note" id="style-help" style="margin-top:0"></p>
         <div class="row" id="style-opts">
           <label class="field"><span>Photos in a collage</span>
             <select data-ovl="collage_count" data-num><option value="0">Mix it up (3–5)</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
-          <label class="field"><span>Show each collage for</span>
+          <label class="field" id="collage-time"><span>Show each collage for</span>
             <select data-ovl="collage_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
-          <label class="field"><span>Show each photo for</span>
+          <label class="field"><span id="single-time">Show each photo for</span>
             <select data-ovl="single_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
         </div>
         <label class="toggle" style="margin-top:.6rem"><input type="checkbox" data-ovl="video_surround"> Fill the space around videos with photos</label>
@@ -571,10 +572,18 @@
             </select>
           </label>
           <label class="toggle"><input type="checkbox" name="local_collage"> Pair two photos when one wouldn't fit the screen well</label>
-          <label class="toggle"><input type="checkbox" name="fade"> Fade between photos</label>
-          <label class="field"><span>Fade length</span>
+          <label class="field"><span>Changing pictures</span>
+            <select name="changes">
+              <option value="all">Fades, zooms, slides and 3D turns</option>
+              <option value="moves">Fades, zooms and slides</option>
+              <option value="fade">Fades only</option>
+              <option value="none">Instant</option>
+            </select>
+          </label>
+          <p class="note" style="margin-top:0">Zooms take a photo out of its collage and back (Story and Spotlight), slides lay new photos into a Living collage, and 3D turns (a card flip, tipping away, a turning cube) come between some photos. They're drawn in the background while the photo before is showing.</p>
+          <label class="field"><span>Speed</span>
             <select name="transition_ms">
-              <option value="800">Quick (0.8 seconds)</option>
+              <option value="800">Quick (fades 0.8 seconds)</option>
               <option value="1500">Normal (1.5 seconds)</option>
               <option value="2500">Slow (2.5 seconds)</option>
               <option value="4000">Very slow (4 seconds)</option>
@@ -1503,7 +1512,7 @@ async function loadConfig() {
   [config, processing] = await Promise.all([api("/api/config"), api("/api/settings/processing")]);
   setForm($("#f-schedule"), config);
   renderRules(config.rotate_cron || []);
-  setForm($("#f-display"), { ...config, ...processing, fade: config.transition === "fade" });
+  setForm($("#f-display"), { ...config, ...processing, changes: config.transition === "fade" ? (config.transition_effects || "all") : "none" });
   $("#vol-out").textContent = `${config.video_volume}%`;
   showOverlaySettings();
   showButtonSettings();
@@ -1540,7 +1549,8 @@ $("#f-display").onsubmit = (e) => {
       display_orientation: f.display_orientation.value,
       display_rotation_deg: Number(f.display_rotation_deg.value),
       local_collage: f.local_collage.checked,
-      transition: f.fade.checked ? "fade" : "none",
+      transition: f.changes.value === "none" ? "none" : "fade",
+      ...(f.changes.value === "none" ? {} : { transition_effects: f.changes.value }),
       transition_ms: Number(f.transition_ms.value),
       welcome_seconds: Number(f.welcome_seconds.value),
       demo_mode: f.demo_mode.checked,
@@ -2338,12 +2348,15 @@ const STYLE_HELP = {
   classic: "One photo at a time, changing on the schedule below.",
   story: "A collage of a few photos, then each of them full screen in turn, then a new collage.",
   spotlight: "A collage, then one of its photos, back to the collage, then the next photo, and so on.",
+  living: "A collage where one photo at a time is swapped for another, like prints laid on a table. After every space has changed twice, a new layout.",
 };
 function showStyleSettings() {
   document.querySelectorAll('input[name="sstyle"]').forEach(r => r.checked = r.value === config.slideshow_style);
   $("#style-help").textContent = STYLE_HELP[config.slideshow_style] +
     (config.slideshow_style !== "classic" && config.rotation_mode === "url" ? " (Only for photos stored on this frame.)" : "");
   $("#style-opts").hidden = config.slideshow_style === "classic";
+  $("#collage-time").hidden = config.slideshow_style === "living";
+  $("#single-time").textContent = config.slideshow_style === "living" ? "Swap a photo every" : "Show each photo for";
   $('[data-ovl="clip_seconds"]').closest("label").hidden = !config.clip_every_minutes;
   $("#fun-own-row").hidden = config.overlay_fun === "off";
   if (document.activeElement !== $("#fun-own")) $("#fun-own").value = (config.fun_custom || []).join("\n");
@@ -2473,7 +2486,7 @@ async function loadFadeInfo() {
     const st = await api("/api/maintenance");
     const f = st.display && st.display.last_fade;
     const hw = st.display && st.display.kind === "kms";
-    $("#fade-info").textContent = (f ? `Last fade: ${f.fps} fps${f.hardware ? " (display hardware)" : ""}. ` :
+    $("#fade-info").textContent = (f ? `Last ${f.kind || "fade"}: ${f.fps} fps${f.hardware ? " (display hardware)" : ""}. ` :
       hw ? "Using the display hardware. " : (config.display_hw_fade ? "The display hardware isn't available, so fades use the processor (see Recent activity). " : "")) +
       "Changing this restarts the frame.";
   } catch {}

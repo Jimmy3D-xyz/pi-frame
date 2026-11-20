@@ -52,16 +52,16 @@ def test_empty_frame_shows_the_demo_then_upload_shows_photo(env):
     for _ in range(6):  # samples, collages and "about this frame" slides
         ok, msg = frame.rotate()
         assert ok and msg.startswith("demo")
-        shown.add(msg)
+        shown.add(msg.split(" (")[0])
         assert frame.state["current"]["source"] == "demo"
-    assert {"demo: photo", "demo: card"} <= shown
+    assert {"demo: photo", "demo: card", "demo: collage", "demo: swap"} <= shown
     client.post(
         "/api/upload",
         data={"album": "Default", "image": (io.BytesIO(jpeg(1600, 1200)), "a.jpg")},
         content_type="multipart/form-data",
     )
     for _ in range(150):
-        if frame.notice is None and frame.state.get("current"):
+        if frame.notice is None and (frame.state.get("current") or {}).get("filepath") == "Default/a.jpg":
             break
         _real_sleep(0.1)
     assert frame.notice is None and frame.state["current"]["filepath"] == "Default/a.jpg"

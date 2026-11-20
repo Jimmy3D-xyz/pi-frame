@@ -62,6 +62,27 @@ class BaseDisplay:
             self._blit(img)
             self._current = img
 
+    # ---------- moving transitions (kms.py does them on the display hardware) ----------
+    # Rectangles are (x, y, width, height) on the panel. Screens that can't move
+    # pictures around smoothly just fade.
+    motions = False
+
+    def zoom_in(self, img: Image.Image, src, dst, ms: int, fade_ms: int = 0) -> None:
+        """The new picture grows from `dst` on screen (showing its `src` part) to fill the screen."""
+        self.show(img, fade_ms)
+
+    def zoom_out(self, img: Image.Image, src, dst, ms: int, fade_ms: int = 0) -> None:
+        """The picture on screen (its `src` part) shrinks into `dst` of the new one."""
+        self.show(img, fade_ms)
+
+    def slide_in(self, img: Image.Image, rect, ms: int, fade_ms: int = 0) -> None:
+        """The `rect` part of the new picture slides in from the nearest edge, like a print laid down."""
+        self.show(img, fade_ms)
+
+    def play(self, frames: list[bytes], frame_size, img: Image.Image, ms: int, fade_ms: int = 0) -> None:
+        """Play drawn-ahead frames (BGRX bytes, frame_size big) like a flip-book, then show img."""
+        self.show(img, fade_ms)
+
     def _fade(self, a: Image.Image, b: Image.Image, fade_ms: int) -> None:
         # Blend in RGB space. Step count adapts to how fast this Pi manages a frame.
         start = time.monotonic()

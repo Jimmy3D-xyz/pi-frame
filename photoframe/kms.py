@@ -26,6 +26,16 @@ from PIL import Image
 
 from .display import BaseDisplay, _ease
 
+
+def _ease_out(t: float) -> float:
+    """Fast, then settling gently: a print laid down on the table."""
+    t = min(1.0, max(0.0, t))
+    return 1 - (1 - t) ** 3
+
+
+def _lerp(a, b, t: float):
+    return tuple(x + (y - x) * t for x, y in zip(a, b))
+
 log = logging.getLogger(__name__)
 
 # hand control of the display hardware to another program (mpv) and take it back
@@ -155,7 +165,7 @@ class KmsDisplay(BaseDisplay):
             frames += 1
         # the new picture moves to the bottom layer and the top layer switches off, in one step
         r = k.AtomicReq(self.card)
-        r.add(self.primary, {"FB_ID": self.fbs[back].id})
+        r.add(self.primary, self._plane_props(self.fbs[back]))
         r.add(self.overlay, {"FB_ID": 0, "CRTC_ID": 0})
         r.commit_sync()
         secs = time.monotonic() - start
@@ -163,6 +173,162 @@ class KmsDisplay(BaseDisplay):
             log.info("fade: %d frames in %.2fs (%.1f fps, display hardware)", frames, secs, frames / secs)
             self.last_fade = {"frames": frames, "secs": round(secs, 2), "fps": round(frames / secs, 1),
                               "t": time.time(), "hardware": True}
+
+    # ---------- moving transitions ----------
+    motions = True
+
+    def _layer_props(self, fb, src, dst, alpha: float = 1.0) -> dict | None:
+        """Top-layer settings showing the src part of fb at dst on screen, with whatever
+        sticks out past the screen's edges cut off (the hardware wants it all on screen)."""
+        W, H = self.size
+        sx, sy, sw, sh = (float(v) for v in src)
+        dx, dy, dw, dh = (float(v) for v in dst)
+        if dw < 1 or dh < 1:
+            return None
+        kx, ky = sw / dw, sh / dh
+        x0, y0, x1, y1 = max(dx, 0.0), max(dy, 0.0), min(dx + dw, W), min(dy + dh, H)
+        if x1 - x0 < 2 or y1 - y0 < 2:
+            return None
+        sx, sy = sx + (x0 - dx) * kx, sy + (y0 - dy) * ky
+        sw, sh = (x1 - x0) * kx, (y1 - y0) * ky
+        sx, sy = min(max(0.0, sx), W - 1.0), min(max(0.0, sy), H - 1.0)
+        sw, sh = max(1.0, min(sw, W - sx)), max(1.0, min(sh, H - sy))
+        ix0, iy0 = round(x0), round(y0)
+        return {"FB_ID": fb.id, "CRTC_ID": self.crtc.id,
+                "SRC_X": int(sx * 65536), "SRC_Y": int(sy * 65536), "SRC_W": int(sw * 65536), "SRC_H": int(sh * 65536),
+                "CRTC_X": ix0, "CRTC_Y": iy0, "CRTC_W": max(2, round(x1) - ix0), "CRTC_H": max(2, round(y1) - iy0),
+                "alpha": int(65535 * min(1.0, max(0.0, alpha)))}
+
+    def _move(self, name: str, fb, path, ms: int, first=None) -> int:
+        """Move the top layer along path(t) -> (src, dst, alpha), one step per screen refresh."""
+        k = self.k
+        start, frames = time.monotonic(), 0
+        while True:
+            t = (time.monotonic() - start) * 1000 / max(1, ms)
+            if t >= 1.0:
+                break
+            props = self._layer_props(fb, *path(t))
+            r = k.AtomicReq(self.card)
+            r.add(self.overlay, props if props else {"FB_ID": 0, "CRTC_ID": 0})
+            if frames == 0 and first:
+                first(r)
+            r.commit_sync(allow_modeset=frames == 0)
+            frames += 1
+        secs = time.monotonic() - start
+        if frames:
+            log.info("%s: %d frames in %.2fs (%.1f fps, display hardware)", name, frames, secs, frames / secs)
+            self.last_fade = {"frames": frames, "secs": round(secs, 2), "fps": round(frames / secs, 1),
+                              "t": time.time(), "hardware": True, "kind": name}
+        return frames
+
+    def _finish(self, back: int) -> None:
+        """The new picture on the bottom layer, the top layer off, in one step."""
+        r = self.k.AtomicReq(self.card)
+        r.add(self.primary, self._plane_props(self.fbs[back]))
+        r.add(self.overlay, {"FB_ID": 0, "CRTC_ID": 0})
+        r.commit_sync(allow_modeset=True)
+
+    def _moving(self, img: Image.Image, fade_ms: int, run) -> None:
+        """Common steps: draw img into the hidden buffer, run the motion, end with img showing.
+        Anything unusual (a video has the screen, it's off, the hardware objects) and it's
+        a plain change or fade instead."""
+        if img.size != self.size:
+            img = img.resize(self.size, Image.BILINEAR)
+        with self._lock:
+            if self._released or self._current is None or not self.screen_on:
+                pass
+            else:
+                back = 1 - self.front
+                self._write(back, img)
+                try:
+                    run(back)
+                    self._finish(back)
+                    self.front = back
+                    self._current = img
+                    return
+                except Exception as e:  # noqa: BLE001
+                    log.warning("moving transition failed (%s); changing without it", e)
+                    try:
+                        self._finish(back)
+                        self.front = back
+                        self._current = img
+                        return
+                    except Exception:  # noqa: BLE001
+                        pass
+        self.show(img, fade_ms)
+
+    def zoom_in(self, img, src, dst, ms, fade_ms=0):
+        full = (0, 0, *self.size)
+
+        def run(back):
+            self._move("zoom in", self.fbs[back], lambda t: (_lerp(src, full, _ease(t)), _lerp(dst, full, _ease(t)),
+                                                            1.0), ms)
+        self._moving(img, fade_ms, run)
+
+    def zoom_out(self, img, src, dst, ms, fade_ms=0):
+        full = (0, 0, *self.size)
+
+        def run(back):
+            old = self.fbs[self.front]
+            # the old picture goes on the top layer while the new one slips in underneath
+            self._move("zoom out", old, lambda t: (_lerp(full, src, _ease(t)), _lerp(full, dst, _ease(t)), 1.0), ms,
+                       first=lambda r: r.add(self.primary, self._plane_props(self.fbs[back])))
+        self._moving(img, fade_ms, run)
+
+    def slide_in(self, img, rect, ms, fade_ms=0):
+        W, H = self.size
+        x, y, w, h = rect
+        # off the nearest edge
+        dist = {(-(x + w), 0): x + w, (W - x, 0): W - x, (0, -(y + h)): y + h, (0, H - y): H - y}
+        (ox, oy) = min(dist, key=dist.get)
+
+        def path(t):
+            e = 1 - _ease_out(t)
+            return rect, (x + ox * e, y + oy * e, w, h), 0.35 + 0.65 * min(1.0, t * 2.5)
+
+        self._moving(img, fade_ms, lambda back: self._move("slide", self.fbs[back], path, ms))
+
+    def _small_fbs(self, size):
+        if getattr(self, "_small", None) is None or self._small[0] != size:
+            self._small = None
+            fbs = [self.k.DumbFramebuffer(self.card, size[0], size[1], self.k.PixelFormat.XRGB8888) for _ in range(2)]
+            self._small = (size, fbs, [np.frombuffer(fb.map(0), dtype=np.uint8).reshape(size[1], fb.stride(0))
+                                       [:, : size[0] * 4] for fb in fbs])
+        return self._small[1], self._small[2]
+
+    def play(self, frames, frame_size, img, ms, fade_ms=0):
+        if not frames:
+            return self.show(img, fade_ms)
+        fw, fh = frame_size
+        W, H = self.size
+
+        def run(back):
+            fbs, px = self._small_fbs((fw, fh))
+            n, shown, which = len(frames), -1, 0
+            start, count = time.monotonic(), 0
+            while True:
+                t = (time.monotonic() - start) * 1000 / max(1, ms)
+                if t >= 1.0:
+                    break
+                i = min(n - 1, int(t * n))
+                if i == shown:
+                    time.sleep(0.003)
+                    continue
+                np.copyto(px[which], np.frombuffer(frames[i], dtype=np.uint8).reshape(fh, fw * 4))
+                r = self.k.AtomicReq(self.card)
+                r.add(self.primary, {"FB_ID": fbs[which].id, "CRTC_ID": self.crtc.id, "SRC_X": 0, "SRC_Y": 0,
+                                     "SRC_W": fw << 16, "SRC_H": fh << 16,
+                                     "CRTC_X": 0, "CRTC_Y": 0, "CRTC_W": W, "CRTC_H": H})
+                r.commit_sync(allow_modeset=count == 0)
+                shown, which, count = i, 1 - which, count + 1
+            secs = time.monotonic() - start
+            log.info("3D: %d of %d frames in %.2fs (%.1f fps, display hardware)", count, n, secs, count / secs)
+            self.last_fade = {"frames": count, "secs": round(secs, 2), "fps": round(count / secs, 1),
+                              "t": time.time(), "hardware": True, "kind": "3d"}
+            if fade_ms > 0:  # the on-screen info fades in over the last frame
+                self._hw_fade(back, fade_ms)
+
+        self._moving(img, fade_ms, run)
 
     def _power(self, on: bool) -> None:
         try:
@@ -195,6 +361,7 @@ class KmsDisplay(BaseDisplay):
             self._teardown()
 
     def _teardown(self) -> None:
+        self._small = None
         for name in ("px", "fbs", "overlay", "primary", "crtc", "conn", "res", "card"):
             if hasattr(self, name):
                 delattr(self, name)

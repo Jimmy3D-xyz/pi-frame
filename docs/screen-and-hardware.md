@@ -3,7 +3,7 @@
 [← Back to the README](../README.md)
 
 - [Screen resolution](#screen-resolution)
-- [Fades and colour](#fades-and-colour)
+- [Fades, moves and colour](#fades-moves-and-colour)
 - [Boot screen](#boot-screen)
 - [Running without a screen](#running-without-a-screen)
 - [Monitor brightness and standby](#monitor-brightness-and-standby)
@@ -29,7 +29,7 @@ gained.) Pick one and press **Apply and restart**.
 
 From SSH, the installer does the same: `sudo ./deploy/install.sh --mode 2560x1440`.
 
-## Fades and colour
+## Fades, moves and colour
 
 Fades run on the Pi's display hardware. The new picture goes on a second
 display layer whose opacity rises with each screen refresh, and the hardware
@@ -50,6 +50,18 @@ sudo systemctl stop pi-photoframe
 python3 deploy/kms_fade_test.py
 sudo systemctl start pi-photoframe
 ```
+
+**Zooms and slides** use the same top layer: the hardware moves and scales
+it on each refresh, so a photo growing out of its collage space or a print
+sliding into a living collage also runs at 60 fps. **3D turns** (card flip,
+tip away, turning cube) are perspective drawings the hardware can't do, so
+the frame draws about 44 frames at half the screen's resolution in the
+background while the photo before is showing (5–10 seconds, on three of the
+Pi's four cores, at low priority), then plays them like a flip-book with the
+hardware scaling them up. If they aren't ready in time, or the picture is
+being darkened for the night, it's a fade. Without the display hardware,
+every change is a fade. `deploy/kms_motion_test.py` tries each of these on
+the screen and reports the frame rates.
 
 The installer's `--mode` option (and the Screen resolution page) also asks
 for 32-bit colour. Raspberry Pi OS otherwise often gives the screen 16-bit

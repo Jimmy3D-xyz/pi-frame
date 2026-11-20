@@ -129,7 +129,7 @@ def test_hardware_fade(disp):
     assert first[0] == 127 and first[1]["alpha"] == 0 and first[1]["FB_ID"] == d.fbs[d.front].id  # new picture on top, invisible
     alphas = [c[0][1]["alpha"] for c in commits[1:-1]]
     assert len(alphas) > 5 and alphas == sorted(alphas) and alphas[-1] > 60000  # opacity rises smoothly
-    assert commits[-1] == [(91, {"FB_ID": d.fbs[d.front].id}), (127, {"FB_ID": 0, "CRTC_ID": 0})]  # tidy up in one step
+    assert commits[-1] == [(91, d._plane_props(d.fbs[d.front])), (127, {"FB_ID": 0, "CRTC_ID": 0})]  # tidy up in one step
     assert d.last_fade["hardware"] and d.last_fade["frames"] == len(alphas)
 
 

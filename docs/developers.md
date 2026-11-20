@@ -21,7 +21,8 @@ A Python (Flask) app, started with `python3 -m photoframe`.
 | `photoframe/web.py` | The website and HTTP API |
 | `photoframe/config.py` | Settings and their defaults (`DEFAULT_CONFIG`) |
 | `photoframe/display.py` | Screens: framebuffer, no-screen (headless), PNG file for testing |
-| `photoframe/kms.py` | The display-hardware screen: double buffering and 60 fps fades |
+| `photoframe/kms.py` | The display-hardware screen: double buffering, 60 fps fades, zooms, slides and flip-book playback |
+| `photoframe/motion.py` | Moving transitions: collage-space geometry, 3D turns drawn in the background |
 | `photoframe/console.py` | Keeps the console in graphics mode so no text lands on photos |
 | `photoframe/render.py`, `collage.py`, `surround.py` | Fitting photos to the screen, collages, photos around videos |
 | `photoframe/overlay.py` | On-screen info: clock, weather, photo details, jokes |

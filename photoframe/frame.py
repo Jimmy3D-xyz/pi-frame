@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import math
 import random
 import threading
 import time
@@ -27,7 +28,7 @@ from .display import BaseDisplay, FileDisplay, HeadlessDisplay
 from .storage import Storage, timestamp_name
 from .video import VideoPlayer, is_video
 from .overlay import Overlay, photo_details
-from . import collage, demo
+from . import collage, demo, motion
 from .monitor import Monitor
 
 log = logging.getLogger(__name__)
@@ -58,6 +59,13 @@ def _upright_size(path: Path) -> tuple[int, int] | None:
             return w, h
     except Exception:  # noqa: BLE001
         return None
+
+
+class _Shape:
+    """Just a width and height, for the shape checks."""
+
+    def __init__(self, width: int, height: int):
+        self.width, self.height = width, height
 
 
 class Frame:
@@ -107,6 +115,14 @@ class Frame:
         self.backups = None  # backups and restoring, set by __main__ (or the web app)
         self.notice: str | None = None  # None | "empty" | "wifi" while a card is on screen
         self.wifi = None  # WifiManager, when running on a Pi with NetworkManager
+        # moving transitions (motion.py)
+        self._shown = 0  # counts pictures put on screen, so a 3D turn drawn ahead knows it's still current
+        self._turn: motion.Turn | None = None  # a 3D turn being drawn for the next picture
+        self._turn_n = 0
+        self._queued: Path | None = None  # classic style: the next photo, chosen early for its 3D turn
+        self._living: dict | None = None  # living collage style
+        self._demo_view: dict | None = None  # what demo mode has on screen (for its zooms and slides)
+        self._demo_wait: float | None = None
 
     # ---------- state ----------
     def _load_state(self) -> None:
@@ -128,9 +144,10 @@ class Frame:
 
     # ---------- drawing ----------
     def _present(self, images: list[Image.Image], source: dict, remember: Path | None,
-                 caption: str | None = None) -> None:
+                 caption: str | None = None, move: dict | None = None, composed: Image.Image | None = None) -> None:
+        """Put a picture on screen. move: how to get there, other than a fade (see _transition)."""
         proc = self.cfg.processing
-        frame = render.compose(
+        frame = composed if composed is not None and composed.size == self.logical else render.compose(
             images, self.logical, proc.get("scaleMode", "fit"), proc.get("backgroundColor", "blur")
         )
         # when/where the photo was taken (single stored photos only, not collages or server images)
@@ -143,8 +160,8 @@ class Frame:
         if caption:  # demo mode's samples: "Sample photo" and the credit
             shown = demo.draw_caption(shown, caption, self.cfg.get("overlay_corner"))
         panel_img = render.to_panel(shown, self.panel, self.cfg.get("display_rotation_deg"))
-        fade = self.cfg.get("transition_ms") if self.cfg.get("transition") == "fade" else 0
-        self.display.show(self._dim(panel_img), fade)
+        self._transition(self._dim(panel_img), move)
+        self._shown += 1
         self.notice = None
         self.current_thumb = render.thumbnail_jpeg(shown)
         self.current_full = shown
@@ -159,6 +176,85 @@ class Frame:
         self._save_state()
         self._prune_cache()
         self._notify_ha("update")
+
+    # ---------- moving transitions ----------
+    def effects(self, demo_mode: bool = False) -> str:
+        """none (instant), fade, moves (zooms and slides too) or all (and 3D turns)."""
+        if self.cfg.get("transition") != "fade":
+            return "none"
+        if not getattr(self.display, "motions", False):
+            return "fade"
+        return "all" if demo_mode else self.cfg.get("transition_effects")
+
+    def _can(self, what: str) -> bool:
+        """Can a zoom/slide ("moves") or a 3D turn ("3d") be used now?"""
+        eff = self.effects(self.demo_active())
+        if what == "3d":
+            # 3D frames are drawn ahead, undimmed: not while the picture is darkened for the night
+            return eff == "all" and (self.monitor is None or self.monitor.software_level >= 0.999)
+        return eff in ("moves", "all")
+
+    def _motion_ms(self, base: int) -> int:
+        """Motion lengths follow the fade length setting (normal 1.5 s)."""
+        k = min(2.0, max(0.6, self.cfg.get("transition_ms") / 1500))
+        return int(base * k)
+
+    def _transition(self, img: Image.Image, move: dict | None) -> None:
+        fade = self.cfg.get("transition_ms") if self.cfg.get("transition") == "fade" else 0
+        kind = (move or {}).get("kind")
+        if fade and kind:
+            rot = self.cfg.get("display_rotation_deg")
+
+            def panel(rect):
+                return motion.rect_to_panel(rect, self.logical, self.panel, rot)
+
+            try:
+                if kind == "zoom-in" and self._can("moves"):
+                    return self.display.zoom_in(img, panel(move["src"]), panel(move["dst"]), self._motion_ms(1600), fade)
+                if kind == "zoom-out" and self._can("moves"):
+                    return self.display.zoom_out(img, panel(move["src"]), panel(move["dst"]), self._motion_ms(1600),
+                                                 fade)
+                if kind == "slide" and self._can("moves"):
+                    return self.display.slide_in(img, panel(move["rect"]), self._motion_ms(1100), fade)
+                turn = move.get("turn")
+                if kind == "3d" and turn is not None and turn.ready() and self._can("3d"):
+                    return self.display.play(turn.frames, turn.size, img, self._motion_ms(1300), 400)
+            except Exception:  # noqa: BLE001
+                log.exception("moving transition")
+        self.display.show(img, fade)
+
+    def _next_turn_kind(self, mix: bool) -> str | None:
+        """Which 3D turn next; with mix, every other change is a plain fade."""
+        cycle = [k for k in motion.KINDS_3D for k in (k, None)] if mix else list(motion.KINDS_3D)
+        kind = cycle[self._turn_n % len(cycle)]
+        self._turn_n += 1
+        return kind
+
+    def _prepare_turn(self, key, new, mix: bool = True) -> None:
+        """Start drawing a 3D turn from what's on screen to the next picture (new:
+        the logical-size picture, or a function making it)."""
+        self._drop_turn()
+        if not self._can("3d") or self.current_full is None:
+            return
+        kind = self._next_turn_kind(mix)
+        if kind is None:
+            return
+        self._turn = motion.Turn(kind, self.current_full, new, self.logical, self.panel,
+                                 self.cfg.get("display_rotation_deg"), key=(key, self._shown))
+
+    def _take_turn(self, key) -> motion.Turn | None:
+        """The 3D turn drawn for this picture, if it was drawn from what's on screen now."""
+        turn, self._turn = self._turn, None
+        if turn is not None and turn.key == (key, self._shown):
+            return turn
+        if turn is not None:
+            turn.cancel()
+        return None
+
+    def _drop_turn(self) -> None:
+        if self._turn is not None:
+            self._turn.cancel()
+            self._turn = None
 
     def _cache_image(self, img: Image.Image) -> Path:
         path = self.cache / f"{time.time_ns()}.jpg"
@@ -228,32 +324,86 @@ class Frame:
         return not any(self.storage.images(a["name"]) for a in self.storage.albums())
 
     def _demo_step(self) -> tuple[bool, str]:
-        kind, item, secs = self.demo.next()
+        kind, item, secs, how = self.demo.peek()
+        turn = self._turn if how == "3d" and kind == "photo" and self._turn is not None else None
+        if turn is not None and turn.key == (item.path, self._shown) and not turn.ready() and turn.error is None:
+            # the 3D turn is still being drawn: the demo waits for it (up to half a minute)
+            if self._demo_wait is None:
+                self._demo_wait = time.time()
+            if time.time() - self._demo_wait < 30:
+                self._demo_due = time.time() + 1
+                return True, "demo: waiting for the 3D turn"
+        self._demo_wait = None
+        kind, item, secs, how = self.demo.next()
+        view, logical = self._demo_view or {}, self.logical
+        scale = self.cfg.processing.get("scaleMode", "fit")
         if kind == "photo":
-            img = render.open_image(item.path, self.logical)
-            self._present([img], {"source": "demo", "filepath": f"Sample: {item.title}"}, None, caption=item.caption)
-        elif kind == "collage":
-            img = collage.compose([render.open_image(s.path, self.logical) for s in item], self.logical)
-            self._present([img], {"source": "demo", "filepath": f"Sample collage of {len(item)}"}, None,
-                          caption="Collage style · " + ", ".join(s.title.split(",")[0] for s in item[:2]) + "…")
+            img = render.open_image(item.path, logical)
+            move, composed = None, None
+            if how == "3d":
+                turn = self._take_turn(item.path)
+                if turn is not None:
+                    move, composed = {"kind": "3d", "turn": turn}, turn.new_full
+            elif how == "zoom-in" and view.get("kind") == "collage" and item.path in view["boxes"]:
+                box = view["boxes"][item.path]
+                move = {"kind": "zoom-in", "src": motion.tile_source(img.size, box, logical, scale),
+                        "dst": motion.box_rect(box)}
+            self._present([img], {"source": "demo", "filepath": f"Sample: {item.title}"}, None, caption=item.caption,
+                          move=move, composed=composed)
+            self._demo_view = {"kind": "photo", "path": item.path, "size": img.size}
+        elif kind in ("collage", "swap"):
+            if kind == "collage":
+                imgs = [render.open_image(s.path, logical) for s in item]
+                base, boxes = collage.layout(imgs, logical)
+                move = None
+                if how == "zoom-out" and view.get("kind") == "photo" and view["path"] in [s.path for s in item]:
+                    box = boxes[[s.path for s in item].index(view["path"])]
+                    move = {"kind": "zoom-out", "src": motion.tile_source(view["size"], box, logical, scale),
+                            "dst": motion.box_rect(box)}
+                view = {"kind": "collage", "base": base, "boxes": {s.path: b for s, b in zip(item, boxes)},
+                        "order": [s.path for s in item], "list": boxes}
+            else:
+                space, sample = item
+                if view.get("kind") != "collage":
+                    return self._demo_step()
+                box = view["list"][space]
+                base = view["base"].copy()
+                collage.place_tile(base, render.open_image(sample.path, logical), box)
+                old = view["order"][space]
+                view["boxes"].pop(old, None)
+                view["boxes"][sample.path], view["order"][space], view["base"] = box, sample.path, base
+                move = {"kind": "slide", "rect": motion.box_rect(box)}
+            names = [s.title.split(",")[0] for s in self.demo.collage[:2]]
+            self._present([base], {"source": "demo", "filepath": f"Sample collage of {len(self.demo.collage)}"}, None,
+                          caption="Collage style · " + ", ".join(names) + "…", move=move, composed=base)
+            self._demo_view = view
         else:
             title, text, with_qr = item
             backdrop = Image.open(random.choice(self.demo.samples).path)
-            self._show_card(demo.info_card(self.logical, title, text, frame_urls()[0] if with_qr else None, backdrop),
-                            "demo")
+            self._show_card(demo.info_card(logical, title, text, frame_urls()[0] if with_qr else None, backdrop),
+                            "demo", fade=self.cfg.get("transition_ms") if self.cfg.get("transition") == "fade" else 0)
             self.state["current"] = {"source": "demo", "filepath": f"About: {title}", "shown_at": int(time.time())}
+            self._demo_view = None
         self._demo_due = time.time() + secs
-        return True, f"demo: {kind}"
+        # the next step is a 3D turn: start drawing it now
+        nk, nitem, _secs, nhow = self.demo.peek()
+        if nk == "photo" and nhow == "3d":
+            proc = dict(self.cfg.processing)
+            self._prepare_turn(nitem.path, lambda p=nitem.path: render.compose(
+                [render.open_image(p, logical)], logical, proc.get("scaleMode", "fit"), proc.get("backgroundColor", "blur")),
+                mix=False)
+        return True, f"demo: {kind}" + (f" ({how})" if how != "fade" else "")
 
     # ---------- slideshow styles ----------
     def story_style(self) -> str | None:
         style = self.cfg.get("slideshow_style")
-        if style in ("story", "spotlight") and self.cfg.get("rotation_mode") == "storage":
+        if style in ("story", "spotlight", "living") and self.cfg.get("rotation_mode") == "storage":
             return style
         return None
 
     def reset_story(self) -> None:
         self._story = None
+        self._living = None
         self._step_due = None
         self.poke()
 
@@ -288,18 +438,105 @@ class Frame:
             st = self._story
         st["i"] += 1
         kind, path = st["steps"][st["i"]]
+        prev = st["steps"][st["i"] - 1] if st["i"] > 0 else (None, None)
+        scale = self.cfg.processing.get("scaleMode", "fit")
         if kind == "collage":
             imgs = [render.open_image(p, self.logical) for p in st["photos"]]
-            img = collage.compose(imgs, self.logical)
+            img, boxes = collage.layout(imgs, self.logical)
+            st["boxes"] = {p: (b, im.size) for p, b, im in zip(st["photos"], boxes, imgs)}
+            move = None
+            if prev[0] == "photo" and prev[1] in st["boxes"]:  # spotlight: the photo shrinks back into its space
+                box, size = st["boxes"][prev[1]]
+                move = {"kind": "zoom-out", "src": motion.tile_source(size, box, self.logical, scale),
+                        "dst": motion.box_rect(box)}
             remember = self._cache_image(img)
-            self._present([img], {"source": "storage", "filepath": f"Collage of {len(imgs)} photos"}, remember)
+            self._present([img], {"source": "storage", "filepath": f"Collage of {len(imgs)} photos"}, remember,
+                          move=move)
             minutes = self.cfg.get("collage_minutes")
         else:
             img = render.open_image(path, self.logical)
-            self._present([img], {"source": "storage", "filepath": f"{path.parent.name}/{path.name}"}, path)
+            move, composed = None, None
+            if prev[0] == "collage" and path in st.get("boxes", {}):  # the photo grows out of the collage
+                box, size = st["boxes"][path]
+                move = {"kind": "zoom-in", "src": motion.tile_source(img.size, box, self.logical, scale),
+                        "dst": motion.box_rect(box)}
+            else:
+                turn = self._take_turn(path)
+                if turn is not None:
+                    move, composed = {"kind": "3d", "turn": turn}, turn.new_full
+            self._present([img], {"source": "storage", "filepath": f"{path.parent.name}/{path.name}"}, path,
+                          move=move, composed=composed)
             minutes = self.cfg.get("single_minutes")
         self._step_due = time.time() + minutes * 60
+        # story: photo after photo, so draw the 3D turn to the next one now
+        nxt = st["steps"][st["i"] + 1] if st["i"] + 1 < len(st["steps"]) else (None, None)
+        if kind == "photo" and nxt[0] == "photo":
+            logical, proc = self.logical, dict(self.cfg.processing)
+            self._prepare_turn(nxt[1], lambda p=nxt[1]: render.compose(
+                [render.open_image(p, logical)], logical, proc.get("scaleMode", "fit"), proc.get("backgroundColor", "blur")))
         return True, f"{kind} {st['i'] + 1} of {len(st['steps'])}"
+
+    # ---------- living collage ----------
+    def _living_step(self) -> tuple[bool, str]:
+        """A collage where one photo at a time is replaced, sliding in like a print laid
+        on top. After every space has changed twice, a new layout."""
+        lv = self._living
+        if lv is None or lv["swaps"] >= 2 * len(lv["photos"]) or not all(p.exists() for p in lv["photos"]):
+            return self._living_new()
+        n = len(lv["photos"])
+        i = lv["order"][lv["swaps"] % n]
+        box = lv["boxes"][i]
+        want = (box[2] - box[0]) / max(1, box[3] - box[1])
+        mode = self.cfg.get("sd_rotation_mode")
+        best = None
+        for _ in range(8):  # a photo whose shape suits the space
+            p = self.storage.pick(mode, set(self._recent) | set(lv["photos"]), videos=False)
+            if p is None or p in lv["photos"]:
+                continue
+            size = self._sizes.get(p) or _upright_size(p)
+            self._sizes[p] = size
+            cost = abs(math.log(want / (size[0] / size[1]))) if size else 9
+            if best is None or cost < best[0]:
+                best = (cost, p)
+            if cost < 0.2 or mode == "sequential":
+                break
+        if best is None:
+            return self._living_new()
+        p = best[1]
+        self._recent.append(p)
+        img = render.open_image(p, self.logical)
+        base = lv["base"].copy()
+        collage.place_tile(base, img, box)
+        lv["base"], lv["photos"][i] = base, p
+        lv["swaps"] += 1
+        self._present([base], {"source": "storage", "filepath": f"Living collage: {p.parent.name}/{p.name}"},
+                      self._cache_image(base), move={"kind": "slide", "rect": motion.box_rect(box)}, composed=base)
+        self._step_due = time.time() + self.cfg.get("single_minutes") * 60
+        return True, f"living collage: swapped in {p.name}"
+
+    def _living_new(self) -> tuple[bool, str]:
+        n = self.cfg.get("collage_count") or random.choice((3, 4, 5))
+        mode = self.cfg.get("sd_rotation_mode")
+        chosen: list[Path] = []
+        for _ in range(n * 3):
+            p = self.storage.pick(mode, set(self._recent) | set(chosen), videos=False)
+            if p is not None and p not in chosen:
+                chosen.append(p)
+            if len(chosen) == n:
+                break
+        if len(chosen) < 3:
+            self._living = None
+            return self._rotate_classic()
+        self._recent.extend(chosen)
+        imgs = [render.open_image(p, self.logical) for p in chosen]
+        base, boxes = collage.layout(imgs, self.logical)
+        order = list(range(len(chosen)))
+        random.shuffle(order)
+        self._living = {"photos": chosen, "boxes": boxes, "base": base, "order": order, "swaps": 0}
+        self._present([base], {"source": "storage", "filepath": f"Living collage of {len(chosen)} photos"},
+                      self._cache_image(base), composed=base)
+        self._step_due = time.time() + self.cfg.get("single_minutes") * 60
+        return True, "living collage: new layout"
 
     # ---------- video moments ----------
     def play_clip(self) -> tuple[bool, str]:
@@ -335,13 +572,21 @@ class Frame:
         return True, f"playing {length}s of {path.name}"
 
     def _rotate_storage(self) -> tuple[bool, str]:
-        if self.story_style():
+        style = self.story_style()
+        if style == "living":
+            return self._living_step()
+        if style:
             return self._story_step()
         return self._rotate_classic()
 
     def _rotate_classic(self) -> tuple[bool, str]:
         mode = self.cfg.get("sd_rotation_mode")
-        first = self.storage.pick(mode, set(self._recent), videos=self.cfg.get("video_enabled"))
+        videos = self.cfg.get("video_enabled")
+        first, self._queued = self._queued, None
+        if first is not None and (not first.exists() or first not in self.storage.rotation_pool(videos)):
+            first = None  # deleted, or its album switched off, since it was chosen
+        if first is None:
+            first = self.storage.pick(mode, set(self._recent), videos=videos)
         if first is None:
             has_any = any(self.storage.images(a["name"]) for a in self.storage.albums())
             reason = (
@@ -363,15 +608,42 @@ class Frame:
                 self._recent.append(partner)
                 images.append(render.open_image(partner, self.logical))
                 label += f" + {partner.parent.name}/{partner.name}"
+        move, composed = None, None
+        turn = self._take_turn(first)
         if len(images) == 1:
             remember = first
+            if turn is not None:
+                move, composed = {"kind": "3d", "turn": turn}, turn.new_full
         else:  # remember the composed collage so "previous" can re-show it
             proc = self.cfg.processing
             collage = render.compose(images, self.logical, proc.get("scaleMode"), proc.get("backgroundColor"))
             remember = self._cache_image(collage)
             images = [collage]
-        self._present(images, {"source": "storage", "filepath": label}, remember)
+        self._present(images, {"source": "storage", "filepath": label}, remember, move=move, composed=composed)
+        self._queue_next()
         return True, "Image rotation triggered"
+
+    def _queue_next(self) -> None:
+        """With 3D turns on: choose the next photo now, and draw the turn to it in the background."""
+        if not self._can("3d"):
+            return
+        nxt = self.storage.pick(self.cfg.get("sd_rotation_mode"), set(self._recent),
+                                videos=self.cfg.get("video_enabled"))
+        if nxt is None:
+            return
+        self._queued = nxt
+        if is_video(nxt):
+            return
+        size = self._sizes.get(nxt) or _upright_size(nxt)
+        self._sizes[nxt] = size
+        if self.cfg.get("local_collage") and size and render.is_mismatched(_Shape(*size), self.logical):
+            return  # it'll be shown with a partner: no turn for that
+
+        def make(path=nxt, logical=self.logical, proc=dict(self.cfg.processing)):
+            return render.compose([render.open_image(path, logical)], logical, proc.get("scaleMode", "fit"),
+                                  proc.get("backgroundColor", "blur"))
+
+        self._prepare_turn(nxt, make)
 
     def _find_partner(self, first: Path) -> Path | None:
         screen_portrait = self.logical[1] > self.logical[0]
@@ -858,10 +1130,11 @@ class Frame:
                     last_weather = wx.get("fetched")
 
     # ---------- information cards ----------
-    def _show_card(self, card, kind: str) -> None:
+    def _show_card(self, card, kind: str, fade: int = 0) -> None:
         """Show a QR/info card. Doesn't touch history, so the photo comes back after."""
         panel_img = render.to_panel(card, self.panel, self.cfg.get("display_rotation_deg"))
-        self.display.show(self._dim(panel_img), 0)
+        self.display.show(self._dim(panel_img), fade)
+        self._shown += 1
         self.notice = kind
         self.current_thumb = render.thumbnail_jpeg(card)
         self.current_full = card

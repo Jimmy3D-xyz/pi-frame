@@ -78,10 +78,13 @@ or in turn.
   photos full screen in turn, then a new collage.
 - **Spotlight**: collage, one of its photos, back to the collage, the next
   photo, and so on.
+- **Living collage**: a collage where one photo at a time is swapped for
+  another, sliding in like a print laid on a table. After every space has
+  changed twice, a new layout. "Swap a photo every" sets the pace.
 
 Collage and single-photo times are set separately (e.g. 5 and 10 minutes).
 Collages put portrait photos in tall spaces and suit both screen shapes.
-Story and Spotlight use photos stored on the frame.
+Story, Spotlight and Living collage use photos stored on the frame.
 
 **Photos around videos** (on by default): when a video doesn't fill the
 screen, such as a landscape video on a portrait screen or a phone video on
@@ -91,8 +94,19 @@ a landscape screen, photos that suit the empty spaces go around it.
 1 minute) from a random point in a random video, then back to whatever was
 showing.
 
-**Fades** between pictures run at 60 fps on the display hardware. Choose
-fade or instant change, and the fade length, under Display.
+**Changing pictures** (Display tab):
+
+- **Fades, zooms, slides and 3D turns** (the default): in Story and
+  Spotlight a photo grows out of its collage space to fill the screen, and in
+  Spotlight shrinks back into it; Living collage photos slide in; and every
+  other change between two photos is a 3D turn (a card flip, the photo
+  tipping away, or a turning cube), the rest fades.
+- **Fades, zooms and slides**: no 3D turns.
+- **Fades only**, or **Instant**.
+
+Speed sets the fade length (Normal is 1.5 seconds); moves follow it. All of
+these run at 60 fps on the display hardware (see
+[Screen and hardware](screen-and-hardware.md#fades-moves-and-colour)).
 
 ## On-screen info
 
@@ -116,9 +130,12 @@ pixels for ever, and they're hidden while a video plays.
 ## Demo mode
 
 Like a TV in a shop: sample photos, collages, and short slides about what
-the frame can do, some with a QR code for its page. Each sample is tagged
+the frame can do, some with a QR code for its page. It shows off every kind
+of change: 3D turns between photos, a photo shrinking into a collage, photos
+swapped into it, and one growing out again (unless Changing pictures is set
+to Instant). Each sample is tagged
 "Sample photo" with its title and artist, in the corner opposite the
-on-screen info, and slides change every 15–25 seconds.
+on-screen info, and slides change every 10–20 seconds.
 
 - A set-up frame with **no photos yet** shows it by itself, and switches to
   your photos as soon as the first one arrives.

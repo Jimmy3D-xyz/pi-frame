@@ -33,6 +33,29 @@ def test_slides_render_landscape_and_portrait():
 def test_sequence_mixes_photos_collages_and_slides():
     d = demo.Demo()
     kinds = [d.next()[0] for _ in range(20)]
-    assert {"photo", "collage", "card"} <= set(kinds)
-    collages = [item for k, item, _ in (d.next() for _ in range(40)) if k == "collage"]
+    assert {"photo", "collage", "card", "swap"} <= set(kinds)
+    collages = []
+    for _ in range(60):
+        k, item, _secs, _how = d.next()
+        if k in ("collage", "swap"):
+            collages.append(list(d.collage))
     assert all(len({s.path for s in c}) == len(c) for c in collages)  # no photo twice in one collage
+
+
+def test_sequence_shows_off_every_transition():
+    d = demo.Demo()
+    steps = [d.next() for _ in range(len(demo.Demo.SCRIPT))]
+    assert {"3d", "zoom-out", "slide", "zoom-in", "fade"} <= {how for *_, how in steps}
+    for i, (kind, item, _secs, how) in enumerate(steps):
+        if how == "zoom-out":  # the photo before is in the collage it shrinks into
+            assert steps[i - 1][0] == "photo" and steps[i - 1][1] in item
+        if how == "zoom-in":  # the photo grows out of the collage before it
+            assert any(s[0] in ("collage", "swap") for s in steps[i - 1:i])
+        if how == "3d":
+            assert steps[i - 1][0] == "photo" and item is not steps[i - 1][1]
+
+
+def test_peek_is_what_comes_next():
+    d = demo.Demo()
+    for _ in range(12):
+        assert d.peek() == d.peek() == d.next()

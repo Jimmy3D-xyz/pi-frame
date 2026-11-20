@@ -25,7 +25,7 @@ from . import screens
 from .overlay import _glass
 
 DEMO_DIR = Path(__file__).resolve().parent / "data" / "demo"
-PHOTO_SECONDS, COLLAGE_SECONDS, CARD_SECONDS = 20, 25, 15
+PHOTO_SECONDS, COLLAGE_SECONDS, SWAP_SECONDS, CARD_SECONDS = 20, 14, 9, 15
 
 
 @dataclass
@@ -144,15 +144,37 @@ def draw_caption(img: Image.Image, text: str, overlay_corner: str = "bottom-left
 
 
 class Demo:
-    """The sequence: photos, a collage now and then, and an info slide every few steps."""
+    """The sequence: photos, collages and info slides, arranged to show off every kind
+    of transition: 3D turns between photos, a photo shrinking into a collage, prints
+    swapped into it, and a photo growing out of it again."""
 
-    PATTERN = ["card", "photo", "photo", "collage", "photo", "card", "photo", "photo", "collage", "photo"]
+    # (what, how it arrives)
+    SCRIPT = [
+        ("card", "fade"),
+        ("photo", "fade"),
+        ("photo", "3d"),
+        ("collage", "zoom-out"),  # a collage with the photo on screen in it: the photo shrinks into its space
+        ("swap", "slide"),        # one of its photos replaced, like a print laid on top
+        ("swap", "slide"),
+        ("pick", "zoom-in"),      # one of its photos grows to fill the screen
+        ("photo", "3d"),
+        ("photo", "3d"),
+        ("card", "fade"),
+        ("photo", "fade"),
+        ("collage", "zoom-out"),
+        ("swap", "slide"),
+        ("pick", "zoom-in"),
+        ("photo", "3d"),
+    ]
 
     def __init__(self):
         self.samples = samples()
         self._order: list[Sample] = []
         self._card = 0
         self._step = 0
+        self._peeked = None
+        self.photo: Sample | None = None          # the photo on screen, if it's a photo
+        self.collage: list[Sample] | None = None  # the collage on screen (or just before the photo on screen)
 
     def available(self) -> bool:
         return len(self.samples) >= 3
@@ -165,18 +187,48 @@ class Demo:
                 return self._order.pop(i)
         return self._order.pop(0)
 
-    def next(self) -> tuple[str, object, int]:
-        """The next slide: ("photo", Sample, secs) / ("collage", [Sample], secs) / ("card", (title, text, qr), secs)."""
-        kind = self.PATTERN[self._step % len(self.PATTERN)]
+    def peek(self) -> tuple[str, object, int, str]:
+        """What next() will return, without moving on."""
+        if self._peeked is None:
+            self._peeked = self._make()
+        return self._peeked
+
+    def next(self) -> tuple[str, object, int, str]:
+        """The next slide, as (what, item, seconds, how it arrives):
+        ("photo", Sample, …) / ("collage", [Sample], …) / ("card", (title, text, qr), …) /
+        ("swap", (space, Sample), …): the collage's photo `space` replaced by Sample."""
+        step, self._peeked = self.peek(), None
+        kind, item = step[0], step[1]
+        if kind == "photo":
+            self.photo = item
+        elif kind == "collage":
+            self.photo, self.collage = None, list(item)
+        elif kind == "swap":
+            self.collage[item[0]] = item[1]
+        else:
+            self.photo = self.collage = None
+        return step
+
+    def _make(self) -> tuple[str, object, int, str]:
+        kind, how = self.SCRIPT[self._step % len(self.SCRIPT)]
         self._step += 1
         if kind == "card":
             c = CARDS[self._card % len(CARDS)]
             self._card += 1
-            return "card", c, CARD_SECONDS
+            return "card", c, CARD_SECONDS, "fade"
         if kind == "collage":
             n = random.choice((3, 4, 5))
-            chosen: list[Sample] = []
-            for _ in range(n):
+            chosen: list[Sample] = [self.photo] if self.photo else []
+            while len(chosen) < n:
                 chosen.append(self._next_sample({s.path for s in chosen}))
-            return "collage", chosen, COLLAGE_SECONDS
-        return "photo", self._next_sample(), PHOTO_SECONDS
+            random.shuffle(chosen)
+            return "collage", chosen, COLLAGE_SECONDS, how if self.photo else "fade"
+        if kind == "swap" and self.collage and not self.photo:
+            space = (self._step * 7) % len(self.collage)
+            return "swap", (space, self._next_sample({s.path for s in self.collage})), SWAP_SECONDS, how
+        if kind == "pick" and self.collage and not self.photo:
+            return "photo", random.choice(self.collage), PHOTO_SECONDS, how
+        if kind in ("swap", "pick"):  # nothing to swap into: just a photo
+            how = "fade"
+        skip = {self.photo.path} if self.photo else set()
+        return "photo", self._next_sample(skip), PHOTO_SECONDS, how if self.photo else "fade"

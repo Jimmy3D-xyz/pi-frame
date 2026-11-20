@@ -74,11 +74,23 @@ def plan(aspects: list[float], size: tuple[int, int]):
 
 
 def compose(images: list[Image.Image], size: tuple[int, int]) -> Image.Image:
+    return layout(images, size)[0]
+
+
+def layout(images: list[Image.Image], size: tuple[int, int]) -> tuple[Image.Image, list[tuple[int, int, int, int]]]:
+    """The collage, and where each photo went: boxes[i] = (x0, y0, x1, y1) of images[i]."""
     if len(images) not in LAYOUTS:
         raise ValueError(f"collages take 3, 4 or 5 photos, not {len(images)}")
     boxes, order = plan([im.width / im.height for im in images], size)
     canvas = Image.new("RGB", size, BACKGROUND)
+    where = [None] * len(images)
     for box, idx in zip(boxes, order):
-        tile = (box[2] - box[0], box[3] - box[1])
-        canvas.paste(ImageOps.fit(images[idx], tile, Image.LANCZOS, centering=(0.5, 0.4)), box[:2])
-    return canvas
+        place_tile(canvas, images[idx], box)
+        where[idx] = box
+    return canvas, where
+
+
+def place_tile(canvas: Image.Image, img: Image.Image, box) -> None:
+    """Put a photo into one space of a collage, cropped to fill it."""
+    tile = (box[2] - box[0], box[3] - box[1])
+    canvas.paste(ImageOps.fit(img, tile, Image.LANCZOS, centering=(0.5, 0.4)), box[:2])
