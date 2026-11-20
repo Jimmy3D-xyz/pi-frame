@@ -797,7 +797,14 @@ def create_app(frame: Frame) -> Flask:
             except (OSError, subprocess.TimeoutExpired):
                 return "unknown"
         host = socket.gethostname()
-        return {"active": sysctl("is-active") == "active", "enabled": sysctl("is-enabled") == "enabled",
+        active = sysctl("is-active") == "active"
+        if not active:  # some systems start SSH on demand, from a socket
+            try:
+                active = subprocess.run(["systemctl", "is-active", "ssh.socket"], capture_output=True, text=True,
+                                        timeout=10).stdout.strip() == "active"
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        return {"active": active, "enabled": sysctl("is-enabled") == "enabled",
                 "logins": firstrun.login_users(), "hostname": host,
                 "helper": Path("/etc/systemd/system/pi-frame-system.path").exists() or bool(app.config.get("SETUP_HELPER"))}
 

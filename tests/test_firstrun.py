@@ -145,9 +145,12 @@ def test_helper_adds_a_login_only_when_there_is_none(tmp_path, monkeypatch):
 
     class R:
         returncode = 0
-        stdout = stderr = ""
+        stderr = ""
 
-    monkeypatch.setattr(h, "_run", lambda cmd, **kw: (calls.append(cmd), R())[1])
+        def __init__(self, cmd):
+            self.stdout = "active" if cmd[:2] == ["systemctl", "is-active"] else ""
+
+    monkeypatch.setattr(h, "_run", lambda cmd, **kw: (calls.append(cmd), R(cmd))[1])
     p = tmp_path / "passwd"
     p.write_text(WITH_USER)
     assert "already has a login" in h.add_login("sam", "$6$abc$def", passwd=str(p))
@@ -158,7 +161,7 @@ def test_helper_adds_a_login_only_when_there_is_none(tmp_path, monkeypatch):
     assert h.add_login("sam", "$6$abc$def", passwd=str(p)) is None
     useradd = next(c for c in calls if c[0] == "useradd")
     assert useradd[-1] == "sam" and "$6$abc$def" in useradd and "sudo" in useradd[useradd.index("--groups") + 1]
-    assert ["systemctl", "enable", "--now", "ssh"] in calls
+    assert ["ssh-keygen", "-A"] in calls and ["systemctl", "enable", "--now", "ssh.service"] in calls
 
 
 def test_helper_wifi_country_without_raspi_config(tmp_path, monkeypatch):
@@ -270,3 +273,8 @@ def test_helper_ssh_requests(tmp_path, monkeypatch):
     assert h.ssh_request({"what": "create", "username": "sam", "hash": "$6$a$b"}, passwd=str(p)) == 1
     assert h.ssh_request({"what": "off"}, passwd=str(p)) == 0
     assert ["systemctl", "disable", "--now", "ssh.service"] in calls
+    calls.clear()
+    monkeypatch.setattr(h, "_run", lambda cmd, **kw: (calls.append(cmd), type("R", (), {
+        "returncode": 0, "stdout": "active" if cmd[:2] == ["systemctl", "is-active"] else "", "stderr": ""})())[1])
+    assert h.ssh_request({"what": "on"}, passwd=str(p)) == 0
+    assert calls[0] == ["ssh-keygen", "-A"]  # host keys first: the image has none

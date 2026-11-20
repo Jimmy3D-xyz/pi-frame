@@ -1867,19 +1867,21 @@ let sshState = null;
 function showSsh(st, passwordSet) {
   sshState = st;
   const login = st.logins[0];
-  foldSum("ssh", login ? `${login} · SSH ${st.active ? "on" : "off"}` : "No login");
+  foldSum("ssh", login ? `${login} · SSH ${st.active ? "on" : st.enabled ? "not running" : "off"}` : "No login", st.enabled && !st.active ? "warn" : "");
   $("#s-nopass").hidden = passwordSet;
   $("#s-main").hidden = !passwordSet;
   $("#s-cmd").textContent = `ssh ${login || "name"}@${st.hostname}.local`;
   if (!passwordSet) return;
   $("#s-create").hidden = !!login;
   $("#s-has").hidden = !login;
+  const stuck = st.enabled && !st.active;  // switched on, but not running
   $("#s-line").innerHTML = login
-    ? `Login <b>${escapeHtml(st.logins.join(", "))}</b>. SSH is <b>${st.active ? "on" : "off"}</b>.`
+    ? `Login <b>${escapeHtml(st.logins.join(", "))}</b>. SSH is <b>${st.active ? "on" : "off"}</b>.` +
+      (stuck ? ` <span style="color:var(--warn)">It's set to start, but isn't running: switch it on to start it.</span>` : "")
     : "This Pi has no login yet, so SSH is off. Create one to switch it on.";
   if (login) {
     $("#s-pwlabel").textContent = `New password for ${login}`;
-    $("#s-toggle").textContent = st.active || st.enabled ? "Switch SSH off" : "Switch SSH on";
+    $("#s-toggle").textContent = st.active ? "Switch SSH off" : "Switch SSH on";
   }
 }
 async function loadSsh(passwordSet) {
@@ -1889,7 +1891,7 @@ const sshDo = (body, msg) => act(async () => { const r = await api("/api/mainten
 $("#s-create").onsubmit = (e) => { e.preventDefault(); sshDo({ what: "create", username: $("#s-user").value.trim(), password: $("#s-pw").value }); $("#s-pw").value = ""; };
 $("#s-pwform").onsubmit = (e) => { e.preventDefault(); sshDo({ what: "password", username: sshState.logins[0], password: $("#s-newpw").value }); $("#s-newpw").value = ""; };
 $("#s-toggle").onclick = () => {
-  const on = !(sshState.active || sshState.enabled);
+  const on = !sshState.active;
   if (!on && !confirm("Switch SSH off? You won't be able to log in from a computer until it's switched on again here.")) return;
   sshDo({ what: on ? "on" : "off" });
 };

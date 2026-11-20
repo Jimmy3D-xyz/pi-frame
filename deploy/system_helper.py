@@ -133,9 +133,8 @@ def add_login(user: str, pw_hash: str, passwd: str = "/etc/passwd") -> str | Non
               "--password", pw_hash, user])
     if r.returncode != 0:
         return "couldn't create the login: " + (r.stderr or r.stdout).strip()[-200:]
-    # SSH: host keys are made on first boot; start it now and at every boot
-    _run(["systemctl", "enable", "--now", "ssh"])
-    return None
+    # SSH on, now and at every boot (making the host keys first if need be)
+    return set_ssh(True)
 
 
 def set_login_password(user: str, pw_hash: str, passwd: str = "/etc/passwd") -> str | None:
@@ -151,8 +150,17 @@ def set_login_password(user: str, pw_hash: str, passwd: str = "/etc/passwd") -> 
 
 
 def set_ssh(on: bool) -> str | None:
+    if on:
+        # The ready-made image has no SSH host keys (each frame makes its own),
+        # and SSH won't start without them: make any that are missing first.
+        _run(["ssh-keygen", "-A"])
     r = _run(["systemctl", "enable" if on else "disable", "--now", "ssh.service"])
-    return None if r.returncode == 0 else f"couldn't switch SSH {'on' if on else 'off'}: " + (r.stderr or "").strip()[-200:]
+    if r.returncode != 0:
+        return f"couldn't switch SSH {'on' if on else 'off'}: " + (r.stderr or r.stdout or "").strip()[-200:]
+    if on and _run(["systemctl", "is-active", "ssh.service"]).stdout.strip() != "active":
+        log = _run(["journalctl", "-u", "ssh.service", "-n", "5", "--no-pager"]).stdout.strip()
+        return "SSH is switched on but didn't start: " + log[-300:]
+    return None
 
 
 def ssh_request(req: dict, passwd: str = "/etc/passwd") -> int:
