@@ -487,6 +487,14 @@ class Frame:
         self._normal_startup()
 
     def _normal_startup(self) -> None:
+        if (Path(self.data_dir) / ".first-run").exists():
+            # a new frame: no welcome countdown; the setup hotspot (or, on a cable,
+            # the welcome QR for the page) follows within seconds and stays
+            # until the wizard is done
+            with self._rotate_lock:
+                self._show_card(screens.message_card(self.logical, "Welcome to Pi Frame",
+                                                     "Getting ready to set up…"), "welcome")
+            return
         secs = self.cfg.get("welcome_seconds")
         if secs <= 0:
             self.restore()
@@ -500,6 +508,31 @@ class Frame:
                 self.restore()
 
         threading.Thread(target=finish, name="welcome", daemon=True).start()
+
+    def show_resetting(self) -> None:
+        with self._rotate_lock:
+            self.player.stop()
+            self._power(True)
+            self._show_card(screens.message_card(self.logical, "Resetting Pi Frame",
+                                                 "Erasing photos and settings. It starts again as new in a minute."),
+                            "reset")
+
+    def after_setup(self) -> None:
+        """The welcome wizard is done: once online, show the page's QR code for
+        a minute (so the phone can find the frame on the home Wi-Fi), then the photos."""
+
+        def work():
+            end = time.time() + 180
+            while self.wifi is not None and self.wifi.status.mode != "online" and time.time() < end:
+                time.sleep(2)
+            with self._rotate_lock:
+                if self.notice in ("welcome", "wifi"):
+                    self._show_welcome()
+            time.sleep(max(60, self.cfg.get("welcome_seconds")))
+            if self.notice == "welcome":
+                self.restore()
+
+        threading.Thread(target=work, name="after-setup", daemon=True).start()
 
     def _show_welcome(self) -> None:
         wifi = self.wifi.status if self.wifi else None

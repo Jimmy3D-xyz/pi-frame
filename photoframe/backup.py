@@ -46,8 +46,9 @@ PREFIX = "pi-photoframe"  # the top folder in every backup (the data folder's na
 INFO = ".backup-info.json"
 FORMAT = 1
 KINDS = ("settings", "full")
-SETTINGS = ("config.json", "albums.json", "device_id", "places.json", "cloud/rclone.conf", "cloud/state.json")
-PRIVATE = {"cloud/rclone.conf"}  # sign-in tokens: readable by the frame only
+SETTINGS = ("config.json", "albums.json", "device_id", "places.json", "cloud/rclone.conf", "cloud/state.json",
+            "github-token")
+PRIVATE = {"cloud/rclone.conf", "github-token"}  # sign-in tokens: readable by the frame only
 MANIFEST_RE = re.compile(r"^cloud/manifest-[0-9a-f]{1,40}\.json$")
 MEDIA_EXTS = IMAGE_EXTS | VIDEO_EXTS
 DOWNLOADS_ALBUM = "Downloads"  # the image server's cache: not worth keeping

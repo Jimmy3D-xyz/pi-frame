@@ -22,7 +22,8 @@ work with it unchanged.
 - **Collages and slideshow styles**, photos around videos that don't fill the screen, and short video moments
 - **On-screen info**: clock, weather, when and where each photo was taken, jokes and fun facts
 - **Looks after itself**: screen schedule, presence sensor, monitor brightness and standby over HDMI,
-  automatic Wi-Fi repair with a setup hotspot, a health page, and safe updates from the website
+  automatic Wi-Fi repair with a setup hotspot, a health page, safe updates (automatically from GitHub, if you like),
+  and a reset to start afresh
 - **Backups**: download one, or back up automatically to your NAS, OneDrive, Dropbox or Google Drive,
   and restore from the website or onto a new card
 - **Physical buttons** for previous, next, and screen / power

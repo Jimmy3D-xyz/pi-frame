@@ -104,6 +104,10 @@ DEFAULT_CONFIG: dict = {
     "backup_every": "weekly",  # daily | weekly | monthly
     "backup_time": "03:00",
     "backup_keep": 4,
+    # updates from GitHub (needs a read-only token, kept outside the settings)
+    "update_auto": "notify",  # off | notify | install
+    "update_time": "03:30",
+    "update_repo": "JimmySte/pi-frame",
 }
 
 # Firmware defaults (Spectra 6 measured palette). Irrelevant to an LCD but
@@ -148,6 +152,7 @@ _ENUMS = {
     "weather_units": {"c", "f"},
     "backup_kind": {"full", "settings"},
     "backup_every": {"daily", "weekly", "monthly"},
+    "update_auto": {"off", "notify", "install"},
 }
 
 
@@ -319,6 +324,10 @@ class ConfigStore:
                 raise ConfigError("welcome_seconds must be 0 to 600")
             if key == "timezone" and (len(val) > 63 or not val.isprintable()):
                 raise ConfigError("timezone must be 0-63 printable characters")
+            if key == "update_time" and not _valid_hhmm(val):
+                raise ConfigError("update_time must be HH:MM")
+            if key == "update_repo" and not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}", val):
+                raise ConfigError("update_repo must look like owner/repository")
             if key == "backup_time" and not _valid_hhmm(val):
                 raise ConfigError("backup_time must be HH:MM")
             if key == "backup_keep" and not 1 <= val <= 30:

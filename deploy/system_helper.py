@@ -55,6 +55,8 @@ def handle_request(boot: Path = BOOT, sysfs: str = "/sys/class/drm", reboot: boo
         return rc
     if req.get("action") == "first_run":
         return first_run(req)
+    if req.get("action") == "factory_reset":
+        return factory_reset(bool(req.get("remove_logins")))
     if req.get("action") != "set_mode":
         _status("failed", "Unknown request")
         return 1
@@ -153,6 +155,54 @@ def first_run(req: dict) -> int:
         _status("failed", "; ".join(problems).capitalize())
         return 1
     _status("done", "Set up")
+    return 0
+
+
+def forget_wifi() -> list[str]:
+    """Delete every saved Wi-Fi network (and the setup hotspot's profile)."""
+    r = _run(["nmcli", "-t", "-f", "UUID,TYPE,NAME", "connection", "show"])
+    gone = []
+    for line in (r.stdout or "").splitlines():
+        uuid, _, rest = line.partition(":")
+        kind, _, name = rest.partition(":")
+        if kind == "802-11-wireless":
+            _run(["nmcli", "connection", "delete", "uuid", uuid])
+            gone.append(name.replace("\\:", ":"))
+    return gone
+
+
+def wipe_data(data: Path, owner: str = "photoframe") -> None:
+    """Empty the frame's data folder (keeping the folder and its owner) and
+    leave the first-run marker, so the welcome wizard runs again."""
+    for child in data.iterdir():
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child, ignore_errors=True)
+        else:
+            child.unlink(missing_ok=True)
+    marker = data / ".first-run"
+    marker.touch()
+    shutil.chown(marker, owner, owner)
+
+
+def factory_reset(remove_logins: bool, data: Path = DATA, passwd: str = "/etc/passwd", owner: str = "photoframe") -> int:
+    """Back to how a new card starts: no photos, settings, sign-ins or saved
+    Wi-Fi; the welcome wizard on the next start. Optionally the SSH logins go too."""
+    from photoframe.firstrun import login_users
+
+    print("factory reset: stopping the frame")
+    _run(["systemctl", "stop", "pi-photoframe.service"])
+    wipe_data(data, owner)  # (nothing may be written into it as root from here on)
+    print("factory reset: forgot Wi-Fi networks:", ", ".join(forget_wifi()) or "none")
+    if remove_logins:
+        for user in login_users(passwd):
+            _run(["pkill", "-KILL", "-u", user])
+            r = _run(["userdel", "--remove", user])
+            print(f"factory reset: removed the login {user}" + ("" if r.returncode == 0 else f" ({r.stderr.strip()})"))
+        for f in Path("/etc/sudoers.d").glob("010_*-nopasswd"):
+            f.unlink(missing_ok=True)
+        _run(["systemctl", "disable", "ssh.service"])
+    print("factory reset: done; restarting")
+    _run(["systemctl", "reboot"])
     return 0
 
 

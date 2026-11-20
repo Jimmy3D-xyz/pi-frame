@@ -3,6 +3,7 @@ import base64
 import importlib.util
 import json
 import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -168,3 +169,57 @@ def test_helper_wifi_country_without_raspi_config(tmp_path, monkeypatch):
     h.set_wifi_country("AU", boot=tmp_path)
     line = (tmp_path / "cmdline.txt").read_text()
     assert line.count("ieee80211_regdom") == 1 and "cfg80211.ieee80211_regdom=AU" in line and "\n" not in line[:-1]
+
+
+# ---------------------------------------------------------------- reset to a fresh frame
+def test_reset_needs_password_and_confirmation(env):
+    frame, client, tmp, asked = env
+    firstrun.finish(tmp)
+    frame.wifi.status = WifiStatus(mode="online", ssid="Home")
+    assert client.post("/api/maintenance/reset", json={"confirm": "RESET"}).status_code == 403
+    frame.cfg.update({"http_password": "pagepass1"})
+    auth = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass1").decode()}
+    assert client.post("/api/maintenance/reset", json={"confirm": "yes"}, headers=auth).status_code == 400
+    r = client.post("/api/maintenance/reset", json={"confirm": "reset", "remove_logins": True}, headers=auth)
+    assert r.status_code == 200 and frame.notice == "reset"
+    for _ in range(60):
+        if asked:
+            break
+        time.sleep(0.1)
+    assert asked == [{"action": "factory_reset", "remove_logins": True}]
+
+
+def test_helper_reset_erases_data_wifi_and_optionally_logins(tmp_path, monkeypatch):
+    import getpass
+
+    h = helper()
+    data = tmp_path / "data"
+    (data / "albums" / "Default").mkdir(parents=True)
+    (data / "albums" / "Default" / "a.jpg").write_bytes(b"x")
+    (data / "config.json").write_text("{}")
+    (data / "cloud").mkdir()
+    (data / "cloud" / "rclone.conf").write_text("[x]")
+    calls = []
+
+    class R:
+        def __init__(self, out=""):
+            self.returncode, self.stdout, self.stderr = 0, out, ""
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        if cmd[:3] == ["nmcli", "-t", "-f"]:
+            return R("u1:802-11-wireless:Home 5G\nu2:802-3-ethernet:Wired connection 1\nu3:802-11-wireless:Cafe\\:Guest\n")
+        return R()
+
+    monkeypatch.setattr(h, "_run", run)
+    passwd = tmp_path / "passwd"
+    passwd.write_text(WITH_USER)
+    me = getpass.getuser()
+    h.factory_reset(False, data=data, passwd=str(passwd), owner=me)
+    assert sorted(p.name for p in data.iterdir()) == [".first-run"] and data.is_dir()
+    assert ["nmcli", "connection", "delete", "uuid", "u1"] in calls and ["nmcli", "connection", "delete", "uuid", "u3"] in calls
+    assert ["nmcli", "connection", "delete", "uuid", "u2"] not in calls  # the cable stays
+    assert not any(c[0] == "userdel" for c in calls) and ["systemctl", "reboot"] in calls
+    calls.clear()
+    h.factory_reset(True, data=data, passwd=str(passwd), owner=me)
+    assert ["userdel", "--remove", "alex"] in calls and ["systemctl", "disable", "ssh.service"] in calls

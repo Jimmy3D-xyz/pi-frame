@@ -72,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
     iface = os.environ.get("PHOTOFRAME_WIFI_IFACE", "wlan0")
     if os.environ.get("PHOTOFRAME_WIFI_SETUP", "1") != "0" and WifiManager.available(iface):
         frame.wifi = WifiManager(iface, on_change=frame.on_wifi_change)
+        from .firstrun import is_first_run
+
+        frame.wifi.new_frame = is_first_run(data_dir)
         log.info("Wi-Fi setup fallback enabled on %s", iface)
     else:
         log.info("Wi-Fi setup fallback disabled (no NetworkManager/%s, or turned off)", iface)
@@ -129,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, _shutdown)
 
     app = create_app(frame)
+    threading.Thread(target=frame.autoupdate.run, name="github-updates", daemon=True).start()
     try:
         from waitress import serve  # apt: python3-waitress
     except ImportError:

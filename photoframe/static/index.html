@@ -673,6 +673,45 @@
         <section class="mcard fold"><details data-fold="update"><summary><h3>Software update</h3><span class="fold-sum" id="sum-update"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
           <dl class="kv"><dt>Installed</dt><dd id="u-version">–</dd></dl>
           <div id="u-nopass" class="note" hidden>Updates can install any code on the Pi, so they're only allowed once this page has a password. Set one under <b>Page password</b>.</div>
+          <div id="g-box">
+            <h4 style="margin-top:.6rem">From GitHub</h4>
+            <div id="g-notoken">
+              <p class="note" style="margin-top:0">The frame can check the Pi Frame repository for new versions by itself. The repository is
+                private, so it needs a read-only key (a GitHub <i>token</i>):</p>
+              <ol class="note" style="padding-left:1.2rem;margin:.3rem 0 .7rem">
+                <li>On GitHub: your picture → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> →
+                  <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+                <li>Name it e.g. “Pi Frame updates”, and choose an expiry (up to a year; the frame tells you when it stops working).</li>
+                <li>Repository access: <b>Only select repositories</b> → <b id="g-repo-name">JimmySte/pi-frame</b>.</li>
+                <li>Permissions → Repository permissions → <b>Contents: Read-only</b>. Nothing else.</li>
+                <li><b>Generate token</b>, copy it, and paste it here.</li>
+              </ol>
+              <form id="g-token-form" autocomplete="off" style="display:flex;gap:.5rem;flex-wrap:wrap">
+                <input type="password" id="g-token" placeholder="github_pat_…" spellcheck="false" autocapitalize="off" style="flex:1 1 14rem">
+                <button type="submit" class="btn small primary">Save</button>
+              </form>
+            </div>
+            <div id="g-on" hidden>
+              <p id="g-line" style="margin:0 0 .6rem"></p>
+              <div id="g-avail" hidden>
+                <div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem">
+                  <button type="button" class="btn small primary" id="g-install">Install now</button>
+                </div>
+                <details id="g-notes-box"><summary class="muted" style="cursor:pointer">What's new</summary>
+                  <pre id="g-notes" style="white-space:pre-wrap;font:inherit;font-size:.85rem;margin:.4rem 0 0"></pre></details>
+              </div>
+              <div class="row" style="margin-top:.6rem">
+                <label class="field" style="margin-bottom:.7rem"><span>New versions</span><select id="g-mode">
+                  <option value="notify">Tell me here</option><option value="install">Install automatically</option><option value="off">Don't check</option></select></label>
+                <label class="field" id="g-time-row" style="margin-bottom:.7rem"><span>At</span><input type="time" id="g-time"></label>
+              </div>
+              <div class="actions" style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:center">
+                <button type="button" class="btn small" id="g-check">Check now</button>
+                <button type="button" class="link-btn" id="g-forget">Remove the token</button>
+              </div>
+            </div>
+            <h4>From a file</h4>
+          </div>
           <div id="u-pick" style="margin-top:.8rem">
             <label class="btn small" style="cursor:pointer">Choose update file (.zip)
               <input type="file" id="u-file" accept=".zip,application/zip" hidden></label>
@@ -765,6 +804,20 @@
           <button type="button" class="btn small danger" id="m-reboot">Reboot the Pi</button>
         </div>
         <p class="note">The diagnostics file is plain text with this page's details and recent logs, handy for troubleshooting. Settings are included, but passwords, tokens and keys are removed.</p>
+      </div></details></section>
+      <section class="mcard fold"><details data-fold="reset"><summary><h3>Reset to a fresh frame</h3><span class="fold-sum" id="sum-reset"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+        <p style="margin-top:0">Erases everything on this frame and starts it again as new, with the welcome wizard:
+          photos and videos, albums, settings, synced-folder sign-ins, saved Wi-Fi networks, backups kept on the frame,
+          and the page password. The software version stays as it is.</p>
+        <p class="note" style="margin-top:0">Want to keep anything? <a href="#" id="r-backup">Download an Everything backup first</a>.</p>
+        <div id="r-nopass" class="note" hidden>Set a page password first (above): resetting is only allowed when the page is protected.</div>
+        <form id="r-form" autocomplete="off">
+          <label class="toggle" style="margin-bottom:.7rem"><input type="checkbox" id="r-logins"> Also remove the SSH logins and switch SSH off</label>
+          <label class="field" style="margin-bottom:.7rem"><span>Type RESET to confirm</span>
+            <input type="text" id="r-confirm" autocapitalize="characters" spellcheck="false" maxlength="10"></label>
+          <div class="actions"><button type="submit" class="btn small danger" id="r-go" disabled>Reset this frame</button></div>
+        </form>
+        <p id="r-status" role="status" aria-live="polite" hidden></p>
       </div></details></section>
     </div>
 
@@ -1663,6 +1716,57 @@ function showUpdate(u) {
   $("#u-logbox").hidden = !u.log || !show;
   $("#u-log").textContent = u.log || "";
 }
+/* ---------- updates from GitHub ---------- */
+let gTimer = null;
+function showGithub(g, passwordSet) {
+  $("#g-box").hidden = !passwordSet;
+  $("#g-repo-name").textContent = g.repo;
+  $("#g-notoken").hidden = g.token_set;
+  $("#g-on").hidden = !g.token_set;
+  if (!g.token_set) return;
+  let line;
+  if (g.busy === "checking") line = '<span class="spin" aria-hidden="true"></span> Checking GitHub…';
+  else if (g.busy === "downloading") line = '<span class="spin" aria-hidden="true"></span> Downloading the update…';
+  else if (g.error) line = `<span style="color:var(--warn)">✗ ${escapeHtml(g.error)}</span>`;
+  else if (g.available) line = `<b>Version ${escapeHtml(g.available.version)} is available.</b>` +
+    (g.failed ? " It didn't install automatically last time, so it's waiting for you."
+      : g.mode === "install" ? ` It installs at ${escapeHtml(g.time)}, or now:` : "");
+  else if (g.last_check) line = `✓ Up to date${g.latest ? ` (latest release: ${escapeHtml(g.latest)})` : " (no releases yet)"}.`;
+  else line = "Not checked yet.";
+  if (g.last_check && !g.busy) line += ` <span class="muted">Checked ${escapeHtml(fmtAgo(g.last_check))}.</span>`;
+  $("#g-line").innerHTML = line;
+  $("#g-avail").hidden = !g.available || !!g.busy;
+  $("#g-notes-box").hidden = !(g.available && g.available.notes);
+  if (g.available) $("#g-notes").textContent = g.available.notes || "";
+  if (document.activeElement !== $("#g-mode")) $("#g-mode").value = g.mode;
+  if (document.activeElement !== $("#g-time")) $("#g-time").value = g.time;
+  $("#g-time-row").hidden = g.mode !== "install";
+  $("#g-check").disabled = !!g.busy;
+}
+async function loadGithub(passwordSet) {
+  clearTimeout(gTimer);
+  let g; try { g = await api("/api/maintenance/update/github"); } catch { return; }
+  showGithub(g, passwordSet);
+  if (g.busy) gTimer = setTimeout(() => loadGithub(passwordSet), 1500);
+}
+$("#g-token-form").onsubmit = (e) => {
+  e.preventDefault();
+  act(async () => { const g = await api("/api/maintenance/update/github/token", { json: { token: $("#g-token").value } });
+    $("#g-token").value = ""; showGithub(g, true); }, "Token saved");
+};
+$("#g-check").onclick = () => act(async () => { showGithub(await api("/api/maintenance/update/github/check", { method: "POST" }), true); });
+$("#g-forget").onclick = () => { if (confirm("Remove the GitHub token? The frame stops checking for updates.")) act(async () => {
+  await api("/api/maintenance/update/github/token", { method: "DELETE" }); loadGithub(true); }, "Token removed"); };
+$("#g-mode").onchange = (e) => act(async () => { await api("/api/config", { json: { update_auto: e.target.value } }); loadGithub(true); }, "Saved");
+$("#g-time").onchange = (e) => { if (e.target.value) act(async () => { await api("/api/config", { json: { update_time: e.target.value } }); loadGithub(true); }, "Saved"); };
+$("#g-install").onclick = () => {
+  if (!confirm("Install the new version now? The frame restarts at the end, and the screen may go blank briefly.")) return;
+  act(async () => {
+    const r = await api("/api/maintenance/update/github/install", { method: "POST" });
+    toast(r.message); updWatching = true; updSawRestart = false; loadUpdate();
+  });
+};
+
 async function loadUpdate() {
   let u;
   try { u = await api("/api/maintenance/update"); }
@@ -1683,6 +1787,7 @@ async function loadUpdate() {
     if (u.state === "done") { toast(u.message); setTimeout(() => location.reload(), 2500); }
   }
   showPassword(u.password_set);
+  loadGithub(u.password_set);
 }
 $("#u-file").onchange = (e) => {
   const f = e.target.files[0]; e.target.value = "";
@@ -1733,6 +1838,30 @@ $("#pw-remove").onclick = () => {
   act(async () => { await api("/api/config", { json: { http_password: "" } }); toast("Password removed"); loadUpdate(); });
 };
 
+/* ---------- reset to a fresh frame ---------- */
+$("#r-confirm").oninput = (e) => { $("#r-go").disabled = e.target.value.trim().toUpperCase() !== "RESET"; };
+$("#r-backup").onclick = (e) => {
+  e.preventDefault();
+  const d = document.querySelector('details[data-fold="backup"]');
+  if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); }
+};
+$("#r-form").onsubmit = (e) => {
+  e.preventDefault();
+  const logins = $("#r-logins").checked;
+  if (!confirm(`Erase everything on this frame${logins ? ", including the SSH logins," : ""} and start it again as new? This can't be undone.`)) return;
+  act(async () => {
+    const r = await api("/api/maintenance/reset", { json: { confirm: $("#r-confirm").value, remove_logins: logins } });
+    $("#r-form").hidden = true;
+    $("#r-status").hidden = false;
+    $("#r-status").innerHTML = `<span class="spin" aria-hidden="true"></span> Resetting. The frame restarts as new in about a minute.<br>
+      To set it up again, join its Wi-Fi${r.hotspot ? ` (<b>${escapeHtml(r.hotspot)}</b>)` : ""} with the QR code on its screen.`;
+  });
+};
+function showResetPassword(set) {
+  $("#r-nopass").hidden = set; $("#r-form").hidden = !set;
+  foldSum("reset", "");
+}
+
 /* ---------- backups ---------- */
 let bk = null, bkTimer = null, bkWatching = false, bkUploading = false;
 const fmtDate = (t) => new Date(t * 1000).toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
@@ -1753,6 +1882,7 @@ function statusLine(icon, cls, text) {
 function showBackup(b) {
   bk = b;
   $("#b-nopass").hidden = b.password_set;
+  showResetPassword(b.password_set);
   $("#b-main").hidden = !b.password_set;
   const last = b.last;
   if (!b.auto) foldSum("backup", last && last.ok ? `Last backup ${fmtAgo(last.t)}` : "Not backing up automatically");
@@ -2209,7 +2339,7 @@ $("#lb-close").onclick = closeLightbox;
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#lightbox").hidden) closeLightbox(); });
 /* ---------- collapsible maintenance cards ---------- */
 const FOLD_KEY = "pf-open-cards";
-const AREA_CARD = { "Network": "net", "Power": "power", "SD card": "storage", "Videos": "library", "Synced folders": "library", "Backups": "backup" };
+const AREA_CARD = { "Network": "net", "Power": "power", "SD card": "storage", "Videos": "library", "Synced folders": "library", "Backups": "backup", "Updates": "update" };
 let foldAutoOpened = new Set();
 function foldState() { try { return new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || "[]")); } catch { return new Set(); } }
 document.querySelectorAll("details[data-fold]").forEach(d => {

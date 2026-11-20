@@ -30,7 +30,9 @@ HOTSPOT_IP = "10.42.0.1"  # NetworkManager's default for shared (hotspot) mode
 BOOT_GRACE = 120  # seconds to wait for Wi-Fi after starting
 HOTSPOT_CHANNEL = 6
 SCAN_RETRIES, SCAN_RETRY_WAIT = 3, 4  # seconds; before the setup hotspot, when the first look finds nothing
-NO_SAVED_GRACE = 15  # ...when there's no saved Wi-Fi network to wait for (a new frame)
+NO_SAVED_GRACE = 15  # ...when there's no saved Wi-Fi network to wait for
+# A frame that's never been set up (first run, no saved Wi-Fi): straight to the
+# setup hotspot, unless it's already online by cable.
 MAX_CONNECTING = 300  # never cut off a connection attempt sooner than this
 DROPOUT_GRACE = 300  # how long a lost connection may last before setup mode
 RETRY_EVERY = 180  # in setup mode, retry saved networks this often...
@@ -225,6 +227,7 @@ class WifiManager:
         self.link = {"last_check": None, "last_ok": None, "fails_in_a_row": 0, "checks": 0, "failed_checks": 0}
         self.rejoins: collections.deque = collections.deque(maxlen=20)
         self.online_since: float | None = None
+        self.new_frame = False  # set by __main__ on a frame that hasn't been set up yet
         suffix = Path(f"/sys/class/net/{iface}/address")
         try:
             tail = suffix.read_text().strip().replace(":", "")[-4:].upper()
@@ -544,9 +547,10 @@ class WifiManager:
                 if mode == "unknown" and no_saved is None:
                     no_saved = not self.saved_wifi()
                     if no_saved:
-                        log.info("no saved Wi-Fi networks: starting the setup hotspot soon")
+                        log.info("no saved Wi-Fi networks: starting the setup hotspot %s",
+                                 "now (a new frame)" if self.new_frame else "soon")
                 if mode == "unknown" and no_saved:
-                    limit = min(limit, NO_SAVED_GRACE)
+                    limit = 0 if self.new_frame else min(limit, NO_SAVED_GRACE)
                 waited = now - offline_since
                 state = self.device_state()
                 # Don't cut off a connection NetworkManager is still making

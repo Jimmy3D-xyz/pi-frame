@@ -35,6 +35,8 @@ A Python (Flask) app, started with `python3 -m photoframe`.
 | `photoframe/presence.py`, `buttons.py` | Presence sensor and physical buttons (gpiozero) |
 | `photoframe/health.py` | The Maintenance tab's checks |
 | `photoframe/updater.py` | Checking and handing over web updates |
+| `photoframe/autoupdate.py` | Checking GitHub releases, downloading and installing them |
+| `photoframe/firstrun.py` | A new frame's welcome wizard |
 | `photoframe/backup.py` | Backups (also a command: `python3 -m photoframe.backup create\|inspect`), automatic backups, restoring |
 | `photoframe/sysmodes.py` | Reading the screen's resolutions and the boot setting |
 | `photoframe/static/` | The web pages (`index.html`, `setup.html`, `live.html`), icons, wiring diagram |
@@ -133,6 +135,10 @@ errors or placeholder values. Pi Frame adds:
 | `POST /api/backup/now` | Back up now, to the chosen place |
 | `GET/DELETE /api/backup/file/<name>` | A backup kept on the frame |
 | `POST /api/backup/restore/start`, `PUT /api/backup/restore/upload?offset=…`, `DELETE /api/backup/restore/upload` | Upload a backup to restore, in pieces |
+| `GET /api/maintenance/update/github`, `POST …/github/check`, `POST …/github/install` | Updates from GitHub |
+| `POST/DELETE /api/maintenance/update/github/token` | The read-only GitHub token |
+| `POST /api/maintenance/reset` | Reset to a fresh frame (`{"confirm": "RESET", "remove_logins": false}`) |
+| `GET/POST /api/setup` | The welcome wizard (only on a frame that hasn't been set up) |
 | `POST /api/backup/restore` | Restore it (`{"from": "upload"}` or a kept backup's name); the frame restarts |
 
 When the page has a password, the API needs it too (HTTP basic auth). Extra
@@ -172,6 +178,9 @@ check `docker build` succeeds first.
      package and the kit (workflow "Image", about 10 minutes);
    - **small fixes**: the update package and the kit only (workflow
      "Release", a minute or two).
+
+Frames with automatic updates install the latest full release (not
+pre-releases such as `pi-frame-test`), so a tag is what ships a version to them.
 
 Build a new image by hand (Actions → Image → Run workflow) when the first
 start changes (the wizard, `install.sh`, Wi-Fi setup) in a small fix, or

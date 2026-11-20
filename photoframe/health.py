@@ -266,6 +266,9 @@ def summarise(h: dict) -> list[dict]:
     b = h.get("backup")
     if b:
         add("Backups", b["level"], b["text"])
+    g = h.get("github_update")
+    if g:
+        add("Updates", g["level"], g["text"])
 
     lib = h.get("library") or {}
     failed = [j for j in lib.get("jobs", []) if j["status"] == "failed"]

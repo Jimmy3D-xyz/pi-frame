@@ -12,7 +12,8 @@
 - [What the installer changes](#what-the-installer-changes)
 - [Backing up](#backing-up)
 - [Moving to a new SD card](#moving-to-a-new-sd-card)
-- [Updating](#updating)
+- [Updating](#updating), including [automatic updates from GitHub](#automatic-updates-from-github)
+- [Reset to a fresh frame](#reset-to-a-fresh-frame)
 
 ## Before you start
 
@@ -260,7 +261,38 @@ card starts with.
 
 ## Updating
 
-**From the website** (Maintenance → Software update): upload a new
+### Automatic updates from GitHub
+
+The frame can check this repository's releases itself (Maintenance →
+Software update → From GitHub). The repository is private, so it needs a
+read-only GitHub token, made once:
+
+1. On GitHub: your picture → **Settings** → **Developer settings** →
+   **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+2. Name it (e.g. "Pi Frame updates") and choose an expiry (up to a year).
+3. Repository access: **Only select repositories** → `JimmySte/pi-frame`.
+4. Permissions → Repository permissions → **Contents: Read-only**. Nothing else.
+5. **Generate token**, copy it, and paste it into the frame.
+
+The frame checks it works, keeps it privately (readable by the frame only,
+never shown again, left out of diagnostics; backups include it, like the
+other sign-ins) and then looks for a new release once a day. Choose what
+happens when there is one:
+
+- **Tell me here** (the default): the Maintenance tab says "Version … is
+  available", with what's new and an **Install now** button.
+- **Install automatically**: at a time you choose (03:30 by default), with
+  the same safety as any update: a copy of the current version is kept, and
+  if the new one doesn't start properly the old one is put back. A version
+  that failed this way isn't tried again by itself.
+
+Only full releases are offered: the `pi-frame-test` builds are ignored. The
+download is checked against the checksum GitHub publishes for it. When the
+token expires, the health summary says so: make a new one and paste it in.
+
+### Updating by hand
+
+**From the website** (Maintenance → Software update → From a file): upload a new
 `pi-photoframe.zip`. The frame checks it's a genuine package and shows the
 version change before you confirm. The updater keeps a copy of the current
 version, runs the new package's installer, and checks the frame comes back
@@ -276,3 +308,26 @@ password (Maintenance → Page password).
 ```sh
 unzip -o pi-photoframe.zip && cd pi-photoframe && sudo ./deploy/install.sh
 ```
+
+## Reset to a fresh frame
+
+Maintenance → **Reset to a fresh frame** erases photos and videos, albums,
+settings, synced-folder sign-ins, saved Wi-Fi networks, backups kept on the
+frame, the GitHub token and the page password, then restarts. The frame then
+starts like a new card: straight to its setup hotspot and the welcome wizard.
+The installed version stays as it is.
+
+- It needs the page password, and typing RESET.
+- Tick **Also remove the SSH logins** to delete the logins too and switch
+  SSH off, exactly like a new card (the wizard offers to make a login again).
+  Left unticked, SSH keeps working.
+- Want anything back afterwards? Download an Everything backup first, and
+  restore it after the wizard.
+
+## A new frame's first start
+
+A frame that has never been set up (the ready-made image, or after a reset)
+doesn't wait for Wi-Fi: it shows "Welcome to Pi Frame" and starts its setup
+hotspot within seconds. With an Ethernet cable plugged in, it shows a QR code
+for its page instead. After the wizard, it shows the page's QR code for a
+minute on your home Wi-Fi, then the photos. From then on it starts as usual.

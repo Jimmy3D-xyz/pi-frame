@@ -62,6 +62,10 @@ def create_app(frame: Frame) -> Flask:
     uploads = Uploads(storage, frame.data_dir)
     health.install_event_log()
     updates = Updates(frame.data_dir)
+    from .autoupdate import AutoUpdate, AutoUpdateError
+
+    frame.autoupdate = AutoUpdate(frame.data_dir, cfg, updates, frame)
+    autoupd = frame.autoupdate
     if getattr(frame, "cloud", None) is None:
         frame.cloud = OneDrive(frame.data_dir, storage, frame)
     cloud = frame.cloud
@@ -176,8 +180,10 @@ def create_app(frame: Frame) -> Flask:
         if a.get("wifi"):
             w = a["wifi"]
             frame.wifi.connect(w["ssid"], w["password"], w["hidden"])
+            frame.after_setup()
             return _ok(f"Joining {w['ssid']}", joining=w["ssid"])
         frame.refresh_overlay()
+        frame.after_setup()
         return _ok("All set")
 
     # ---------- Wi-Fi ----------
@@ -740,6 +746,7 @@ def create_app(frame: Frame) -> Flask:
                          "links": [{k: l.get(k) for k in ("source", "folder", "album", "last_sync", "last_ok", "last_result",
                                                              "files", "connected")} for l in cs["links"]]}
         h["backup"] = backups.health()
+        h["github_update"] = autoupd.health()
         h["summary"] = health.summarise(h)
         return h
 
@@ -780,6 +787,39 @@ def create_app(frame: Frame) -> Flask:
         if r.returncode != 0:
             return _err(f"couldn't reboot: {(r.stderr or r.stdout).strip()} (re-run install.sh to allow it)", 500)
         return _ok("Rebooting")
+
+    @app.post("/api/maintenance/reset")
+    def maintenance_reset():
+        """Back to a fresh frame: the root helper erases photos, settings,
+        sign-ins and saved Wi-Fi (and optionally the SSH logins), then restarts."""
+        if not cfg.get("http_password"):
+            return _err("Set a page password first (Maintenance → Page password): resetting is only allowed "
+                        "when the page is protected.", 403)
+        d = request.get_json(silent=True) or {}
+        if str(d.get("confirm", "")).strip().upper() != "RESET":
+            return _err("Type RESET to confirm")
+        if not Path("/etc/systemd/system/pi-frame-system.path").exists() and not app.config.get("SETUP_HELPER"):
+            return _err("The system helper isn't installed. Re-run install.sh over SSH first.", 500)
+        remove_logins = bool(d.get("remove_logins"))
+        log.warning("reset to a fresh frame requested from the Maintenance tab%s",
+                    " (removing SSH logins)" if remove_logins else "")
+        frame.show_resetting()
+
+        def go():
+            time.sleep(2)  # let the answer reach the page first: the frame stops during the reset
+            req = {"action": "factory_reset", "remove_logins": remove_logins}
+            if app.config.get("SETUP_HELPER"):
+                app.config["SETUP_HELPER"](frame.data_dir, req)
+                return
+            d2 = frame.data_dir / "system"
+            d2.mkdir(exist_ok=True)
+            tmp = d2 / "request.tmp"
+            tmp.write_text(json.dumps({**req, "t": time.time()}))
+            os.replace(tmp, d2 / "request.json")
+
+        threading.Thread(target=go, name="reset", daemon=True).start()
+        name = getattr(frame.wifi, "hotspot_ssid", "") if frame.wifi is not None else ""
+        return _ok("Resetting. The frame restarts as new in about a minute.", hotspot=name)
 
     @app.get("/api/maintenance/diagnostics")
     def maintenance_diagnostics():
@@ -1018,6 +1058,44 @@ def create_app(frame: Frame) -> Flask:
             return _err(str(e))
         log.info("update package uploaded: %s -> %s", info["current"], info["new"])
         return jsonify(info)
+
+    # ---------- updates from GitHub ----------
+    @app.get("/api/maintenance/update/github")
+    def github_status():
+        return jsonify(autoupd.status())
+
+    @app.post("/api/maintenance/update/github/token")
+    def github_token():
+        if (resp := _need_password()) is not None:
+            return resp
+        try:
+            return jsonify(autoupd.set_token(str((request.get_json(silent=True) or {}).get("token", ""))))
+        except AutoUpdateError as e:
+            return _err(str(e))
+
+    @app.delete("/api/maintenance/update/github/token")
+    def github_token_forget():
+        autoupd.forget_token()
+        return _ok("Token removed")
+
+    @app.post("/api/maintenance/update/github/check")
+    def github_check():
+        try:
+            return jsonify(autoupd.check())
+        except AutoUpdateError as e:
+            return _err(str(e))
+
+    @app.post("/api/maintenance/update/github/install")
+    def github_install():
+        if (resp := _need_password()) is not None:
+            return resp
+        if autoupd.busy:
+            return _err("Already working on it", 409)
+        try:
+            info = autoupd.install()
+        except AutoUpdateError as e:
+            return _err(str(e))
+        return _ok(f"Installing {info['new']}", **info)
 
     @app.post("/api/maintenance/update/install")
     def update_install():
