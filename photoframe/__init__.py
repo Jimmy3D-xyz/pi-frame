@@ -1,3 +1,3 @@
 """Pi Frame (pi-photoframe): an esp32-photoframe-compatible photo frame for Raspberry Pi + LCD."""
 
-__version__ = "0.26.2"
+__version__ = "0.27.0"

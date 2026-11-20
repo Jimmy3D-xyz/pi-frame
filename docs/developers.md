@@ -137,6 +137,7 @@ errors or placeholder values. Pi Frame adds:
 | `POST /api/backup/restore/start`, `PUT /api/backup/restore/upload?offset=…`, `DELETE /api/backup/restore/upload` | Upload a backup to restore, in pieces |
 | `GET /api/maintenance/update/github`, `POST …/github/check`, `POST …/github/install` | Updates from GitHub |
 | `POST/DELETE /api/maintenance/update/github/token` | The read-only GitHub token |
+| `GET/POST /api/maintenance/ssh` | SSH status; create a login (only when none exists), change its password, SSH on/off |
 | `POST /api/maintenance/reset` | Reset to a fresh frame (`{"confirm": "RESET", "remove_logins": false}`) |
 | `GET/POST /api/setup` | The welcome wizard (only on a frame that hasn't been set up) |
 | `POST /api/backup/restore` | Restore it (`{"from": "upload"}` or a kept backup's name); the frame restarts |

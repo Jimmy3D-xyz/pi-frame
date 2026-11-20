@@ -67,8 +67,8 @@ It opens on a new frame's page until it's finished, and asks for:
 - **A page password** (recommended: backups and updates need one).
 - **An SSH login** (optional): a username and password for working on the Pi
   from a computer (`ssh name@piframe.local`). Without one, SSH stays switched
-  off. The wizard can only create a login while the Pi has none, so the page
-  can't be used to add one later.
+  off. Skipped it? Maintenance → SSH login can create one later. A login is
+  only ever created while the Pi has none, so the page can't add a second.
 
 If the frame can't join your Wi-Fi (a mistyped password, say), its setup
 screen comes back: join its network again and choose the network once more.

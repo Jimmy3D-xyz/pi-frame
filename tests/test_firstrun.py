@@ -223,3 +223,50 @@ def test_helper_reset_erases_data_wifi_and_optionally_logins(tmp_path, monkeypat
     calls.clear()
     h.factory_reset(True, data=data, passwd=str(passwd), owner=me)
     assert ["userdel", "--remove", "alex"] in calls and ["systemctl", "disable", "ssh.service"] in calls
+
+
+# ---------------------------------------------------------------- the SSH section (Maintenance)
+def test_ssh_section(env, monkeypatch):
+    frame, client, tmp, asked = env
+    firstrun.finish(tmp)
+    frame.wifi.status = WifiStatus(mode="online", ssid="Home")
+    assert client.post("/api/maintenance/ssh", json={"what": "on"}).status_code == 403
+    frame.cfg.update({"http_password": "pagepass1"})
+    auth = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass1").decode()}
+    st = client.get("/api/maintenance/ssh", headers=auth).get_json()
+    assert st["logins"] == [] and "active" in st
+    r = client.post("/api/maintenance/ssh", headers=auth, json={"what": "create", "username": "root", "password": "longenough"})
+    assert r.status_code == 400
+    r = client.post("/api/maintenance/ssh", headers=auth, json={"what": "create", "username": "alex", "password": "longenough"})
+    assert r.status_code == 200, r.get_json()
+    assert asked[-1]["what"] == "create" and asked[-1]["hash"].startswith("$6$") and "longenough" not in json.dumps(asked)
+    monkeypatch.setattr(firstrun, "login_users", lambda passwd="/etc/passwd": ["alex"])
+    r = client.post("/api/maintenance/ssh", headers=auth, json={"what": "create", "username": "sam", "password": "longenough"})
+    assert r.status_code == 400 and "already has a login" in r.get_json()["message"]
+    r = client.post("/api/maintenance/ssh", headers=auth, json={"what": "password", "username": "root", "password": "longenough"})
+    assert r.status_code == 400  # only people's logins
+    r = client.post("/api/maintenance/ssh", headers=auth, json={"what": "password", "username": "alex", "password": "newpass99"})
+    assert r.status_code == 200 and asked[-1]["what"] == "password"
+    assert client.post("/api/maintenance/ssh", headers=auth, json={"what": "off"}).status_code == 200
+    assert asked[-1] == {"action": "ssh", "what": "off"}
+
+
+def test_helper_ssh_requests(tmp_path, monkeypatch):
+    h = helper()
+    calls = []
+
+    class R:
+        returncode = 0
+        stdout = stderr = ""
+
+    monkeypatch.setattr(h, "_run", lambda cmd, **kw: (calls.append(cmd), R())[1])
+    monkeypatch.setattr(h, "_status", lambda state, msg: calls.append(("status", state, msg)))
+    p = tmp_path / "passwd"
+    p.write_text(WITH_USER)
+    assert h.ssh_request({"what": "password", "username": "root", "hash": "$6$a$b"}, passwd=str(p)) == 1
+    assert not any(c[0] == "usermod" for c in calls if isinstance(c, list))
+    assert h.ssh_request({"what": "password", "username": "alex", "hash": "$6$a$b"}, passwd=str(p)) == 0
+    assert ["usermod", "--password", "$6$a$b", "alex"] in calls
+    assert h.ssh_request({"what": "create", "username": "sam", "hash": "$6$a$b"}, passwd=str(p)) == 1
+    assert h.ssh_request({"what": "off"}, passwd=str(p)) == 0
+    assert ["systemctl", "disable", "--now", "ssh.service"] in calls

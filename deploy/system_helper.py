@@ -57,6 +57,8 @@ def handle_request(boot: Path = BOOT, sysfs: str = "/sys/class/drm", reboot: boo
         return first_run(req)
     if req.get("action") == "factory_reset":
         return factory_reset(bool(req.get("remove_logins")))
+    if req.get("action") == "ssh":
+        return ssh_request(req)
     if req.get("action") != "set_mode":
         _status("failed", "Unknown request")
         return 1
@@ -134,6 +136,45 @@ def add_login(user: str, pw_hash: str, passwd: str = "/etc/passwd") -> str | Non
     # SSH: host keys are made on first boot; start it now and at every boot
     _run(["systemctl", "enable", "--now", "ssh"])
     return None
+
+
+def set_login_password(user: str, pw_hash: str, passwd: str = "/etc/passwd") -> str | None:
+    """A new password for an existing login (only people's logins, never root or system accounts)."""
+    from photoframe.firstrun import login_users
+
+    if user not in login_users(passwd):
+        return f"{user} isn't a login on this Pi"
+    if not pw_hash.startswith("$6$"):
+        return "that password can't be used"
+    r = _run(["usermod", "--password", pw_hash, user])
+    return None if r.returncode == 0 else "couldn't change the password: " + (r.stderr or r.stdout).strip()[-200:]
+
+
+def set_ssh(on: bool) -> str | None:
+    r = _run(["systemctl", "enable" if on else "disable", "--now", "ssh.service"])
+    return None if r.returncode == 0 else f"couldn't switch SSH {'on' if on else 'off'}: " + (r.stderr or "").strip()[-200:]
+
+
+def ssh_request(req: dict, passwd: str = "/etc/passwd") -> int:
+    """The Maintenance tab's SSH section: create a login (only when there's none),
+    change a login's password, or switch SSH on or off."""
+    what = req.get("what")
+    if what == "create":
+        err = add_login(str(req.get("username", "")), str(req.get("hash", "")), passwd=passwd)
+        done = f"Created the login {req.get('username')}, and switched SSH on"
+    elif what == "password":
+        err = set_login_password(str(req.get("username", "")), str(req.get("hash", "")), passwd=passwd)
+        done = f"Changed the password for {req.get('username')}"
+    elif what in ("on", "off"):
+        err = set_ssh(what == "on")
+        done = f"SSH switched {what}"
+    else:
+        err = "unknown request"
+    if err:
+        _status("failed", err[0].upper() + err[1:])
+        return 1
+    _status("done", done)
+    return 0
 
 
 def first_run(req: dict) -> int:

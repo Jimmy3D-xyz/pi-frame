@@ -87,11 +87,11 @@ and move to a new, branded card:
 A card that switches itself to read-only is usually failing. Back up while
 you still can and replace it.
 
-**I've forgotten the SSH password.**
-The page password and the SSH password are separate. If you can still sign
-in to the website, a one-off update package can set a temporary SSH
-password (ask for one, and delete it afterwards). Otherwise, put the card
-in a computer, or reflash it with the kit and your backup.
+**I've forgotten the SSH password, or there's no SSH login.**
+The page password and the SSH password are separate. Under Maintenance →
+**SSH login** you can set a new password for the login, create a login if the
+Pi has none (e.g. it was skipped in the welcome wizard), and switch SSH on or
+off. This needs the page password.
 
 **An automatic backup to the NAS fails with "didn't let the frame save there".**
 The NAS account can read but not write. Give it write permission on the

@@ -788,6 +788,55 @@ def create_app(frame: Frame) -> Flask:
             return _err(f"couldn't reboot: {(r.stderr or r.stdout).strip()} (re-run install.sh to allow it)", 500)
         return _ok("Rebooting")
 
+    # ---------- SSH ----------
+    def _ssh_state() -> dict:
+        def sysctl(*args) -> str:
+            try:
+                return subprocess.run(["systemctl", *args, "ssh.service"], capture_output=True, text=True,
+                                      timeout=10).stdout.strip()
+            except (OSError, subprocess.TimeoutExpired):
+                return "unknown"
+        host = socket.gethostname()
+        return {"active": sysctl("is-active") == "active", "enabled": sysctl("is-enabled") == "enabled",
+                "logins": firstrun.login_users(), "hostname": host,
+                "helper": Path("/etc/systemd/system/pi-frame-system.path").exists() or bool(app.config.get("SETUP_HELPER"))}
+
+    @app.get("/api/maintenance/ssh")
+    def ssh_status():
+        return jsonify(_ssh_state())
+
+    @app.post("/api/maintenance/ssh")
+    def ssh_change():
+        if not cfg.get("http_password"):
+            return _err("Set a page password first (Maintenance → Page password): an SSH login can do anything "
+                        "on the Pi, so it's only managed here when the page is protected.", 403)
+        d = request.get_json(silent=True) or {}
+        what = str(d.get("what", ""))
+        req = {"action": "ssh", "what": what}
+        try:
+            if what in ("create", "password"):
+                user = str(d.get("username", "")).strip()
+                pw = str(d.get("password", ""))
+                if what == "create":
+                    if firstrun.login_users():
+                        return _err("This Pi already has a login, so another can't be added here.")
+                    if not firstrun.USERNAME_RE.match(user) or user in firstrun.RESERVED:
+                        return _err("Use lower-case letters and numbers for the username, starting with a letter.")
+                elif user not in firstrun.login_users():
+                    return _err(f"{user} isn't a login on this Pi")
+                if len(pw) < 8:
+                    return _err("The password needs at least 8 characters.")
+                req.update(username=user, hash=firstrun.hash_password(pw))
+            elif what not in ("on", "off"):
+                return _err("unknown request")
+        except firstrun.SetupError as e:
+            return _err(str(e))
+        res = (app.config.get("SETUP_HELPER") or firstrun.ask_helper)(frame.data_dir, req)
+        if res.get("state") != "done":
+            return _err(res.get("message") or "That didn't work")
+        log.info("SSH: %s", res.get("message"))
+        return _ok(res.get("message", "Done"), **_ssh_state())
+
     @app.post("/api/maintenance/reset")
     def maintenance_reset():
         """Back to a fresh frame: the root helper erases photos, settings,

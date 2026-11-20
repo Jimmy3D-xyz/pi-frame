@@ -805,6 +805,30 @@
         </div>
         <p class="note">The diagnostics file is plain text with this page's details and recent logs, handy for troubleshooting. Settings are included, but passwords, tokens and keys are removed.</p>
       </div></details></section>
+      <section class="mcard fold"><details data-fold="ssh"><summary><h3>SSH login</h3><span class="fold-sum" id="sum-ssh"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+        <p class="note" style="margin-top:0">For working on the Pi from a computer (<code id="s-cmd">ssh name@piframe.local</code>). Not needed to use the frame.</p>
+        <div id="s-nopass" class="note" hidden>Set a page password first (above): an SSH login can do anything on the Pi, so it's only managed here when the page is protected.</div>
+        <div id="s-main">
+          <p id="s-line" style="margin:0 0 .7rem"></p>
+          <form id="s-create" autocomplete="off" hidden>
+            <label class="field" style="margin-bottom:.7rem"><span>Username</span>
+              <input type="text" id="s-user" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="32" placeholder="e.g. alex"></label>
+            <label class="field" style="margin-bottom:.7rem"><span>Password</span>
+              <input type="password" id="s-pw" autocomplete="new-password"><small>At least 8 characters.</small></label>
+            <div class="actions"><button type="submit" class="btn small primary">Create the login</button></div>
+          </form>
+          <div id="s-has" hidden>
+            <form id="s-pwform" autocomplete="off">
+              <label class="field" style="margin-bottom:.7rem"><span id="s-pwlabel">New password</span>
+                <input type="password" id="s-newpw" autocomplete="new-password"><small>At least 8 characters. Handy if it's been forgotten.</small></label>
+              <div class="actions" style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:center">
+                <button type="submit" class="btn small">Change the password</button>
+                <button type="button" class="link-btn" id="s-toggle"></button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div></details></section>
       <section class="mcard fold"><details data-fold="reset"><summary><h3>Reset to a fresh frame</h3><span class="fold-sum" id="sum-reset"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
         <p style="margin-top:0">Erases everything on this frame and starts it again as new, with the welcome wizard:
           photos and videos, albums, settings, synced-folder sign-ins, saved Wi-Fi networks, backups kept on the frame,
@@ -1838,6 +1862,38 @@ $("#pw-remove").onclick = () => {
   act(async () => { await api("/api/config", { json: { http_password: "" } }); toast("Password removed"); loadUpdate(); });
 };
 
+/* ---------- SSH login ---------- */
+let sshState = null;
+function showSsh(st, passwordSet) {
+  sshState = st;
+  const login = st.logins[0];
+  foldSum("ssh", login ? `${login} · SSH ${st.active ? "on" : "off"}` : "No login");
+  $("#s-nopass").hidden = passwordSet;
+  $("#s-main").hidden = !passwordSet;
+  $("#s-cmd").textContent = `ssh ${login || "name"}@${st.hostname}.local`;
+  if (!passwordSet) return;
+  $("#s-create").hidden = !!login;
+  $("#s-has").hidden = !login;
+  $("#s-line").innerHTML = login
+    ? `Login <b>${escapeHtml(st.logins.join(", "))}</b>. SSH is <b>${st.active ? "on" : "off"}</b>.`
+    : "This Pi has no login yet, so SSH is off. Create one to switch it on.";
+  if (login) {
+    $("#s-pwlabel").textContent = `New password for ${login}`;
+    $("#s-toggle").textContent = st.active || st.enabled ? "Switch SSH off" : "Switch SSH on";
+  }
+}
+async function loadSsh(passwordSet) {
+  try { showSsh(await api("/api/maintenance/ssh"), passwordSet); } catch {}
+}
+const sshDo = (body, msg) => act(async () => { const r = await api("/api/maintenance/ssh", { json: body }); toast(r.message); showSsh(r, true); });
+$("#s-create").onsubmit = (e) => { e.preventDefault(); sshDo({ what: "create", username: $("#s-user").value.trim(), password: $("#s-pw").value }); $("#s-pw").value = ""; };
+$("#s-pwform").onsubmit = (e) => { e.preventDefault(); sshDo({ what: "password", username: sshState.logins[0], password: $("#s-newpw").value }); $("#s-newpw").value = ""; };
+$("#s-toggle").onclick = () => {
+  const on = !(sshState.active || sshState.enabled);
+  if (!on && !confirm("Switch SSH off? You won't be able to log in from a computer until it's switched on again here.")) return;
+  sshDo({ what: on ? "on" : "off" });
+};
+
 /* ---------- reset to a fresh frame ---------- */
 $("#r-confirm").oninput = (e) => { $("#r-go").disabled = e.target.value.trim().toUpperCase() !== "RESET"; };
 $("#r-backup").onclick = (e) => {
@@ -1883,6 +1939,7 @@ function showBackup(b) {
   bk = b;
   $("#b-nopass").hidden = b.password_set;
   showResetPassword(b.password_set);
+  loadSsh(b.password_set);
   $("#b-main").hidden = !b.password_set;
   const last = b.last;
   if (!b.auto) foldSum("backup", last && last.ok ? `Last backup ${fmtAgo(last.t)}` : "Not backing up automatically");
