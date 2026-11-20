@@ -277,6 +277,16 @@ def test_hotspot_starts_when_really_disconnected(tmp_path, monkeypatch):
         _real_sleep(0.05)
     mgr.stop()
     assert mgr.status.mode == "setup"
+    # always 2.4 GHz channel 6 with plain WPA2: a new Pi (no country set yet) can't
+    # transmit on 5 GHz, and WPA3 hotspots trip up the Pi's chip and many phones
+    import json
+
+    calls = [json.loads(line) for line in (tmp_path / "nm.json.log").read_text().splitlines()]
+    hotspot = next(c for c in calls if c[:3] == ["device", "wifi", "hotspot"])
+    assert hotspot[hotspot.index("band") + 1] == "bg" and hotspot[hotspot.index("channel") + 1] == "6"
+    modify = next(c for c in calls if c[:2] == ["connection", "modify"])
+    assert modify[modify.index("802-11-wireless-security.key-mgmt") + 1] == "wpa-psk"
+    assert modify[modify.index("802-11-wireless-security.pmf") + 1] == "disable"
 
 
 # ---------------- link check: connected but no traffic ----------------

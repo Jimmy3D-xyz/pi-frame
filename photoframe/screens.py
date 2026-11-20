@@ -269,7 +269,26 @@ def empty_card(size: tuple[int, int], urls: list[str], reason: str = "There are 
     )
 
 
-def wifi_setup_card(size: tuple[int, int], ssid: str, password: str, setup_url: str, reason: str) -> Image.Image:
+def wifi_setup_card(size: tuple[int, int], ssid: str, password: str, setup_url: str, reason: str,
+                    new_frame: bool = False) -> Image.Image:
+    if new_frame:  # first start, from the ready-made image: the setup page is the welcome wizard
+        return card(
+            size,
+            "Welcome to Pi Frame",
+            "Let's set it up from your phone. It takes about two minutes.",
+            [
+                QRBlock(
+                    wifi_qr_payload(ssid, password),
+                    "1. Join the frame's Wi-Fi",
+                    ["Scan with your phone's camera, or join manually:", f"  Network: {ssid}", f"  Password: {password}"],
+                ),
+                QRBlock(
+                    setup_url,
+                    "2. Set up your frame",
+                    ["A setup page should open by itself. If not, scan this or open:", setup_url],
+                ),
+            ],
+        )
     return card(
         size,
         "Let's get this frame online",

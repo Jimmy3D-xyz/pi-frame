@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 HOTSPOT_CON = "photoframe-setup"
 HOTSPOT_IP = "10.42.0.1"  # NetworkManager's default for shared (hotspot) mode
 BOOT_GRACE = 120  # seconds to wait for Wi-Fi after starting
+HOTSPOT_CHANNEL = 6
 NO_SAVED_GRACE = 15  # ...when there's no saved Wi-Fi network to wait for (a new frame)
 MAX_CONNECTING = 300  # never cut off a connection attempt sooner than this
 DROPOUT_GRACE = 300  # how long a lost connection may last before setup mode
@@ -375,8 +376,11 @@ class WifiManager:
         # Scan first: a Pi's single radio usually can't scan while it's an AP.
         networks = self.scan()
         password = self.status.hotspot_password or f"{random.randint(0, 99_999_999):08d}"
+        # 2.4 GHz channel 6: allowed everywhere, even before the Pi is told its
+        # country. Left to choose, NetworkManager may pick 5 GHz, where a Pi
+        # with no country set may only listen: the hotspot "starts" but no phone sees it.
         args = ("device", "wifi", "hotspot", "ifname", self.iface, "con-name", HOTSPOT_CON,
-                "ssid", self.hotspot_ssid, "password", password)
+                "ssid", self.hotspot_ssid, "band", "bg", "channel", str(HOTSPOT_CHANNEL), "password", password)
         r = _nmcli(*args)
         if r.returncode != 0:
             # a new Pi keeps its Wi-Fi radio switched off until it's told the country
@@ -389,8 +393,14 @@ class WifiManager:
             log.error("could not start setup hotspot: %s", r.stderr.strip())
             self._set(mode="offline", message="Couldn't start the setup hotspot.")
             return
-        # Don't let NetworkManager bring the hotspot back by itself after a reboot.
-        _nmcli("connection", "modify", HOTSPOT_CON, "connection.autoconnect", "no")
+        # Don't let NetworkManager bring the hotspot back by itself after a reboot,
+        # and use plain WPA2: newer NetworkManager may offer WPA3 (SAE), which
+        # the Pi's Wi-Fi chip and many phones don't manage as a hotspot.
+        _nmcli("connection", "modify", HOTSPOT_CON, "connection.autoconnect", "no",
+               "802-11-wireless-security.key-mgmt", "wpa-psk", "802-11-wireless-security.proto", "rsn",
+               "802-11-wireless-security.pairwise", "ccmp", "802-11-wireless-security.group", "ccmp",
+               "802-11-wireless-security.pmf", "disable")
+        _nmcli("connection", "up", HOTSPOT_CON, timeout=30)
         log.info("setup hotspot %s started", self.hotspot_ssid)
         self._set(
             mode="setup", hotspot_ssid=self.hotspot_ssid, hotspot_password=password,

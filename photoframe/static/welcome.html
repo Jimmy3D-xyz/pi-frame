@@ -86,7 +86,7 @@
     <section data-step="wifi" hidden>
       <p class="stepno"></p>
       <h1>Your Wi-Fi</h1>
-      <p class="muted">Pick your home network. The frame joins it when you finish.</p>
+      <p class="muted" id="wifi-intro">Pick your home network. The frame joins it when you finish.</p>
       <div class="card">
         <div class="nets" id="nets" role="radiogroup" aria-label="Wi-Fi networks"><p class="muted">Looking for networks…</p></div>
         <div id="other" hidden>
@@ -95,6 +95,7 @@
         <label class="field" id="wpw-row"><span>Password</span>
           <input type="password" id="wpw" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
         <label class="check" id="wshow-row"><input type="checkbox" id="wshow"> Show password</label>
+        <button type="button" class="link" id="wifi-skip" hidden>Skip: keep using the cable</button>
       </div>
     </section>
 
@@ -154,7 +155,7 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let info = {}, steps = [], at = 0, skipPassword = false;
+let info = {}, steps = [], at = 0, skipPassword = false, skipWifi = false;
 
 // ---------- countries and time zones, guessed from the phone
 const CODES = "AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" ");
@@ -232,7 +233,7 @@ function valid(step) {
     if (!$("#name").value.trim()) return fail("Give the frame a name.");
     if (!$("#country").value) return fail("Choose the country the frame is in.");
   }
-  if (step === "wifi") {
+  if (step === "wifi" && !skipWifi) {
     const w = chosenWifi();
     if (!w.ssid) return fail("Enter the network name.");
     if (!$("#wpw-row").hidden && w.password.length < 8) return fail("Wi-Fi passwords are at least 8 characters.");
@@ -247,6 +248,8 @@ function valid(step) {
   }
   return true;
 }
+$("#wifi-skip").onclick = () => { skipWifi = true; show(at + 1); };
+$("#nets").addEventListener("change", () => { skipWifi = false; });
 $("#pw-skip").onclick = () => { skipPassword = true; $("#pw").value = $("#pw2").value = ""; show(at + 1); };
 $("#pw").oninput = () => { skipPassword = false; };
 $("#back").onclick = () => show(at - 1);
@@ -254,7 +257,7 @@ $("#back").onclick = () => show(at - 1);
 function answers() {
   const a = { name: $("#name").value.trim(), country: $("#country").value, timezone: $("#timezone").value,
               password: skipPassword ? "" : $("#pw").value };
-  if (steps.includes("wifi")) a.wifi = chosenWifi();
+  if (steps.includes("wifi") && !skipWifi) a.wifi = chosenWifi();
   if (steps.includes("ssh") && $("#ssh-on").checked) a.ssh = { username: $("#ssh-user").value.trim(), password: $("#ssh-pw").value };
   return a;
 }
@@ -267,8 +270,9 @@ function review() {
   rows.push(["Page password", a.password ? "Set" : "None"]);
   if (steps.includes("ssh")) rows.push(["SSH login", a.ssh ? a.ssh.username : "None (SSH off)"]);
   $("#summary").innerHTML = rows.map(([k, v]) => `<li><span>${esc(k)}</span><b>${esc(v)}</b></li>`).join("");
-  $("#review-note").textContent = a.wifi
+  $("#review-note").textContent = a.wifi && !info.online
     ? `When you finish, the frame joins ${a.wifi.ssid} and your phone drops off the frame's own Wi-Fi.`
+    : a.wifi ? `When you finish, the frame joins ${a.wifi.ssid} too, so the cable can come out later.`
     : "When you finish, the frame starts showing photos (once you've added some).";
 }
 
@@ -297,7 +301,12 @@ function finished(a, body) {
   const url = info.url || "http://piframe.local/";
   const signIn = a.password ? `<p>It asks for the page password you just chose (the username can be anything).</p>` : "";
   const ssh = a.ssh ? `<p>To log in from a computer: <code>ssh ${esc(a.ssh.username)}@${esc(info.hostname || "piframe")}.local</code></p>` : "";
-  if (body.joining) {
+  if (body.joining && info.online) {  // on a cable: the phone stays connected
+    $("#fin-title").textContent = "All set";
+    $("#fin-body").innerHTML = `<p class="done">Your frame is ready, and it's joining ${esc(body.joining)}.</p>
+      <p>Once it's connected, the cable can come out (Maintenance shows the Wi-Fi details).</p>
+      <p>Next, add some photos: <a href="/">open the frame's page</a>.</p>${signIn}${ssh}`;
+  } else if (body.joining) {
     $("#fin-title").textContent = `Joining ${body.joining}…`;
     $("#fin-body").innerHTML = `
       <p>Your phone will drop off the frame's Wi-Fi now. Watch the frame's screen:</p>
@@ -319,10 +328,15 @@ async function start() {
   try { info = await (await fetch("/api/setup")).json(); } catch {}
   if (info.first_run === false) { location.replace("/"); return; }
   if (info.name) $("#name").value = info.name;
-  const onHotspot = info.wifi_mode === "setup" || info.wifi_mode === "connecting";
-  const online = info.wifi_mode === "online";
+  info.online = info.wifi_mode === "online";
   steps = ["about"];
-  if (onHotspot || (!online && info.wifi_mode !== "disabled")) { steps.push("wifi"); loadNetworks(); }
+  if (info.wifi_mode !== "disabled" && !(info.online && info.wifi_saved)) {  // (Imager's settings may have done it)
+    steps.push("wifi"); loadNetworks();
+    if (info.online) {  // connected by cable: Wi-Fi is optional
+      $("#wifi-intro").textContent = "You're connected by cable. Add your Wi-Fi too, so the cable can come out later, or skip this.";
+      $("#wifi-skip").hidden = false;
+    }
+  }
   steps.push("password");
   if (!info.has_login) steps.push("ssh");
   steps.push("review");

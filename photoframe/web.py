@@ -146,6 +146,7 @@ def create_app(frame: Frame) -> Flask:
             "url": f"http://{socket.gethostname()}.local/",
             "name": cfg.get("device_name"), "has_login": bool(firstrun.login_users()),
             "wifi_mode": st.mode if st else "disabled", "ssid": st.ssid if st else "",
+            "wifi_saved": bool(frame.wifi.saved_wifi()) if frame.wifi is not None and hasattr(frame.wifi, "saved_wifi") else False,
             "password_set": bool(cfg.get("http_password")),
         })
 

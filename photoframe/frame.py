@@ -806,6 +806,7 @@ class Frame:
                     screens.wifi_setup_card(
                         self.logical, status.hotspot_ssid, status.hotspot_password,
                         f"http://{HOTSPOT_IP}/setup", status.message,
+                        new_frame=(Path(self.data_dir) / ".first-run").exists(),
                     ),
                     "wifi",
                 )
