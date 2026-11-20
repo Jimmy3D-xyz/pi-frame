@@ -59,6 +59,14 @@ xz -dc "$WORK/$base" > "$IMG"
 truncate -s "+${GROW_MB}M" "$IMG"
 echo ", +" | sfdisk --no-reread --quiet -N 2 "$IMG"
 LOOP="$(losetup -fP --show "$IMG")"
+# the partition devices (loopNp1, loopNp2) can take a moment to appear
+udevadm settle 2>/dev/null || true
+for _ in $(seq 40); do
+  [ -b "${LOOP}p2" ] && break
+  partx -u "$LOOP" 2>/dev/null || partx -a "$LOOP" 2>/dev/null || true
+  sleep 0.5
+done
+[ -b "${LOOP}p2" ] || { echo "!! the image's partitions didn't appear ($LOOP)"; exit 1; }
 e2fsck -fy "${LOOP}p2" >/dev/null || true
 resize2fs "${LOOP}p2" >/dev/null
 mount "${LOOP}p2" "$ROOT"
