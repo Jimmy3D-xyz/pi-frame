@@ -39,7 +39,7 @@ AIC_FIELDS = "id,title,artist_title,artist_display,date_display,image_id,is_publ
 NASA = "https://images-api.nasa.gov"
 UA = {"User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)",
       "AIC-User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)"}
-LONG_EDGE = 2048
+LONG_EDGE = 1920
 ART_QUERIES = ["landscape", "seascape", "mountains", "river", "garden", "flowers", "harbor", "snow", "sunset", "autumn"]
 NASA_QUERIES = ["earth from space station", "aurora from space station", "milky way", "Saturn Cassini",
                 "Grand Canyon from space", "Himalayas from space", "Bahamas from space", "nebula Webb"]
@@ -201,7 +201,7 @@ def fetch() -> None:
         im.thumbnail((LONG_EDGE, LONG_EDGE), Image.LANCZOS)
         slug = re.sub(r"[^a-z0-9]+", "-", c["title"].lower()).strip("-")[:40] or "photo"
         name = f"{n:02d}-{slug}.jpg"
-        im.save(OUT / name, quality=86, optimize=True, progressive=True)
+        im.save(OUT / name, quality=84, optimize=True, progressive=True)
         credits.append({"file": name, "title": pick.get("title") or c["title"], "creator": c["creator"],
                         "date": c["date"], "source": c["page"], "license": c["license"],
                         "size": list(im.size)})
