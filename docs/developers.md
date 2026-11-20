@@ -183,7 +183,7 @@ check `docker build` succeeds first.
    Either refuses a version that's already been released.
 
 Frames with automatic updates install the latest full release (not
-pre-releases such as `pi-frame-test`), so a tag is what ships a version to them.
+pre-releases such as `pi-frame-test`), so publishing a release is what ships a version to them.
 
 Build a new image by hand (Actions → Image → Run workflow) when the first
 start changes (the wizard, `install.sh`, Wi-Fi setup) in a small fix, or
