@@ -212,3 +212,14 @@ def test_web_endpoints(tmp_path, gh, monkeypatch):
     assert r.status_code == 200 and (tmp_path / "update" / "pending.zip").exists()
     assert client.delete("/api/maintenance/update/github/token", headers=auth).status_code == 200
     assert not client.get("/api/maintenance/update/github", headers=auth).get_json()["token_set"]
+
+
+def test_once_installed_it_isnt_offered_again(au, gh, tmp_path, monkeypatch):
+    au.set_token(TOKEN)
+    gh.release(newer())
+    assert au.check()["available"]["version"] == newer()
+    # the frame restarts on the new version, with the note still saved
+    monkeypatch.setattr(autoupdate, "__version__", newer())
+    again = AutoUpdate(tmp_path, au.cfg, Updates(tmp_path), None, api=gh.url)
+    st = again.status()
+    assert st["available"] is None and st["latest"] == newer() and again.health() is None

@@ -66,6 +66,15 @@ class AutoUpdate:
         self._stop = threading.Event()
         self._started = time.time()
         self._note_failed_attempt()
+        self._forget_installed()
+
+    def _forget_installed(self) -> None:
+        """A version noted as available that's now installed (or older) isn't available any more."""
+        avail = self.state.get("available")
+        if avail and _version_key(avail["version"]) <= _version_key(__version__):
+            self.state.pop("available", None)
+            self.state["latest"] = self.state.get("latest") or avail["version"]
+            self._save()
 
     # ---------- bookkeeping
     def _save(self) -> None:
@@ -270,6 +279,7 @@ class AutoUpdate:
 
     # ---------- for the web page
     def status(self) -> dict:
+        self._forget_installed()
         avail = self.state.get("available")
         return {
             "mode": self.mode, "time": self.cfg.get("update_time") or "03:30", "repo": self.repo,
