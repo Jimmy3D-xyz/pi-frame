@@ -7,6 +7,8 @@ name: Release
 on:
   push:
     tags: ["v*", "!v*.*.0"]
+  # or from the Actions tab: releases the version in the code (v + version)
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,6 +25,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ver=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' photoframe/__init__.py)
+          tag="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            tag="v$ver"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "::error::v$ver is already released. Raise the version in photoframe/__init__.py first."; exit 1
+            fi
+          fi
           img=$(gh release list --exclude-pre-releases --limit 50 --json tagName -q '.[].tagName' \
                 | grep -E '^v[0-9]+\.[0-9]+\.0$' | head -1 || true)
           {
@@ -35,5 +44,5 @@ jobs:
             echo
             echo "Built from $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%d)."
           } > notes.md
-          gh release create "$GITHUB_REF_NAME" --target "$GITHUB_SHA" --title "Pi Frame $ver" \
+          gh release create "$tag" --target "$GITHUB_SHA" --title "Pi Frame $ver" \
             --notes-file notes.md dist/pi-photoframe.zip dist/pi-frame-kit.zip

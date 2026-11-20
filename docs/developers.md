@@ -172,12 +172,15 @@ check `docker build` succeeds first.
 1. Bump `__version__` in `photoframe/__init__.py`: the last number for a
    small fix (0.26.1), the middle one for new features (0.27.0).
 2. Run the tests, commit and push.
-3. Tag it (`git tag v0.27.0 && git push origin v0.27.0`). GitHub then publishes
-   a release:
-   - **feature versions** (`vX.Y.0`): a new ready-made image, the update
-     package and the kit (workflow "Image", about 10 minutes);
-   - **small fixes**: the update package and the kit only (workflow
-     "Release", a minute or two).
+3. Publish it, from GitHub's **Actions** tab (works from a phone too):
+   - **feature versions** (`X.Y.0`): workflow **Image** → Run workflow → tick
+     **Publish it as the release of this version**. Builds a new ready-made
+     image, and releases it with the update package and the kit (about 10 minutes).
+   - **small fixes**: workflow **Release** → Run workflow. The update package
+     and the kit only (a minute or two).
+
+   Pushing a tag (`git tag v0.27.0 && git push origin v0.27.0`) does the same.
+   Either refuses a version that's already been released.
 
 Frames with automatic updates install the latest full release (not
 pre-releases such as `pi-frame-test`), so a tag is what ships a version to them.

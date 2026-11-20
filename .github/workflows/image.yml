@@ -12,9 +12,13 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publish as a test release (pi-frame-test)"
+        description: "Publish it as a test build (pi-frame-test)"
         type: boolean
         default: true
+      release:
+        description: "Publish it as the release of this version (v + the version in the code), for every frame to update to"
+        type: boolean
+        default: false
       intel:
         description: "Build on an Intel machine, with Arm emulation (slower; Arm is the default)"
         type: boolean
@@ -56,13 +60,18 @@ jobs:
         run: bash kit/build-kit.sh dist
 
       - name: Publish
-        if: github.event_name == 'push' || inputs.publish
+        if: github.event_name == 'push' || inputs.publish || inputs.release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ver=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' photoframe/__init__.py)
           if [ "${{ github.event_name }}" = push ]; then
             tag="${GITHUB_REF_NAME}"; title="Pi Frame $ver"; flags=""
+          elif [ "${{ inputs.release }}" = true ]; then
+            tag="v$ver"; title="Pi Frame $ver"; flags=""
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "::error::v$ver is already released. Raise the version in photoframe/__init__.py first."; exit 1
+            fi
           else
             tag="pi-frame-test"; title="Pi Frame $ver (test build)"; flags="--prerelease"
             gh release delete "$tag" --yes --cleanup-tag || true
