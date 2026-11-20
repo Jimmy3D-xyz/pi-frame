@@ -15,13 +15,17 @@ on:
         description: "Publish as a test release (pi-frame-test)"
         type: boolean
         default: true
+      arm:
+        description: "Build on GitHub's Arm machines (no emulation needed)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
   image:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.arm && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
@@ -31,12 +35,15 @@ jobs:
           for attempt in 1 2 3; do
             sudo apt-get update -q -o Acquire::Retries=5 &&
             sudo apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends \
-              qemu-user-static binfmt-support xz-utils fdisk e2fsprogs zip &&
+              $( [ "$(uname -m)" = aarch64 ] || echo qemu-user-static binfmt-support ) xz-utils fdisk e2fsprogs zip &&
             break
             sleep 30
           done
-          sudo update-binfmts --enable qemu-aarch64 || true
-          ls /proc/sys/fs/binfmt_misc/ | grep -i aarch64
+          if [ "$(uname -m)" != aarch64 ]; then  # an Intel machine: run Arm programs through the emulator
+            sudo update-binfmts --enable qemu-aarch64 || true
+            ls /proc/sys/fs/binfmt_misc/ | grep -i aarch64
+          fi
+          echo "Building on $(uname -m), $(nproc) cores"
 
       - name: Build the image
         run: |

@@ -22,19 +22,52 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
 
-      - name: Install tools (video, sync, HEIC)
+      # Tools for video, sync and HEIC tests. Ubuntu's package servers are often
+      # slow (anything from 25 s to 13 minutes), so the packages are kept in
+      # GitHub's cache and installed from there. The copy is remade when the
+      # list below or GitHub's machine image changes, or after a week unused.
+      - name: Which packages, for which machine
+        id: apt
         run: |
+          echo "pkgs=ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core" >> "$GITHUB_OUTPUT"
+          echo "key=apt-${ImageOS}-${ImageVersion}-$(echo 'v1 ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core' | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Packages from the cache
+        id: apt-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.apt.outputs.key }}
+
+      - name: Install tools (video, sync, HEIC)
+        env:
+          PKGS: ${{ steps.apt.outputs.pkgs }}
+          CACHED: ${{ steps.apt-cache.outputs.cache-hit }}
+        run: |
+          mkdir -p ~/apt-debs/partial
+          if [ "$CACHED" = true ] && sudo dpkg -i ~/apt-debs/*.deb >/tmp/dpkg.log 2>&1; then
+            echo "Installed $(ls ~/apt-debs/*.deb | wc -l) packages from the cache"
+            exit 0
+          fi
+          [ "$CACHED" = true ] && { echo "The cached packages didn't install; downloading instead"; tail -5 /tmp/dpkg.log; }
           # Ubuntu's servers sometimes answer 503, or 404 while an update is
           # being published: refresh the package list and try again.
           for attempt in 1 2 3; do
             sudo apt-get update -q -o Acquire::Retries=5 &&
-            sudo apt-get install -y -q -o Acquire::Retries=5 --no-install-recommends \
-              ffmpeg mpv libheif-examples libheif-plugin-x265 libheif-plugin-libde265 fonts-dejavu-core &&
-            exit 0
+            sudo apt-get install -y -q -o Acquire::Retries=5 -o Dir::Cache::Archives="$HOME/apt-debs" \
+              --no-install-recommends $PKGS &&
+            { sudo chown -R "$(id -u)" ~/apt-debs; echo "fresh=1" >> "$GITHUB_ENV"; exit 0; }
             echo "Package download failed (attempt $attempt); trying again in 30 s"
             sleep 30
           done
           exit 1
+
+      - name: Keep the packages for next time
+        if: env.fresh == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.apt.outputs.key }}
 
       - name: Install rclone (current, as the frame's installer does; Ubuntu's is too old)
         run: |
@@ -44,10 +77,11 @@ jobs:
           rclone version | head -1
 
       - name: Install Python packages
-        run: pip install -r requirements.txt qrcode gpiozero pytest
+        run: pip install -r requirements.txt qrcode gpiozero pytest pytest-xdist
 
       - name: Run the tests
-        run: python -m pytest tests -q -ra
+        # on all cores; each file's tests stay together (some share a port)
+        run: python -m pytest tests -q -ra -n auto --dist loadfile
 
   package:
     name: Build the update package and kit

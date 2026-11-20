@@ -11,6 +11,7 @@
 #
 #   PF_BASE_URL   the Raspberry Pi OS image to start from (default: the latest Lite 64-bit)
 #   PF_WORK       working folder (default: /tmp/pi-frame-image; needs ~6 GB)
+#   PF_XZ_LEVEL   compression, 0-9 (default 3: much quicker than 6, a slightly bigger file)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,6 +19,7 @@ OUT="$(mkdir -p "${1:-$REPO/dist}" && cd "${1:-$REPO/dist}" && pwd)"
 WORK="${PF_WORK:-/tmp/pi-frame-image}"
 BASE_URL="${PF_BASE_URL:-https://downloads.raspberrypi.com/raspios_lite_arm64_latest}"
 GROW_MB=2500
+XZ_LEVEL="${PF_XZ_LEVEL:-3}"
 VER="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$REPO/photoframe/__init__.py")"
 NAME="pi-frame-$VER"
 IMG="$WORK/$NAME.img"
@@ -151,9 +153,9 @@ echo ", $sectors" | sfdisk --no-reread --quiet -N 2 "$IMG"
 truncate -s $(((start + sectors) * 512)) "$IMG"
 echo "    $((($(stat -c %s "$IMG")) / 1048576)) MB"
 
-step "Compressing"
+step "Compressing (xz level $XZ_LEVEL)"
 rm -f "$OUT/$NAME.img.xz"
-xz -T0 -6 -c "$IMG" > "$OUT/$NAME.img.xz"
+xz -T0 "-$XZ_LEVEL" -c "$IMG" > "$OUT/$NAME.img.xz"
 (cd "$OUT" && sha256sum "$NAME.img.xz" > "$NAME.img.xz.sha256")
 rm -f "$IMG"
 echo
