@@ -429,3 +429,18 @@ def test_hotspot_looks_again_when_the_first_scan_finds_nothing(monkeypatch):
     mgr.start_hotspot("test")
     assert mgr.status.mode == "setup" and [n.ssid for n in mgr.status.networks] == ["Home"]
     assert calls.count(("radio", "wifi", "on")) == 2
+
+
+def test_sample_caption_survives_the_clock_redraw(env):
+    """Regression: the once-a-minute clock redraw dropped the 'Sample photo' credit."""
+    frame, client, tmp = env
+    client.post("/api/config", json={"overlay_clock": True})
+    while True:
+        ok, msg = frame.rotate()
+        if msg == "demo: photo":
+            break
+    before = frame.current_full.copy()
+    assert frame.refresh_overlay()
+    w, h = frame.current_full.size
+    box = (int(w * 0.6), int(h * 0.85), w, h)  # the caption's corner (the clock is bottom-left)
+    assert before.crop(box).tobytes() == frame.current_full.crop(box).tobytes()

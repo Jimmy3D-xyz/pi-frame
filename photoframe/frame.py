@@ -102,6 +102,7 @@ class Frame:
         self._step_due: float | None = None
         self._next_clip: float | None = None
         self._base_details: dict = {}
+        self._base_caption: str | None = None  # demo mode's "Sample photo" credit, redrawn with the clock
         self.cloud = None  # OneDrive folder sync, set by __main__ (or the web app)
         self.backups = None  # backups and restoring, set by __main__ (or the web app)
         self.notice: str | None = None  # None | "empty" | "wifi" while a card is on screen
@@ -136,7 +137,7 @@ class Frame:
         details = {}
         if remember is not None and len(images) == 1 and Path(remember).parent != self.cache:
             details = photo_details(Path(remember))
-        self._base, self._base_details = frame, details
+        self._base, self._base_details, self._base_caption = frame, details, caption
         self.overlay.fun.next()  # a new joke/fact with each new picture
         shown = self.overlay.apply(frame, details)
         if caption:  # demo mode's samples: "Sample photo" and the credit
@@ -832,6 +833,8 @@ class Frame:
             if self.notice is not None or self.player.playing:
                 return False
             shown = self.overlay.apply(self._base, self._base_details)
+            if self._base_caption:
+                shown = demo.draw_caption(shown, self._base_caption, self.cfg.get("overlay_corner"))
             self.display.show(self._dim(render.to_panel(shown, self.panel, self.cfg.get("display_rotation_deg"))), 0)
             self.current_thumb = render.thumbnail_jpeg(shown)
             self.current_full = shown
