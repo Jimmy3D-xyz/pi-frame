@@ -9,6 +9,7 @@ scan the QR code the frame shows when it starts).
 - [Videos](#videos)
 - [The slideshow](#the-slideshow)
 - [On-screen info](#on-screen-info)
+- [Demo mode](#demo-mode)
 - [Seeing what's on the frame](#seeing-whats-on-the-frame)
 - [Turning the screen on and off](#turning-the-screen-on-and-off)
 - [Portrait mounting](#portrait-mounting)
@@ -111,6 +112,26 @@ choose, in small, medium or large:
 
 The panels move by a few pixels each hour so nothing sits on the same
 pixels for ever, and they're hidden while a video plays.
+
+## Demo mode
+
+Like a TV in a shop: sample photos, collages, and short slides about what
+the frame can do, some with a QR code for its page. Each sample is tagged
+"Sample photo" with its title and artist, in the corner opposite the
+on-screen info, and slides change every 15–25 seconds.
+
+- A set-up frame with **no photos yet** shows it by itself, and switches to
+  your photos as soon as the first one arrives.
+- **Display → Starting up → Demo mode** shows it any time, even with photos
+  on the frame (for showing the frame off). Switch it off again to go back.
+
+The samples are 8 public-domain paintings from the
+[Art Institute of Chicago](https://www.artic.edu/open-access/open-access-images)
+(Monet, Renoir, Kandinsky and others, CC0) and 8 NASA photographs (Earth
+from the space station, Saturn, the Webb telescope's Cosmic Cliffs). Each
+one's title, creator, source and licence is in `photoframe/data/demo/credits.json`.
+They live with the software, not in your albums: they're never in your
+photo count, history or backups.
 
 ## Seeing what's on the frame
 

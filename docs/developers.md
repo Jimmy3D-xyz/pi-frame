@@ -41,6 +41,7 @@ A Python (Flask) app, started with `python3 -m photoframe`.
 | `photoframe/sysmodes.py` | Reading the screen's resolutions and the boot setting |
 | `photoframe/static/` | The web pages (`index.html`, `setup.html`, `live.html`), icons, wiring diagram |
 | `photoframe/data/fun.json` | The jokes and facts |
+| `photoframe/demo.py`, `photoframe/data/demo/` | Demo mode, and its sample photos with `credits.json` (fetched by `deploy/fetch_demo_photos.py` and the "Demo photos" workflow, from the list in `deploy/demo_photos.json`) |
 | `deploy/install.sh` | The installer |
 | `deploy/update.sh` | The root updater: back up, install, health check, roll back |
 | `deploy/system_helper.py` | Root helper for resolution changes and the boot screen |

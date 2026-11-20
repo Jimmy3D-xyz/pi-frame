@@ -620,6 +620,10 @@
             </select>
             <small>After the frame starts, it shows a QR code for this page before the photos.</small>
           </label>
+          <label class="toggle"><input type="checkbox" name="demo_mode"> Demo mode</label>
+          <small class="note" style="display:block;margin:-.3rem 0 .8rem">Shows sample photos (public-domain paintings
+            and NASA pictures) with collages and slides about the frame, like a TV in a shop, instead of your photos.
+            A frame with no photos yet shows it by itself until you add some.</small>
         </fieldset>
         <button class="btn primary">Save display settings</button>
       </form>
@@ -1539,6 +1543,7 @@ $("#f-display").onsubmit = (e) => {
       transition: f.fade.checked ? "fade" : "none",
       transition_ms: Number(f.transition_ms.value),
       welcome_seconds: Number(f.welcome_seconds.value),
+      demo_mode: f.demo_mode.checked,
       video_enabled: f.video_enabled.checked,
       video_sound: f.video_sound.checked,
       video_volume: Number(f.video_volume.value),

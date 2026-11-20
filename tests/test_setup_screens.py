@@ -46,11 +46,15 @@ def test_cards_render_both_orientations():
         assert screens.empty_card(size, ["http://piframe.local/"]).size == size
 
 
-def test_empty_card_then_upload_shows_photo(env):
+def test_empty_frame_shows_the_demo_then_upload_shows_photo(env):
     frame, client, tmp = env
-    ok, _ = frame.rotate()
-    assert not ok and frame.notice == "empty"
-    assert client.get("/api/status").get_json()["notice"] == "empty"
+    shown = set()
+    for _ in range(6):  # samples, collages and "about this frame" slides
+        ok, msg = frame.rotate()
+        assert ok and msg.startswith("demo")
+        shown.add(msg)
+        assert frame.state["current"]["source"] == "demo"
+    assert {"demo: photo", "demo: card"} <= shown
     client.post(
         "/api/upload",
         data={"album": "Default", "image": (io.BytesIO(jpeg(1600, 1200)), "a.jpg")},
@@ -61,6 +65,25 @@ def test_empty_card_then_upload_shows_photo(env):
             break
         _real_sleep(0.1)
     assert frame.notice is None and frame.state["current"]["filepath"] == "Default/a.jpg"
+    assert not frame.demo_active()
+
+
+def test_without_samples_an_empty_frame_shows_the_no_photos_card(env):
+    frame, client, tmp = env
+    frame.demo.samples = []
+    ok, _ = frame.rotate()
+    assert not ok and frame.notice == "empty"
+    assert client.get("/api/status").get_json()["notice"] == "empty"
+
+
+def test_demo_mode_switch_shows_samples_even_with_photos(env):
+    frame, client, tmp = env
+    client.post("/api/upload", data={"album": "Default", "image": (io.BytesIO(jpeg(1600, 1200)), "a.jpg")},
+                content_type="multipart/form-data")
+    assert not frame.demo_active()
+    assert client.post("/api/config", json={"demo_mode": True}).status_code == 200
+    assert frame.demo_active() and frame.rotate()[1].startswith("demo")
+    assert not any(str(h.get("path", "")).find("data/demo") >= 0 for h in frame.state["history"])  # not in history
 
 
 class FakeWifi:
@@ -211,10 +234,10 @@ def test_welcome_can_be_turned_off(env):
     assert client.post("/api/config", json={"welcome_seconds": 9999}).status_code == 400
     frame.startup()
     for _ in range(200):  # wait for the screen to be drawn (slow machines take longer)
-        if frame.notice:
+        if frame.notice or (frame.state.get("current") or {}).get("source") == "demo":
             break
         _real_sleep(0.05)
-    assert frame.notice == "empty"  # straight to content (no photos here)
+    assert frame.notice != "welcome"  # straight to content (here: the demo, as there are no photos)
 
 
 def _fake_nm(tmp_path, monkeypatch, state):

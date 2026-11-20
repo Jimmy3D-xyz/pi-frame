@@ -28,6 +28,7 @@ work with it unchanged.
   and restore from the website or onto a new card
 - **Physical buttons** for previous, next, and screen / power
 - **Live view** of what's on the frame, from any browser
+- **Demo mode**, like a TV in a shop: public-domain paintings and NASA photos, with slides about the frame
 
 ## What you need
 

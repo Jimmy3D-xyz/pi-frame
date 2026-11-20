@@ -228,6 +228,7 @@ def test_scheduler_fires_even_when_waking_late(app_env, monkeypatch):
     import photoframe.frame as fr
 
     monkeypatch.setattr(fr.time, "time", lambda: fake["t"])
+    frame.demo_active = lambda: False  # (an empty frame would otherwise show the demo, on its own timer)
     frame.rotate = lambda: calls.append(fake["t"]) or (True, "ok")
     frame.cfg.update({"rotate_cron": ["* * *"]})
 

@@ -27,7 +27,7 @@ from .display import BaseDisplay, FileDisplay, HeadlessDisplay
 from .storage import Storage, timestamp_name
 from .video import VideoPlayer, is_video
 from .overlay import Overlay, photo_details
-from . import collage
+from . import collage, demo
 from .monitor import Monitor
 
 log = logging.getLogger(__name__)
@@ -97,6 +97,8 @@ class Frame:
         self.current_full = None  # the whole picture on screen (with on-screen info), for the web page
         self._full_cache: tuple | None = None
         self._story: dict | None = None  # current collage + its photos (story/spotlight styles)
+        self.demo = demo.Demo()  # samples for demo (shop) mode
+        self._demo_due: float | None = None
         self._step_due: float | None = None
         self._next_clip: float | None = None
         self._base_details: dict = {}
@@ -124,7 +126,8 @@ class Frame:
         return render.logical_size(self.panel, self.cfg.get("display_orientation"))
 
     # ---------- drawing ----------
-    def _present(self, images: list[Image.Image], source: dict, remember: Path | None) -> None:
+    def _present(self, images: list[Image.Image], source: dict, remember: Path | None,
+                 caption: str | None = None) -> None:
         proc = self.cfg.processing
         frame = render.compose(
             images, self.logical, proc.get("scaleMode", "fit"), proc.get("backgroundColor", "blur")
@@ -136,6 +139,8 @@ class Frame:
         self._base, self._base_details = frame, details
         self.overlay.fun.next()  # a new joke/fact with each new picture
         shown = self.overlay.apply(frame, details)
+        if caption:  # demo mode's samples: "Sample photo" and the credit
+            shown = demo.draw_caption(shown, caption, self.cfg.get("overlay_corner"))
         panel_img = render.to_panel(shown, self.panel, self.cfg.get("display_rotation_deg"))
         fade = self.cfg.get("transition_ms") if self.cfg.get("transition") == "fade" else 0
         self.display.show(self._dim(panel_img), fade)
@@ -189,6 +194,8 @@ class Frame:
             if self.player.playing:
                 self.player.stop()  # the video's thread then moves on to the next photo
                 return True, "Stopped the video"
+            if self.demo_active():
+                return self._demo_step()
             if self.cfg.get("rotation_mode") == "url":
                 return self._rotate_url()
             return self._rotate_storage()
@@ -207,6 +214,35 @@ class Frame:
             img = render.open_image(path, self.logical)
             self._present([img], prev, path)
             return True, "showing previous photo"
+
+    # ---------- demo (shop) mode ----------
+    def demo_active(self) -> bool:
+        """Switched on, or a set-up frame with no photos at all yet."""
+        if not self.demo.available():
+            return False
+        if self.cfg.get("demo_mode"):
+            return True
+        if self.cfg.get("rotation_mode") != "storage" or (Path(self.data_dir) / ".first-run").exists():
+            return False
+        return not any(self.storage.images(a["name"]) for a in self.storage.albums())
+
+    def _demo_step(self) -> tuple[bool, str]:
+        kind, item, secs = self.demo.next()
+        if kind == "photo":
+            img = render.open_image(item.path, self.logical)
+            self._present([img], {"source": "demo", "filepath": f"Sample: {item.title}"}, None, caption=item.caption)
+        elif kind == "collage":
+            img = collage.compose([render.open_image(s.path, self.logical) for s in item], self.logical)
+            self._present([img], {"source": "demo", "filepath": f"Sample collage of {len(item)}"}, None,
+                          caption="Collage style · " + ", ".join(s.title.split(",")[0] for s in item[:2]) + "…")
+        else:
+            title, text, with_qr = item
+            backdrop = Image.open(random.choice(self.demo.samples).path)
+            self._show_card(demo.info_card(self.logical, title, text, frame_urls()[0] if with_qr else None, backdrop),
+                            "demo")
+            self.state["current"] = {"source": "demo", "filepath": f"About: {title}", "shown_at": int(time.time())}
+        self._demo_due = time.time() + secs
+        return True, f"demo: {kind}"
 
     # ---------- slideshow styles ----------
     def story_style(self) -> str | None:
@@ -865,7 +901,8 @@ class Frame:
         self.rotate()
 
     def photos_added(self) -> None:
-        if self.notice == "empty":
+        showing_demo = (self.state.get("current") or {}).get("source") == "demo"
+        if self.notice == "empty" or (showing_demo and not self.demo_active()):
             threading.Thread(target=self.rotate, daemon=True).start()
 
     # ---------- screen power ----------
@@ -939,6 +976,25 @@ class Frame:
                 ok, msg = self.play_clip()
                 self._next_clip = now + (every * 60 if ok else 120)
                 log.info("video moment: %s", msg)
+
+            # Demo mode: its own quicker timer
+            if self.demo_active() and self.notice not in ("wifi", "update", "power", "reset", "welcome"):
+                if self._demo_due is None:
+                    self._demo_due = now + 5
+                self.next_rotation = self._demo_due
+                if now >= self._demo_due - 0.5:
+                    # due again shortly whatever happens; a step that runs sets its own time
+                    self._demo_due = now + (30 if self.player.playing or not self.display.screen_on else demo.PHOTO_SECONDS)
+                    if not (self.player.playing or not self.display.screen_on):
+                        try:
+                            self.rotate()
+                        except Exception:  # noqa: BLE001
+                            log.exception("demo step")
+                    continue
+                self._wake.wait(min(30.0, max(0.2, self._demo_due - now)))
+                self._wake.clear()
+                continue
+            self._demo_due = None
 
             # Story / spotlight styles: each step sets its own timer
             if self.story_style() and self.cfg.get("auto_rotate"):

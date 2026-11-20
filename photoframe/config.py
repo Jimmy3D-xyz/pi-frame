@@ -108,6 +108,9 @@ DEFAULT_CONFIG: dict = {
     "update_auto": "notify",  # off | notify | install
     "update_time": "03:30",
     "update_repo": "JimmySte/pi-frame",
+    # demo (shop) mode: sample photos and "about this frame" slides; also shown
+    # automatically on a set-up frame with no photos yet
+    "demo_mode": False,
 }
 
 # Firmware defaults (Spectra 6 measured palette). Irrelevant to an LCD but
