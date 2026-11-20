@@ -37,7 +37,8 @@ AIC = "https://api.artic.edu/api/v1"
 AIC_IIIF = "https://www.artic.edu/iiif/2"
 AIC_FIELDS = "id,title,artist_title,artist_display,date_display,image_id,is_public_domain,classification_title,thumbnail"
 NASA = "https://images-api.nasa.gov"
-UA = {"User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)"}
+UA = {"User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)",
+      "AIC-User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)"}
 LONG_EDGE = 2048
 ART_QUERIES = ["landscape", "seascape", "mountains", "river", "garden", "flowers", "harbor", "snow", "sunset", "autumn"]
 NASA_QUERIES = ["earth from space station", "aurora from space station", "milky way", "Saturn Cassini",
@@ -67,7 +68,7 @@ def _aic(o: dict) -> dict | None:
     return {"source": "aic", "id": o["id"], "title": o.get("title") or "Untitled",
             "creator": o.get("artist_title") or (o.get("artist_display") or "Unknown artist").split("\n")[0],
             "date": o.get("date_display") or "",
-            "url": f"{AIC_IIIF}/{o['image_id']}/full/2048,/0/default.jpg",
+            "url": f"{AIC_IIIF}/{o['image_id']}/full/1686,/0/default.jpg",
             "page": f"https://www.artic.edu/artworks/{o['id']}",
             "license": "Public domain (Art Institute of Chicago, CC0)", "kind": o.get("classification_title") or ""}
 
@@ -80,9 +81,8 @@ def art_candidates(per_query: int = 3) -> list[dict]:
     out, seen = [], set()
     for q in ART_QUERIES:
         r = get(f"{AIC}/artworks/search", params={
-            "q": q, "limit": 40, "fields": AIC_FIELDS,
-            "query[bool][must][][term][is_public_domain]": "true",
-            "query[bool][must][][term][classification_title]": "painting"}).json()
+            "q": q, "limit": 60, "fields": AIC_FIELDS, "query[term][is_public_domain]": "true"}).json()
+        print(f"art search '{q}': {len(r.get('data', []))} results")
         n = 0
         for o in r.get("data", []):
             if o["id"] in seen:
@@ -168,7 +168,7 @@ def contact_sheet(cands: list[dict], images: list[Image.Image], path: Path) -> N
 
 def explore(out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    cands = art_candidates() + nasa_candidates()
+    cands = art_candidates() + ([] if "--art-only" in sys.argv else nasa_candidates())
     images, kept = [], []
     for c in cands:
         try:
