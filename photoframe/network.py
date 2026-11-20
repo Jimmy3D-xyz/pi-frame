@@ -29,6 +29,7 @@ HOTSPOT_CON = "photoframe-setup"
 HOTSPOT_IP = "10.42.0.1"  # NetworkManager's default for shared (hotspot) mode
 BOOT_GRACE = 120  # seconds to wait for Wi-Fi after starting
 HOTSPOT_CHANNEL = 6
+SCAN_RETRIES, SCAN_RETRY_WAIT = 3, 4  # seconds; before the setup hotspot, when the first look finds nothing
 NO_SAVED_GRACE = 15  # ...when there's no saved Wi-Fi network to wait for (a new frame)
 MAX_CONNECTING = 300  # never cut off a connection attempt sooner than this
 DROPOUT_GRACE = 300  # how long a lost connection may last before setup mode
@@ -373,8 +374,17 @@ class WifiManager:
                 log.warning("wifi on_change failed: %s", e)
 
     def start_hotspot(self, reason: str) -> None:
-        # Scan first: a Pi's single radio usually can't scan while it's an AP.
+        # Scan first: a Pi's single radio can't scan while it's an AP, so this
+        # list is what the setup page offers. On a new frame the radio has only
+        # just been switched on and the first look often finds nothing yet.
         networks = self.scan()
+        for attempt in range(SCAN_RETRIES):
+            if networks:
+                break
+            log.info("no Wi-Fi networks found yet; looking again (%d)", attempt + 1)
+            _nmcli("radio", "wifi", "on")
+            time.sleep(SCAN_RETRY_WAIT)
+            networks = self.scan()
         password = self.status.hotspot_password or f"{random.randint(0, 99_999_999):08d}"
         # 2.4 GHz channel 6: allowed everywhere, even before the Pi is told its
         # country. Left to choose, NetworkManager may pick 5 GHz, where a Pi

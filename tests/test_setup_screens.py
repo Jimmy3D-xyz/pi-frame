@@ -391,3 +391,18 @@ def test_link_check_leaves_healthy_wifi_alone(tmp_path, monkeypatch):
     _real_sleep(0.1)
     calls = [json.loads(l) for l in Path(str(st) + ".log").read_text().splitlines()]
     assert not any(c[:2] == ["connection", "up"] for c in calls) and mgr.link_ok is True
+
+
+def test_hotspot_looks_again_when_the_first_scan_finds_nothing(monkeypatch):
+    """A new frame's radio has only just been switched on: the first look is often empty."""
+    import subprocess
+
+    mgr = WifiManager("wlan0")
+    looks = iter([[], [], [network.Network("Home", 80, True)]])
+    monkeypatch.setattr(mgr, "scan", lambda: next(looks))
+    monkeypatch.setattr(network.time, "sleep", lambda s: None)
+    calls = []
+    monkeypatch.setattr(network, "_nmcli", lambda *a, **k: (calls.append(a), subprocess.CompletedProcess(a, 0, "", ""))[1])
+    mgr.start_hotspot("test")
+    assert mgr.status.mode == "setup" and [n.ssid for n in mgr.status.networks] == ["Home"]
+    assert calls.count(("radio", "wifi", "on")) == 2

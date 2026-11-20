@@ -107,7 +107,9 @@ async function load() {
     <label class="net"><input type="radio" name="net" value="${esc(n.ssid)}" data-secure="${n.secure}" ${i === 0 ? "checked" : ""}>
       <span class="name">${esc(n.ssid)}</span>${n.secure ? '<span class="lock">secured</span>' : ""}${bars(n.signal)}</label>`).join("")
     + `<label class="net"><input type="radio" name="net" value="__other" ${nets.length ? "" : "checked"}>
-         <span class="name">Other or hidden network…</span></label>`;
+         <span class="name">Other or hidden network…</span></label>`
+    + (nets.length ? "" : `<p class="muted" style="margin:.2rem 0 0">The frame couldn't see any networks just now,
+         so type your network's name below (it's case-sensitive).</p>`);
   box.querySelectorAll("input").forEach(i => i.onchange = sync);
   sync();
 }
