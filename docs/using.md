@@ -70,7 +70,7 @@ moments distorting.
 firmware (`minute hour day-of-week`, e.g. every 30 minutes), in random order
 or in turn.
 
-**Slideshow styles**:
+**Slideshow styles** (Schedule tab): tick one, or several to take turns.
 
 - **Classic**: one photo at a time. When a photo's shape doesn't suit the
   screen (a portrait photo on a landscape screen), two are shown side by side.
@@ -81,6 +81,11 @@ or in turn.
 - **Living collage**: a collage where one photo at a time is swapped for
   another, sliding in like a print laid on a table. After every space has
   changed twice, a new layout. "Swap a photo every" sets the pace.
+
+With several ticked, the frame changes style every 30 minutes to a day
+(Take turns every), always at the end of a round: after a story, or once a
+living collage's layout has finished, never half-way through. The web
+page says which one is showing.
 
 Collage and single-photo times are set separately (e.g. 5 and 10 minutes).
 Collages put portrait photos in tall spaces and suit both screen shapes.

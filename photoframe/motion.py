@@ -27,6 +27,7 @@ from PIL import Image, ImageEnhance
 log = logging.getLogger(__name__)
 
 KINDS_3D = ("flip", "tip", "cube")
+NAMES = {"flip": "3D card flip", "tip": "3D tip away", "cube": "3D cube turn"}
 BACKDROP = (14, 14, 16)
 FRAME_LONG_SIDE = 1280  # 3D frames are drawn this big; the hardware scales them up
 FRAMES = 60             # played over about 1.3 seconds
@@ -252,7 +253,8 @@ class Turn:
             if not self._cancel:
                 self.frames, self.size = frames, psize
             self.seconds = time.monotonic() - self.started
-            log.info("3D %s: %d frames drawn in %.1fs", self.kind, len(self.frames), self.seconds)
+            log.info("%s drawn ahead for the next picture: %d frames in %.1fs",
+                     NAMES.get(self.kind, self.kind), len(self.frames), self.seconds)
         except Exception as e:  # noqa: BLE001
             self.error = str(e)
             log.warning("couldn't draw the 3D %s (%s); it'll be a fade", self.kind, e)

@@ -121,6 +121,8 @@ class Frame:
         self._turn_n = 0
         self._queued: Path | None = None  # classic style: the next photo, chosen early for its 3D turn
         self._living: dict | None = None  # living collage style
+        self._style: str | None = None  # the slideshow style showing now (of those ticked)
+        self._style_since = 0.0
         self._demo_view: dict | None = None  # what demo mode has on screen (for its zooms and slides)
         self._demo_wait: float | None = None
 
@@ -218,7 +220,8 @@ class Frame:
                     return self.display.slide_in(img, panel(move["rect"]), self._motion_ms(1100), fade)
                 turn = move.get("turn")
                 if kind == "3d" and turn is not None and turn.ready() and self._can("3d"):
-                    return self.display.play(turn.frames, turn.size, img, self._motion_ms(1300), 400)
+                    return self.display.play(turn.frames, turn.size, img, self._motion_ms(1300), 400,
+                                             name=motion.NAMES.get(turn.kind, "3D turn"))
             except Exception:  # noqa: BLE001
                 log.exception("moving transition")
         self.display.show(img, fade)
@@ -395,15 +398,49 @@ class Frame:
         return True, f"demo: {kind}" + (f" ({how})" if how != "fade" else "")
 
     # ---------- slideshow styles ----------
+    def styles(self) -> list[str]:
+        return list(self.cfg.get("slideshow_styles") or [self.cfg.get("slideshow_style") or "classic"])
+
+    def active_style(self) -> str:
+        """The style showing now: with several ticked, they take turns."""
+        styles = self.styles()
+        if self._style not in styles:
+            self._style, self._style_since = styles[0], time.time()
+        return self._style
+
     def story_style(self) -> str | None:
-        style = self.cfg.get("slideshow_style")
+        style = self.active_style()
         if style in ("story", "spotlight", "living") and self.cfg.get("rotation_mode") == "storage":
             return style
         return None
 
+    def _round_over(self) -> bool:
+        """At a good place to change style: never mid-story or mid-way through a living collage."""
+        if self._style in ("story", "spotlight"):
+            st = self._story
+            return st is None or st["i"] >= len(st["steps"]) - 1
+        if self._style == "living":
+            lv = self._living
+            return lv is None or lv["swaps"] >= 2 * len(lv["photos"])
+        return True
+
+    def _maybe_switch_style(self) -> None:
+        styles = self.styles()
+        self.active_style()
+        if len(styles) < 2 or time.time() - self._style_since < self.cfg.get("style_switch_minutes") * 60:
+            return
+        if not self._round_over():
+            return
+        self._style = styles[(styles.index(self._style) + 1) % len(styles)]
+        self._style_since = time.time()
+        self._story = self._living = None
+        self._reschedule = True  # classic goes back to the schedule rules
+        log.info("slideshow style: %s now", self._style)
+
     def reset_story(self) -> None:
         self._story = None
         self._living = None
+        self._style = None  # start again from the first ticked style
         self._step_due = None
         self.poke()
 
@@ -572,6 +609,7 @@ class Frame:
         return True, f"playing {length}s of {path.name}"
 
     def _rotate_storage(self) -> tuple[bool, str]:
+        self._maybe_switch_style()
         style = self.story_style()
         if style == "living":
             return self._living_step()

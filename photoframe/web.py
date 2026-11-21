@@ -312,7 +312,7 @@ def create_app(frame: Frame) -> Flask:
             if not (d / "request.json").exists():
                 (d / "request.tmp").write_text(json.dumps({"action": "splash", "t": time.time()}))
                 os.replace(d / "request.tmp", d / "request.json")
-        if {"slideshow_style", "collage_count"} & changed.keys():
+        if {"slideshow_style", "slideshow_styles", "collage_count"} & changed.keys():
             frame.reset_story()
         if "demo_mode" in changed:  # switch to (or away from) the samples straight away
             frame._demo_due = None
@@ -435,6 +435,7 @@ def create_app(frame: Frame) -> Flask:
                 "current": frame.state.get("current"),
                 "screen_on": frame.display.screen_on,
                 "next_rotation": frame.next_rotation,
+                "style_now": frame.active_style(),
                 "last_rotation": frame.last_rotation,
                 "thumb_version": frame.thumb_version,
                 "last_fetch_error": frame.state.get("last_fetch_error", ""),

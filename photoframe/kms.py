@@ -147,7 +147,7 @@ class KmsDisplay(BaseDisplay):
         r.commit_sync()
         self.front = back
 
-    def _hw_fade(self, back: int, fade_ms: int) -> None:
+    def _hw_fade(self, back: int, fade_ms: int, quiet: bool = False) -> None:
         k = self.k
         r = k.AtomicReq(self.card)
         props = self._plane_props(self.fbs[back])
@@ -169,7 +169,7 @@ class KmsDisplay(BaseDisplay):
         r.add(self.overlay, {"FB_ID": 0, "CRTC_ID": 0})
         r.commit_sync()
         secs = time.monotonic() - start
-        if frames:
+        if frames and not quiet:
             log.info("fade: %d frames in %.2fs (%.1f fps, display hardware)", frames, secs, frames / secs)
             self.last_fade = {"frames": frames, "secs": round(secs, 2), "fps": round(frames / secs, 1),
                               "t": time.time(), "hardware": True}
@@ -202,19 +202,25 @@ class KmsDisplay(BaseDisplay):
     def _move(self, name: str, fb, path, ms: int, first=None) -> int:
         """Move the top layer along path(t) -> (src, dst, alpha), one step per screen refresh."""
         k = self.k
-        start, frames = time.monotonic(), 0
+        start, frames, layer_on, began = time.monotonic(), 0, False, None
         while True:
             t = (time.monotonic() - start) * 1000 / max(1, ms)
             if t >= 1.0:
                 break
             props = self._layer_props(fb, *path(t))
+            if props is None and not layer_on and not (frames == 0 and first):
+                time.sleep(1 / 60)  # still off the screen: nothing to show this refresh
+                continue
             r = k.AtomicReq(self.card)
             r.add(self.overlay, props if props else {"FB_ID": 0, "CRTC_ID": 0})
             if frames == 0 and first:
                 first(r)
             r.commit_sync(allow_modeset=frames == 0)
+            if began is None:
+                began = time.monotonic()
+            layer_on = props is not None
             frames += 1
-        secs = time.monotonic() - start
+        secs = time.monotonic() - (began or start)
         if frames:
             log.info("%s: %d frames in %.2fs (%.1f fps, display hardware)", name, frames, secs, frames / secs)
             self.last_fade = {"frames": frames, "secs": round(secs, 2), "fps": round(frames / secs, 1),
@@ -296,7 +302,7 @@ class KmsDisplay(BaseDisplay):
                                        [:, : size[0] * 4] for fb in fbs])
         return self._small[1], self._small[2]
 
-    def play(self, frames, frame_size, img, ms, fade_ms=0):
+    def play(self, frames, frame_size, img, ms, fade_ms=0, name="3D turn"):
         if not frames:
             return self.show(img, fade_ms)
         fw, fh = frame_size
@@ -322,11 +328,12 @@ class KmsDisplay(BaseDisplay):
                 r.commit_sync(allow_modeset=count == 0)
                 shown, which, count = i, 1 - which, count + 1
             secs = time.monotonic() - start
-            log.info("3D: %d of %d frames in %.2fs (%.1f fps, display hardware)", count, n, secs, count / secs)
+            log.info("%s played: %d of %d frames in %.2fs (%.1f a second), then the on-screen info faded in",
+                     name, count, n, secs, count / secs)
             self.last_fade = {"frames": count, "secs": round(secs, 2), "fps": round(count / secs, 1),
-                              "t": time.time(), "hardware": True, "kind": "3d"}
+                              "t": time.time(), "hardware": True, "kind": name}
             if fade_ms > 0:  # the on-screen info fades in over the last frame
-                self._hw_fade(back, fade_ms)
+                self._hw_fade(back, fade_ms, quiet=True)
 
         self._moving(img, fade_ms, run)
 

@@ -48,7 +48,9 @@ DEFAULT_CONFIG: dict = {
     "welcome_seconds": 30,  # welcome/QR screen after starting; 0 = off
     # slideshow style: classic (one photo at a time), story (collage, then each of
     # its photos), spotlight (collage, a photo, collage, the next photo, ...)
-    "slideshow_style": "classic",
+    "slideshow_style": "classic",   # the first of slideshow_styles (kept for older pages and apps)
+    "slideshow_styles": ["classic"],  # the styles the slideshow takes turns with
+    "style_switch_minutes": 60,     # with more than one style: switch after this long (at the end of a round)
     "collage_count": 0,        # 3, 4 or 5 photos; 0 = mix it up
     "collage_minutes": 5,
     "single_minutes": 10,
@@ -202,7 +204,10 @@ class ConfigStore:
             raw = json.loads(self.path.read_text())
         except (OSError, json.JSONDecodeError):
             return
-        self.config.update({k: v for k, v in raw.get("config", {}).items() if k in DEFAULT_CONFIG})
+        stored = raw.get("config", {})
+        self.config.update({k: v for k, v in stored.items() if k in DEFAULT_CONFIG})
+        if "slideshow_styles" not in stored:  # saved before styles could be combined
+            self.config["slideshow_styles"] = [self.config.get("slideshow_style") or "classic"]
         if self.config.get("device_name") == "PhotoFrame":  # the old default name
             self.config["device_name"] = "Pi Frame"
         self.processing.update(raw.get("processing", {}))
@@ -257,6 +262,15 @@ class ConfigStore:
             if key not in DEFAULT_CONFIG:
                 continue  # ignore unknown / read-only firmware fields (device_id, wifi_ssid...)
             default = DEFAULT_CONFIG[key]
+            if key == "slideshow_style" and "slideshow_styles" in updates:
+                continue  # follows the list
+            if key == "slideshow_styles":
+                if not isinstance(val, list) or not val or any(v not in _ENUMS["slideshow_style"] for v in val):
+                    raise ConfigError(f"slideshow_styles must be a list of {sorted(_ENUMS['slideshow_style'])}")
+                order = ["classic", "story", "spotlight", "living"]
+                clean[key] = sorted(set(val), key=order.index)
+                clean["slideshow_style"] = clean[key][0]
+                continue
             if key == "fun_custom":
                 if not isinstance(val, list):
                     raise ConfigError("fun_custom must be a list of lines")
@@ -309,6 +323,10 @@ class ConfigStore:
                 raise ConfigError(f"{key} must be 0 to 100 (or -1 to leave the monitor alone)")
             if key in ("monitor_night_from", "monitor_night_to") and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(val)):
                 raise ConfigError(f"{key} must be a time like 21:00")
+            if key == "slideshow_style" and "slideshow_styles" not in updates:
+                clean["slideshow_styles"] = [val]  # one style chosen the old way
+            if key == "style_switch_minutes" and val not in (30, 60, 120, 240, 1440):
+                raise ConfigError("style_switch_minutes must be 30, 60, 120, 240 or 1440")
             if key == "collage_count" and val not in (0, 3, 4, 5):
                 raise ConfigError("collage_count must be 3, 4, 5 or 0 (mix)")
             if key in ("collage_minutes", "single_minutes") and not 1 <= val <= 240:

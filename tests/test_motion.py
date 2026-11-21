@@ -189,7 +189,7 @@ class MovingDisplay(FileDisplay):
         self.calls.append(("slide", rect))
         super().show(img, 0)
 
-    def play(self, frames, size, img, ms, fade_ms=0):
+    def play(self, frames, size, img, ms, fade_ms=0, name=""):
         self.calls.append(("3d", len(frames), size))
         super().show(img, 0)
 
@@ -318,3 +318,55 @@ def test_demo_waits_for_its_3d_turn(mframe, monkeypatch):
     wait_turn(mframe)
     ok, msg = mframe.rotate()
     assert msg == "demo: photo (3d)" and mframe.display.kinds()[-1] == "3d"
+
+
+def test_slides_only_count_refreshes_with_something_to_show(disp):  # noqa: F811
+    d, pk = disp
+    W, H = d.size
+    d.show(Image.new("RGB", d.size, (255, 0, 0)))
+    pk.log["commits"].clear()
+    d.slide_in(Image.new("RGB", d.size, (0, 0, 255)), (W - 500, 300, 400, 300), 150)
+    moves = [c[0][1] for c in pk.log["commits"][:-1]]
+    assert moves and moves[0].get("FB_ID")  # no empty updates while the print is still off screen
+    assert d.last_fade["frames"] == len(moves)
+
+
+# ---------------- taking turns between styles ----------------
+def test_ticking_several_styles(tmp_path):
+    cfg = ConfigStore(tmp_path)
+    assert cfg.get("slideshow_styles") == ["classic"]
+    cfg.update({"slideshow_styles": ["living", "classic", "story"]})
+    assert cfg.get("slideshow_styles") == ["classic", "story", "living"] and cfg.get("slideshow_style") == "classic"
+    cfg.update({"slideshow_style": "spotlight"})  # the old single choice still works
+    assert cfg.get("slideshow_styles") == ["spotlight"]
+    for bad in ([], ["chaos"], "story"):
+        with pytest.raises(Exception):
+            cfg.update({"slideshow_styles": bad})
+    # a frame set up before styles could be combined keeps its style
+    import json
+    raw = json.loads((tmp_path / "config.json").read_text())
+    raw["config"].pop("slideshow_styles")
+    raw["config"]["slideshow_style"] = "story"
+    (tmp_path / "config.json").write_text(json.dumps(raw))
+    assert ConfigStore(tmp_path).get("slideshow_styles") == ["story"]
+
+
+def test_styles_take_turns_at_the_end_of_a_round(mframe):
+    mframe.cfg.update({"slideshow_styles": ["classic", "story"], "collage_count": 3, "style_switch_minutes": 30,
+                       "transition_effects": "fade"})
+    mframe.rotate()
+    assert mframe.active_style() == "classic"
+    mframe._style_since -= 31 * 60  # half an hour later
+    mframe.rotate()
+    assert mframe.active_style() == "story" and mframe.state["current"]["filepath"].startswith("Collage")
+    mframe._style_since -= 31 * 60
+    mframe.rotate()  # mid-story: carries on with the story
+    assert mframe.active_style() == "story" and not mframe.state["current"]["filepath"].startswith("Collage")
+    for _ in range(2):
+        mframe.rotate()
+    assert mframe.active_style() == "story"
+    mframe.rotate()  # the story's over
+    assert mframe.active_style() == "classic"
+    mframe.cfg.update({"slideshow_styles": ["living"]})
+    mframe.reset_story()
+    assert mframe.active_style() == "living"

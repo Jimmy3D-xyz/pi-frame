@@ -79,7 +79,8 @@ class BaseDisplay:
         """The `rect` part of the new picture slides in from the nearest edge, like a print laid down."""
         self.show(img, fade_ms)
 
-    def play(self, frames: list[bytes], frame_size, img: Image.Image, ms: int, fade_ms: int = 0) -> None:
+    def play(self, frames: list[bytes], frame_size, img: Image.Image, ms: int, fade_ms: int = 0,
+             name: str = "3D turn") -> None:
         """Play drawn-ahead frames (BGRX bytes, frame_size big) like a flip-book, then show img."""
         self.show(img, fade_ms)
 

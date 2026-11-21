@@ -263,6 +263,9 @@
   .odlink .res.bad { color: var(--warn); }
   .odlink .opts { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; align-items: center; font-size: .92rem; margin-bottom: .6rem; }
   .odlink .opts .toggle { margin: 0; }
+  .styles .toggle { align-items: flex-start; margin-bottom: .7rem; }
+  .styles .toggle input { margin-top: .2rem; }
+  .styles small { color: var(--ink-soft); line-height: 1.35; }
   .odlink select { font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: .3rem .4rem; background: #fff; }
   /* ---------- larger view of what's on screen ---------- */
   .window img { cursor: zoom-in; }
@@ -361,13 +364,16 @@
 
     <div class="tabpanel" id="tab-schedule" role="tabpanel" aria-labelledby="t-schedule" hidden>
       <fieldset id="style">
-        <legend>Slideshow style</legend>
-        <div class="seg" role="radiogroup" aria-label="Slideshow style" style="margin-bottom:.6rem">
-          <label><input type="radio" name="sstyle" value="classic"><span>Classic</span></label>
-          <label><input type="radio" name="sstyle" value="story"><span>Story</span></label>
-          <label><input type="radio" name="sstyle" value="spotlight"><span>Spotlight</span></label>
-          <label><input type="radio" name="sstyle" value="living"><span>Living collage</span></label>
+        <legend>Slideshow styles</legend>
+        <p class="note" style="margin-top:0">Tick one, or several to take turns.</p>
+        <div class="styles">
+          <label class="toggle"><input type="checkbox" name="sstyle" value="classic"> <span><b>Classic</b><br><small>One photo at a time, changing on the schedule below. Two side by side when one doesn't suit the screen's shape.</small></span></label>
+          <label class="toggle"><input type="checkbox" name="sstyle" value="story"> <span><b>Story</b><br><small>A collage of a few photos, then each of them full screen in turn, then a new collage.</small></span></label>
+          <label class="toggle"><input type="checkbox" name="sstyle" value="spotlight"> <span><b>Spotlight</b><br><small>A collage, then one of its photos, back to the collage, the next photo, and so on.</small></span></label>
+          <label class="toggle"><input type="checkbox" name="sstyle" value="living"> <span><b>Living collage</b><br><small>One photo at a time swapped for another, like prints laid on a table. A new layout once every space has changed twice.</small></span></label>
         </div>
+        <label class="field" id="style-switch"><span>Take turns every</span>
+          <select data-ovl="style_switch_minutes" data-num><option value="30">30 minutes</option><option value="60">Hour</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="1440">Day</option></select></label>
         <p class="note" id="style-help" style="margin-top:0"></p>
         <div class="row" id="style-opts">
           <label class="field"><span>Photos in a collage</span>
@@ -2344,25 +2350,33 @@ document.querySelectorAll("[data-btn]").forEach(el => el.onchange = async () => 
   showButtonSettings(); loadButtons();
 });
 /* ---------- slideshow style, jokes and facts, resolution ---------- */
-const STYLE_HELP = {
-  classic: "One photo at a time, changing on the schedule below.",
-  story: "A collage of a few photos, then each of them full screen in turn, then a new collage.",
-  spotlight: "A collage, then one of its photos, back to the collage, then the next photo, and so on.",
-  living: "A collage where one photo at a time is swapped for another, like prints laid on a table. After every space has changed twice, a new layout.",
-};
+const STYLE_NAMES = { classic: "Classic", story: "Story", spotlight: "Spotlight", living: "Living collage" };
+function ticked() {
+  return config.slideshow_styles && config.slideshow_styles.length ? config.slideshow_styles : [config.slideshow_style || "classic"];
+}
 function showStyleSettings() {
-  document.querySelectorAll('input[name="sstyle"]').forEach(r => r.checked = r.value === config.slideshow_style);
-  $("#style-help").textContent = STYLE_HELP[config.slideshow_style] +
-    (config.slideshow_style !== "classic" && config.rotation_mode === "url" ? " (Only for photos stored on this frame.)" : "");
-  $("#style-opts").hidden = config.slideshow_style === "classic";
-  $("#collage-time").hidden = config.slideshow_style === "living";
-  $("#single-time").textContent = config.slideshow_style === "living" ? "Swap a photo every" : "Show each photo for";
+  const on = ticked();
+  document.querySelectorAll('input[name="sstyle"]').forEach(r => r.checked = on.includes(r.value));
+  const collages = on.some(s => s !== "classic");
+  const several = on.length > 1;
+  $("#style-switch").hidden = !several;
+  const now = status && status.style_now;
+  $("#style-help").textContent = (several && now ? `Showing ${STYLE_NAMES[now]} now. They change over at the end of a round (a story, or a living collage's layout). ` : "") +
+    (collages && config.rotation_mode === "url" ? "Collage styles only use photos stored on this frame." : "");
+  $("#style-opts").hidden = !collages;
+  $("#collage-time").hidden = !on.some(s => s === "story" || s === "spotlight");
+  $("#single-time").textContent = on.length === 1 && on[0] === "living" ? "Swap a photo every"
+    : on.includes("living") ? "Show each photo (or swap one) every" : "Show each photo for";
   $('[data-ovl="clip_seconds"]').closest("label").hidden = !config.clip_every_minutes;
   $("#fun-own-row").hidden = config.overlay_fun === "off";
   if (document.activeElement !== $("#fun-own")) $("#fun-own").value = (config.fun_custom || []).join("\n");
 }
-document.querySelectorAll('input[name="sstyle"]').forEach(r => r.onchange = () => saveOverlay({ slideshow_style: r.value },
-  r.value === "classic" ? "Classic slideshow" : `${r.value[0].toUpperCase() + r.value.slice(1)} style: the first collage appears shortly`));
+document.querySelectorAll('input[name="sstyle"]').forEach(r => r.onchange = () => {
+  const on = [...document.querySelectorAll('input[name="sstyle"]')].filter(x => x.checked).map(x => x.value);
+  if (!on.length) { r.checked = true; toast("Keep at least one style ticked", true); return; }
+  saveOverlay({ slideshow_styles: on, slideshow_style: on[0] },
+    on.length > 1 ? `Taking turns: ${on.map(s => STYLE_NAMES[s]).join(", ")}` : `${STYLE_NAMES[on[0]]} style`);
+});
 $("#fun-own").onchange = () => saveOverlay({ fun_custom: $("#fun-own").value.split("\n").map(l => l.trim()).filter(Boolean) }, "Saved");
 
 async function loadResolution() {
