@@ -21,6 +21,7 @@ def rig(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(frame, "rotate", lambda: calls.append("rotate") or (True, ""))
     monkeypatch.setattr(frame, "previous", lambda: calls.append("previous") or (True, ""))
+    monkeypatch.setattr(frame, "next_set", lambda: calls.append("new set") or (True, ""))
     monkeypatch.setattr(frame, "set_screen", lambda on: calls.append(f"screen {'on' if on else 'off'}"))
     factory = MockFactory()
     frame.buttons = Buttons(frame, factory=factory)
@@ -57,6 +58,16 @@ def test_each_button_does_its_job(rig):
     settle(calls, 3)
     assert calls == ["rotate", "previous", "screen off"]
     assert frame.buttons.last["button"] == "screen"
+
+
+def test_hold_next_for_a_new_set(rig):
+    frame, factory, calls = rig
+    frame.cfg.update({"buttons_enabled": True})
+    frame.buttons.start()
+    tap(factory, 27, hold=1.3)
+    settle(calls, 1)
+    time.sleep(0.2)
+    assert calls == ["new set"] and frame.buttons.last["action"] == "new set"
 
 
 def test_any_button_wakes_a_sleeping_screen(rig):
@@ -111,7 +122,7 @@ def test_web_status_and_live_restart(rig):
     assert st["physical"] == {"previous": 11, "next": 13, "screen": 5}
     tap(factory, 27)
     settle(calls, 1)
-    assert c.get("/api/buttons").get_json()["last"]["action"] == "next photo"
+    assert c.get("/api/buttons").get_json()["last"]["action"] == "next step"
     html = c.get("/").get_data(as_text=True)
     assert 'data-btn="buttons_enabled"' in html and "/static/wiring.png" in html
     assert c.get("/static/wiring.png").mimetype == "image/png"

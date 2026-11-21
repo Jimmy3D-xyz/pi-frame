@@ -6,6 +6,9 @@ resistors are needed. Default pins (BCM numbering, physical pin in brackets):
     Previous  GPIO 17 (pin 11)    Next  GPIO 27 (pin 13)    ground: pin 9 or 14
     Screen    GPIO 3  (pin 5)     ground: pin 6
 
+Next button: press for the next step; hold (1 second) for a new set (a new
+collage, or the next style when styles take turns).
+
 Screen button: press to turn the screen off/on; hold to shut the Pi down
 safely. On GPIO 3, pressing it while the Pi is shut down turns it back on (a
 built-in Raspberry Pi feature). While the screen is off, any button just wakes it.
@@ -172,6 +175,10 @@ class Buttons:
             self._held_flag[action] = False
             if action == "screen" and self.frame.cfg.get("button_hold_shutdown"):
                 return
+            if action == "next" and self.frame.display.screen_on:
+                self._record("next", "new set")
+                threading.Thread(target=self.frame.next_set, daemon=True).start()
+                return
         self.press(action)
 
     def press(self, action: str) -> str:
@@ -183,7 +190,7 @@ class Buttons:
             did = "screen on"
             threading.Thread(target=f.set_screen, args=(True,), daemon=True).start()
         elif action == "next":
-            did = "next photo" if not f.player.playing else "stop video"
+            did = "next step" if not f.player.playing else "stop video"
             threading.Thread(target=f.rotate, daemon=True).start()
         elif action == "previous":
             did = "previous photo"

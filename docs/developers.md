@@ -113,6 +113,7 @@ errors or placeholder values. Pi Frame adds:
 | --- | --- |
 | `GET /api/status` | Current picture, next change, screen state, display details |
 | `POST /api/previous` | Previous picture |
+| `POST /api/next-set` | Skip the rest of this round (a new collage, or the next style) |
 | `GET/POST /api/screen` | Read or set screen power: `{"on": true}` |
 | `POST /api/sleep` | Screen off |
 | `GET /api/current_image?size=large\|full` | The picture on screen (with on-screen info) |

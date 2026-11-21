@@ -97,6 +97,11 @@ minutes); Living collage has its own swap time (5 minutes to start with).
 Collages put portrait photos in tall spaces and suit both screen shapes.
 Story, Spotlight and Living collage use photos stored on the frame.
 
+**Next** moves on one step: the next photo, collage or swap. **New set**
+(next to it on the web page, or hold the Next button for a second) skips
+the rest of the round: a new collage and its photos, a new living collage
+layout, or the next style when several take turns.
+
 **Photos around videos** (on by default): when a video doesn't fill the
 screen, such as a landscape video on a portrait screen or a phone video on
 a landscape screen, photos that suit the empty spaces go around it.

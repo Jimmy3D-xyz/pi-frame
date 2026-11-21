@@ -375,6 +375,12 @@ def create_app(frame: Frame) -> Flask:
             return _ok(msg)
         return _err(msg, 502 if cfg.get("rotation_mode") == "url" else 404)
 
+    @app.post("/api/next-set")
+    def next_set():
+        """Pi extra: skip the rest of this set (collage round, or style when they take turns)."""
+        ok, msg = frame.next_set()
+        return _ok(msg) if ok else _err(msg, 404)
+
     @app.post("/api/previous")
     def previous():
         ok, msg = frame.previous()

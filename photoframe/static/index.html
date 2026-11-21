@@ -332,7 +332,8 @@
       <a class="live-link" href="/live" target="_blank" rel="noopener">Open the live view ↗</a></p>
     <div class="controls">
       <button class="btn" id="prev" title="Show the previous photo">Previous</button>
-      <button class="btn primary" id="next">Next photo</button>
+      <button class="btn primary" id="next" title="Move on one step: the next photo, collage or swap">Next</button>
+      <button class="btn" id="next-set" title="Start a fresh set: a new collage and its photos, or the next style when styles take turns" hidden>New set</button>
       <button class="btn" id="screen">Turn screen off</button>
     </div>
   </section>
@@ -1136,6 +1137,8 @@ async function refreshStatus(reloadImage = false) {
   $("#foot-version").textContent = `Pi Frame ${status.version}`;
   $("#screen").textContent = status.screen_on ? "Turn screen off" : "Turn screen on";
   $("#prev").disabled = !status.can_go_back;
+  const st = config.slideshow_styles || [config.slideshow_style || "classic"];
+  $("#next-set").hidden = config.rotation_mode !== "storage" || (st.length === 1 && st[0] === "classic") || !!config.demo_mode;
   const fe = $("#fetch-error");
   fe.hidden = !status.last_fetch_error;
   fe.textContent = status.last_fetch_error ? `Last download failed: ${status.last_fetch_error}` : "";
@@ -1145,6 +1148,11 @@ function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&l
 $("#next").onclick = async (e) => {
   e.target.disabled = true;
   await act(() => api("/api/rotate", { method: "POST" }));
+  e.target.disabled = false; refreshStatus(true);
+};
+$("#next-set").onclick = async (e) => {
+  e.target.disabled = true;
+  await act(() => api("/api/next-set", { method: "POST" }));
   e.target.disabled = false; refreshStatus(true);
 };
 $("#prev").onclick = async () => { await act(() => api("/api/previous", { method: "POST" })); refreshStatus(true); };

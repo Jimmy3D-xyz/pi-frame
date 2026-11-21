@@ -167,7 +167,7 @@ the Pi's GPIO header:
 | --- | --- | --- | --- |
 | Screen / power | GPIO 3, pin 5 | screen off / on | shut down safely (5 s, adjustable) |
 | Previous | GPIO 17, pin 11 | previous photo | |
-| Next | GPIO 27, pin 13 | next photo, or stop a video | |
+| Next | GPIO 27, pin 13 | next step (photo, collage or swap), or stop a video | new set (1 s) |
 
 Each button's other leg goes to ground; all three can share one wire to
 pin 9. No resistors are needed (the Pi's own pull-ups are used). While the

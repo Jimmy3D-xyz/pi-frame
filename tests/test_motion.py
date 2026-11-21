@@ -455,3 +455,26 @@ def test_living_collage_puts_a_photo_in_the_spotlight_now_and_then(mframe):
     mframe.cfg.update({"living_spotlight": False})
     msgs = [mframe.rotate()[1] for _ in range(4)]
     assert not any("spotlight" in m for m in msgs)
+
+
+def test_new_set_skips_the_rest_of_the_round(mframe):
+    mframe.cfg.update({"slideshow_styles": ["story"], "collage_count": 4, "transition_effects": "fade"})
+    mframe.rotate()
+    mframe.rotate()  # collage, photo 1 of 4
+    first = list(mframe._story["photos"])
+    ok, msg = mframe.next_set()
+    assert ok and msg.startswith("collage 1") and mframe._story["photos"] != first  # a new collage straight away
+    # with styles taking turns (an hour each), it moves to the next style now
+    mframe.cfg.update({"slideshow_styles": ["story", "living"], "style_switch_minutes": 60})
+    mframe.rotate()
+    assert mframe.active_style() == "story"
+    ok, msg = mframe.next_set()
+    assert mframe.active_style() == "living" and "new layout" in msg
+
+
+def test_new_set_on_the_web(mframe):
+    from photoframe.web import create_app
+    c = create_app(mframe).test_client()
+    mframe.cfg.update({"slideshow_styles": ["story"], "collage_count": 3, "transition_effects": "fade"})
+    assert c.post("/api/next-set").status_code == 200
+    assert mframe.state["current"]["filepath"].startswith("Collage")

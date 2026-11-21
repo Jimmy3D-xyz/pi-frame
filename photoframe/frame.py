@@ -124,6 +124,7 @@ class Frame:
         self._style: str | None = None  # the slideshow style showing now (of those ticked)
         self._style_since = 0.0
         self._style_steps = 0  # steps shown in the current style
+        self._force_switch = False  # "New set" asked for the next style
         self._demo_view: dict | None = None  # what demo mode has on screen (for its zooms and slides)
         self._demo_wait: float | None = None
 
@@ -434,15 +435,29 @@ class Frame:
             return lv is None or (lv["swaps"] >= 2 * len(lv["photos"]) and lv.get("spot") is None)
         return not every_round or self._style_steps >= self.CLASSIC_ROUND
 
+    def next_set(self) -> tuple[bool, str]:
+        """Skip the rest of this round: a new collage and its photos, a new living collage
+        layout, or (with styles taking turns) the next style."""
+        with self._rotate_lock:
+            if self.demo_active() or self.cfg.get("rotation_mode") != "storage" or self.player.playing \
+                    or self.notice in ("wifi", "update", "power"):
+                pass
+            else:
+                self._story = self._living = None
+                self._force_switch = True
+        ok, msg = self.rotate()
+        return ok, msg
+
     def _maybe_switch_style(self) -> None:
         styles = self.styles()
         self.active_style()
+        forced, self._force_switch = self._force_switch, False
         if len(styles) < 2:
             return
         every = self.cfg.get("style_switch_minutes")
-        if every and time.time() - self._style_since < every * 60:
+        if not forced and every and time.time() - self._style_since < every * 60:
             return
-        if not self._round_over(every_round=not every):
+        if not forced and not self._round_over(every_round=not every):
             return
         self._style = styles[(styles.index(self._style) + 1) % len(styles)]
         self._style_since = time.time()
