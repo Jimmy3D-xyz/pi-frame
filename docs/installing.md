@@ -33,7 +33,10 @@ installed. Nothing needs typing on a computer: the frame sets itself up from
 your phone.
 
 1. **Download** `pi-frame-<version>.img.xz` from the repository's
-   [Releases](https://github.com/JimmySte/pi-frame/releases) page.
+   [Releases](https://github.com/JimmySte/pi-frame/releases) page. Not
+   every release has a new image: the newest release's notes link to the
+   latest one. Once set up, the frame updates to the newest version from
+   the Maintenance tab.
 2. **Write it** with Raspberry Pi Imager: *Raspberry Pi 4*, then Operating
    system → **Use custom** → the downloaded file, then your card. When Imager
    offers to apply OS customisation settings, choose **No**: the frame asks
@@ -79,14 +82,13 @@ the frame's name on the network is `piframe`.
 
 ## Building the image
 
-GitHub builds a new image for feature versions (0.26.0, 0.27.0…) and
-publishes a release with the image, the update package and the kit (see
-[Releasing](developers.md#releasing)). It takes
-about 10 minutes (on GitHub's Arm machines, so nothing needs emulating), so small fixes (`v0.26.1`…) get a release with just the
-update package and the kit: a frame set up from the latest image updates
-itself from the Maintenance tab. The image can also be built by hand from the
-Actions tab (workflow "Image"), e.g. when Raspberry Pi releases a new version
-of its OS; that publishes a test release called `pi-frame-test`.
+Releases normally carry just the update package and the kit. The image
+takes about 10 minutes to build (on GitHub's Arm machines, so nothing needs
+emulating), so it's built by hand from the Actions tab (workflow "Image")
+only when needed: after a change to the first start, a new Raspberry Pi OS,
+or now and then. It's added to that version's release, and later releases
+link to it (see [Releasing](developers.md#releasing)). Without the release
+box ticked, it's a test release called `pi-frame-test`.
 
 To build one yourself, on a Linux machine with `qemu-user-static` (not
 needed on Arm), `xz-utils`, `fdisk`, `e2fsprogs` and `zerofree`:

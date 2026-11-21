@@ -1,14 +1,11 @@
 name: Image
 
 # The ready-made Pi Frame image (Raspberry Pi OS Lite + Pi Frame, booting into
-# first-run setup). Built for feature versions (tags like v0.26.0), or by hand
-# from the Actions tab (e.g. after a change to the first start, or a new
-# Raspberry Pi OS). Published as a GitHub release with the update package and
-# the installer kit. Small fixes (v0.26.1 …) get a release without an image:
-# see release.yml.
+# first-run setup). Built by hand from the Actions tab when one is needed:
+# after a change to the first start, a new Raspberry Pi OS, or now and then
+# so new frames start closer to the latest version. Versions are normally
+# released without an image, by release.yml.
 on:
-  push:
-    tags: ["v*.*.0"]
   workflow_dispatch:
     inputs:
       publish:
@@ -16,7 +13,7 @@ on:
         type: boolean
         default: true
       release:
-        description: "Publish it as the release of this version (v + the version in the code), for every frame to update to"
+        description: "Add it to this version's release (v + the version in the code; released now if it isn't out yet)"
         type: boolean
         default: false
       intel:
@@ -70,7 +67,14 @@ jobs:
           elif [ "${{ inputs.release }}" = true ]; then
             tag="v$ver"; title="Pi Frame $ver"; flags=""
             if gh release view "$tag" >/dev/null 2>&1; then
-              echo "::error::v$ver is already released. Raise the version in photoframe/__init__.py first."; exit 1
+              # already released (by release.yml): add the image to it
+              gh release upload "$tag" dist/pi-frame-*.img.xz dist/pi-frame-*.img.xz.sha256 --clobber
+              gh release view "$tag" --json body -q .body > old.md
+              { echo "**Ready-made image** (added $(date -u +%Y-%m-%d)): write \`pi-frame-$ver.img.xz\` to a microSD card"
+                echo "with Raspberry Pi Imager (Operating system → Use custom). See [Installing](https://github.com/JimmySte/pi-frame/blob/main/docs/installing.md)."
+                echo; grep -v '^- New frame?' old.md; } > notes.md
+              gh release edit "$tag" --notes-file notes.md
+              exit 0
             fi
           else
             tag="pi-frame-test"; title="Pi Frame $ver (test build)"; flags="--prerelease"

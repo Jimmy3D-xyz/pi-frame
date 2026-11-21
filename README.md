@@ -40,7 +40,8 @@ work with it unchanged.
 ## Install
 
 1. Download the **ready-made image** (`pi-frame-<version>.img.xz`) from
-   [Releases](https://github.com/JimmySte/pi-frame/releases).
+   [Releases](https://github.com/JimmySte/pi-frame/releases) (the newest
+   release links to it, if it isn't attached itself).
 2. Write it to a microSD card with Raspberry Pi Imager (Operating system →
    **Use custom**).
 3. Put the card in the Pi, connect the monitor and switch on.

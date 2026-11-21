@@ -175,23 +175,23 @@ check `docker build` succeeds first.
 1. Bump `__version__` in `photoframe/__init__.py`: the last number for a
    small fix (0.26.1), the middle one for new features (0.27.0).
 2. Run the tests, commit and push.
-3. Publish it, from GitHub's **Actions** tab (works from a phone too):
-   - **feature versions** (`X.Y.0`): workflow **Image** → Run workflow → tick
-     **Publish it as the release of this version**. Builds a new ready-made
-     image, and releases it with the update package and the kit (about 10 minutes).
-   - **small fixes**: workflow **Release** → Run workflow. The update package
-     and the kit only (a minute or two).
-
-   Pushing a tag (`git tag v0.27.0 && git push origin v0.27.0`) does the same.
-   Either refuses a version that's already been released.
+3. Publish it from GitHub's **Actions** tab (works from a phone too):
+   workflow **Release** → Run workflow. The update package and the kit, in a
+   minute or two. Pushing a tag (`git tag v0.30.0 && git push origin v0.30.0`)
+   does the same. It refuses a version that's already been released.
 
 Frames with automatic updates install the latest full release (not
 pre-releases such as `pi-frame-test`), so publishing a release is what ships a version to them.
 
-Build a new image by hand (Actions → Image → Run workflow) when the first
-start changes (the wizard, `install.sh`, Wi-Fi setup) in a small fix, or
-when Raspberry Pi releases a new OS. `kit/build-kit.sh` makes the two zips
-locally.
+**The ready-made image** is only built when it's needed, as it takes about
+10 minutes: workflow **Image** → Run workflow, with **Add it to this
+version's release** ticked (it adds the image to the version's release, or
+releases the version if it isn't out yet). Build one when the first start
+changes (the wizard, `install.sh`, Wi-Fi setup), when Raspberry Pi releases
+a new OS, or now and then so new frames start closer to the latest version
+(they update themselves anyway). Each release's notes point to the newest
+image. Leave the box unticked for a test build (`pi-frame-test`).
+`kit/build-kit.sh` makes the two zips locally.
 
 Every push to GitHub runs the tests automatically (on Python 3.13, as in
 Raspberry Pi OS Trixie), then builds both zips. They're

@@ -1,12 +1,12 @@
 name: Release
 
-# Small fixes (tags like v0.26.1): a release with the update package and the
-# installer kit, but no new image. A frame set up from the latest image
-# updates itself to this from the Maintenance tab. Feature versions (v0.26.0)
-# are released by image.yml instead, with a new image.
+# Every version (tags like v0.30.0): a release with the update package and the
+# installer kit, in a minute or two. No new image: the notes point to the
+# newest release that has one, and a frame set up from it updates itself from
+# there. image.yml builds an image when one is needed (by hand).
 on:
   push:
-    tags: ["v*", "!v*.*.0"]
+    tags: ["v*"]
   # or from the Actions tab: releases the version in the code (v + version)
   workflow_dispatch:
 
@@ -32,14 +32,16 @@ jobs:
               echo "::error::v$ver is already released. Raise the version in photoframe/__init__.py first."; exit 1
             fi
           fi
-          img=$(gh release list --exclude-pre-releases --limit 50 --json tagName -q '.[].tagName' \
-                | grep -E '^v[0-9]+\.[0-9]+\.0$' | head -1 || true)
+          # the newest full release with a ready-made image
+          img=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+                -q '[.[] | select(.prerelease | not) | select(any(.assets[]; .name | endswith(".img.xz")))][0].tag_name // empty' \
+                || true)
           {
             echo "**Update**: upload \`pi-photoframe.zip\` on the frame's Maintenance tab → Software update."
             echo
             echo "- \`pi-frame-kit.zip\`: the installer kit, for setting up a card you've written yourself"
             if [ -n "$img" ]; then
-              echo "- New frame? Use the ready-made image from [$img](https://github.com/${GITHUB_REPOSITORY}/releases/tag/$img), then update to this version from the Maintenance tab."
+              echo "- New frame? Use the ready-made image from [$img](https://github.com/${GITHUB_REPOSITORY}/releases/tag/$img); it updates itself to this version (or update from the Maintenance tab)."
             fi
             echo
             echo "Built from $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%d)."
