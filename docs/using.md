@@ -82,7 +82,9 @@ Tap a style's name (not its tick box) to open its settings.
   photo, and so on.
 - **Living collage**: a collage where one photo at a time is swapped for
   another, sliding in like a print laid on a table. After every space has
-  changed twice, a new layout. "Swap a photo every" sets the pace. After
+  changed twice, a new layout. "Swap a photo every" sets the pace. With 3D
+  turns on, every other swap turns over in 3D in its own space instead of
+  sliding in. After
   every few swaps, one of its photos grows out of its spot to fill the
   screen for a while, then shrinks back (this can be switched off).
 

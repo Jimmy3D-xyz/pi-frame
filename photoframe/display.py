@@ -84,6 +84,11 @@ class BaseDisplay:
         """Play drawn-ahead frames (BGRX bytes, frame_size big) like a flip-book, then show img."""
         self.show(img, fade_ms)
 
+    def play_part(self, frames: list[bytes], frame_size, rect, img: Image.Image, ms: int, fade_ms: int = 0,
+                  name: str = "3D turn") -> None:
+        """Like play(), with the frames covering just `rect` of the screen (one photo of a collage)."""
+        self.show(img, fade_ms)
+
     def _fade(self, a: Image.Image, b: Image.Image, fade_ms: int) -> None:
         # Blend in RGB space. Step count adapts to how fast this Pi manages a frame.
         start = time.monotonic()

@@ -118,9 +118,9 @@ def _coeffs(dst, src):
     return tuple(np.linalg.solve(np.array(m, dtype=float), np.array(src, dtype=float).reshape(8)))
 
 
-def _project(points, size, focal):
-    """3D points (x, y, depth) to the screen, seen from straight in front."""
-    cx, cy = size[0] / 2, size[1] / 2
+def _project(points, centre, focal):
+    """3D points (x, y, depth) to the screen, seen from straight in front of centre."""
+    cx, cy = centre
     out = []
     for x, y, z in points:
         k = focal / (focal + z)
@@ -149,52 +149,53 @@ def _ease(t: float) -> float:
     return t * t * (3 - 2 * t)
 
 
-def frame_3d(kind: str, old: Image.Image, new: Image.Image, t: float) -> Image.Image:
-    """One frame (t from 0 to 1) of a 3D turn from old to new (same size)."""
+def frame_3d(kind: str, old: Image.Image, new: Image.Image, t: float,
+             under: Image.Image | None = None, at: tuple[int, int] = (0, 0)) -> Image.Image:
+    """One frame (t from 0 to 1) of a 3D turn from old to new (same size). With under, the
+    turning picture sits at `at` on top of it (one photo of a collage turning, say); otherwise
+    it fills the frame."""
     w, h = old.size
+    bx, by = at
+    canvas = under.copy() if under is not None else Image.new("RGB", (w, h), BACKDROP)
+    centre = (bx + w / 2, by + h / 2)
     focal = 2.2 * max(w, h)
     e = _ease(t)
+
+    def quad_of(lx, lz, rx, rz, push):
+        return _project([(bx + lx, by, lz + push), (bx + rx, by, rz + push), (bx + rx, by + h, rz + push),
+                         (bx + lx, by + h, lz + push)], centre, focal)
+
     if kind == "tip":  # the old photo tips over backwards, away from you, revealing the new one
-        canvas = ImageEnhance.Brightness(new).enhance(0.55 + 0.45 * e)
+        canvas.paste(ImageEnhance.Brightness(new).enhance(0.55 + 0.45 * e), (bx, by))
         a = math.radians(84 * (e ** 1.15))
         top_y, depth = h - h * math.cos(a), h * math.sin(a)
-        quad = _project([(0, top_y, depth), (w, top_y, depth), (w, h, 0), (0, h, 0)], (w, h), focal)
+        quad = _project([(bx, by + top_y, depth), (bx + w, by + top_y, depth), (bx + w, by + h, 0), (bx, by + h, 0)],
+                        centre, focal)
         _draw_face(canvas, old, quad, shade=1 - 0.45 * e, opacity=1 - max(0.0, (e - 0.55) / 0.45))
         return canvas
-    canvas = Image.new("RGB", (w, h), BACKDROP)
     if kind == "flip":  # a card turning over: the new photo is on its back
         a = math.pi * e
         face, a = (old, a) if a <= math.pi / 2 else (new, a - math.pi)
         cos, sin = math.cos(a), math.sin(a)
         hw = w / 2
-        lx, lz = w / 2 - hw * cos, -hw * sin  # left edge comes towards you
-        rx, rz = w / 2 + hw * cos, hw * sin
-        # the whole card also drops back a little mid-turn, so its near edge stays on screen
+        # the left edge comes towards you; the whole card also drops back a little mid-turn,
+        # so its near edge stays in view
         push = 0.55 * w * math.sin(math.pi * e)
-        quad = _project([(lx, 0, lz + push), (rx, 0, rz + push), (rx, h, rz + push), (lx, h, lz + push)],
-                        (w, h), focal)
-        _draw_face(canvas, face, quad, shade=1 - 0.35 * abs(sin))
+        _draw_face(canvas, face, quad_of(w / 2 - hw * cos, -hw * sin, w / 2 + hw * cos, hw * sin, push),
+                   shade=1 - 0.35 * abs(sin))
         return canvas
     # cube: the old photo is the front of a box turning left, the new one its right side
     a = (math.pi / 2) * e
     half = w / 2
-    centre_z = half
     faces = []
     for img, ang in ((old, -a), (new, math.pi / 2 - a)):
         c, s = math.cos(ang), math.sin(ang)
         # the face's two side edges, turned about the box's centre (x, depth)
-        pts = []
-        for u in (-half, half):
-            x = w / 2 + u * c + half * s
-            z = centre_z + u * s - half * c
-            pts.append((x, z))
-        (lx, lz), (rx, rz) = pts
+        (lx, lz), (rx, rz) = [(w / 2 + u * c + half * s, half + u * s - half * c) for u in (-half, half)]
         if rx - lx < 1:  # facing away
             continue
         push = 0.18 * w * math.sin(math.pi * e)
-        quad = _project([(lx, 0, lz + push), (rx, 0, rz + push), (rx, h, rz + push), (lx, h, lz + push)],
-                        (w, h), focal)
-        faces.append(((lz + rz) / 2, img, quad, c))
+        faces.append(((lz + rz) / 2, img, quad_of(lx, lz, rx, rz, push), c))
     for _depth, img, quad, c in sorted(faces, key=lambda f: -f[0]):  # far side first
         _draw_face(canvas, img, quad, shade=0.55 + 0.45 * c)
     return canvas
@@ -225,9 +226,13 @@ class Turn:
     frames are BGRX bytes in the panel's orientation, `size` big."""
 
     def __init__(self, kind: str, old: Image.Image, new, logical, panel, extra_rotation: int,
-                 key=None, frames: int | None = None, threads: int = 3, ms: int = 1300):
+                 key=None, frames: int | None = None, threads: int = 3, ms: int = 1300,
+                 under: Image.Image | None = None, at: tuple[int, int] = (0, 0)):
         """new: the next picture (logical size), or a function that makes it (run in the background
-        too); either way it's kept as new_full, so it needn't be made twice."""
+        too); either way it's kept as new_full, so it needn't be made twice.
+        With under: old and new are one photo turning at `at` on top of under (a part of the
+        screen, such as a collage space and a little around it), and the frames are that part."""
+        self.under, self.at = under, at
         self.kind, self.key, self.ms = kind, key, ms
         self.frames: list[bytes] = []
         self.size = (0, 0)
@@ -238,6 +243,8 @@ class Turn:
         self.started = time.monotonic()
         self.seconds = 0.0
         self._job = (old.copy(), new, logical, panel, extra_rotation, frames or FRAMES, threads)
+        if under is not None:
+            self.under = under.copy()
         threading.Thread(target=self._run, name=f"3d-{kind}", daemon=True).start()
 
     def _run(self) -> None:
@@ -250,16 +257,27 @@ class Turn:
             if callable(new):
                 new = new()
             self.new_full = new
-            fs = frame_size(logical, panel)
-            old, new = old.convert("RGB").resize(fs, Image.BILINEAR), new.convert("RGB").resize(fs, Image.BILINEAR)
+            under, at = self.under, self.at
+            if under is None:
+                fs = frame_size(logical, panel)
+                old, new = old.convert("RGB").resize(fs, Image.BILINEAR), new.convert("RGB").resize(fs, Image.BILINEAR)
+                fw, fh = fs
+            else:  # a part of the screen: drawn at most FRAME_LONG_SIDE big, never bigger than it is
+                k = min(1.0, FRAME_LONG_SIDE / max(under.size))
+                if k < 1.0:
+                    under = under.resize((max(2, int(under.width * k)), max(2, int(under.height * k))), Image.BILINEAR)
+                    tile = (max(2, round(old.width * k)), max(2, round(old.height * k)))
+                    old, new = old.resize(tile, Image.BILINEAR), new.resize(tile, Image.BILINEAR)
+                    at = (round(at[0] * k), round(at[1] * k))
+                old, new, under = old.convert("RGB"), new.convert("RGB"), under.convert("RGB")
+                fw, fh = under.size
             rot = panel_rotation(logical, panel, extra)
-            fw, fh = old.size
             psize = (fh, fw) if rot in (90, 270) else (fw, fh)
 
             def one(i):
                 if self._cancel:
                     return b""
-                img = frame_3d(self.kind, old, new, (i + 1) / (n + 1))
+                img = frame_3d(self.kind, old, new, (i + 1) / (n + 1), under=under, at=at)
                 if rot:
                     img = img.rotate(-rot, expand=True)
                 return img.tobytes("raw", "BGRX")

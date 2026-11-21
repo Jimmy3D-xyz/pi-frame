@@ -224,13 +224,22 @@ class Frame:
                 if kind == "zoom-out" and self._can("moves"):
                     return self.display.zoom_out(img, panel(move["src"]), panel(move["dst"]), self._motion_ms(1600),
                                                  fade)
+                turn = move.get("turn")
+                if kind == "part3d":
+                    if turn is not None and turn.ready() and self._can("3d"):
+                        return self.display.play_part(turn.frames, turn.size, panel(move["rect"]), img, turn.ms, fade,
+                                                      name=motion.NAMES.get(turn.kind, "3D turn"))
+                    if turn is not None and not turn.ready():
+                        log.info("%s not drawn yet, so it slides in instead", motion.NAMES.get(turn.kind, "3D turn"))
+                        turn.cancel()
+                    move = move["fallback"]
+                    kind = move["kind"]
                 if kind == "slide" and self._can("moves"):
                     edge = move.get("edge")
                     if edge:  # which panel edge the logical edge is on
                         edge = motion.edge_to_panel(edge, self.logical, self.panel, rot)
                     return self.display.slide_in(img, panel(move["rect"]), self._motion_ms(1100 if not edge else 1500),
                                                  fade, edge=edge)
-                turn = move.get("turn")
                 if kind == "3d" and turn is not None and not turn.ready():
                     log.info("%s not drawn yet, so a fade instead", motion.NAMES.get(turn.kind, "3D turn"))
                     turn.cancel()  # stop drawing it: it's no use now
@@ -607,6 +616,7 @@ class Frame:
                           move={"kind": "zoom-out", "src": motion.tile_source(size, box, self.logical, scale),
                                 "dst": motion.box_rect(box)})
             self._step_due = time.time() + self.cfg.get("living_minutes") * 60
+            self._living_ahead()
             return True, "living collage: back to the collage"
         if lv["swaps"] >= 2 * len(lv["photos"]):
             return self._living_new()
@@ -621,13 +631,41 @@ class Frame:
                                 "dst": motion.box_rect(box)})
             self._step_due = time.time() + self.cfg.get("single_minutes") * 60
             return True, f"living collage: spotlight on {p.name}"
-        n = len(lv["photos"])
-        i = lv["order"][lv["swaps"] % n]
+        queued, lv["queued"] = lv.get("queued"), None
+        if queued and queued[1].exists() and queued[1] not in lv["photos"]:
+            i, p = queued
+        else:
+            pick = self._living_choose(lv)
+            if pick is None:
+                return self._living_new()
+            i, p = pick
+        box = lv["boxes"][i]
+        self._recent.append(p)
+        img = render.open_image(p, self.logical)
+        base = lv["base"].copy()
+        collage.place_tile(base, img, box)
+        lv["base"], lv["photos"][i] = base, p
+        lv["swaps"] += 1
+        lv["since_spot"] += 1
+        lv["last"] = i
+        move = {"kind": "slide", "rect": motion.box_rect(box)}
+        turn = self._take_turn(("tile", i, p))
+        if turn is not None:  # this one turns over in 3D, just in its own space
+            move = {"kind": "part3d", "turn": turn, "rect": turn.rect, "fallback": move}
+        self._present([base], {"source": "storage", "filepath": f"Living collage: {p.parent.name}/{p.name}"},
+                      self._cache_image(base), move=move, composed=base)
+        self._step_due = time.time() + self.cfg.get("living_minutes") * 60
+        self._living_ahead()
+        return True, f"living collage: swapped in {p.name}" + (" (3D)" if turn is not None else "")
+
+    def _living_choose(self, lv: dict):
+        """The next space to change, and a photo whose shape suits it."""
+        i = lv["order"][lv["swaps"] % len(lv["photos"])]
         box = lv["boxes"][i]
         want = (box[2] - box[0]) / max(1, box[3] - box[1])
         mode = self.cfg.get("sd_rotation_mode")
         best = None
-        for _ in range(8):  # a photo whose shape suits the space
+        for _ in range(8):
             p = self.storage.pick(mode, set(self._recent) | set(lv["photos"]), videos=False)
             if p is None or p in lv["photos"]:
                 continue
@@ -638,21 +676,46 @@ class Frame:
                 best = (cost, p)
             if cost < 0.2 or mode == "sequential":
                 break
-        if best is None:
-            return self._living_new()
-        p = best[1]
-        self._recent.append(p)
-        img = render.open_image(p, self.logical)
-        base = lv["base"].copy()
-        collage.place_tile(base, img, box)
-        lv["base"], lv["photos"][i] = base, p
-        lv["swaps"] += 1
-        lv["since_spot"] += 1
-        lv["last"] = i
-        self._present([base], {"source": "storage", "filepath": f"Living collage: {p.parent.name}/{p.name}"},
-                      self._cache_image(base), move={"kind": "slide", "rect": motion.box_rect(box)}, composed=base)
-        self._step_due = time.time() + self.cfg.get("living_minutes") * 60
-        return True, f"living collage: swapped in {p.name}"
+        return (i, best[1]) if best else None
+
+    def _living_ahead(self) -> None:
+        """If the next step is a swap, choose it now and (every other time) draw it turning
+        over in 3D, in its own space, in the background."""
+        lv = self._living
+        if lv is None or lv.get("spot") is not None or lv["swaps"] >= 2 * len(lv["photos"]):
+            return
+        if self.cfg.get("living_spotlight") and lv["since_spot"] >= 3:
+            return  # a spotlight comes next
+        if not self._can("3d"):
+            return
+        pick = self._living_choose(lv)
+        if pick is None:
+            return
+        lv["queued"] = pick
+        i, p = pick
+        kind = self._next_turn_kind(mix=True)
+        if kind is None:
+            return
+        box = lv["boxes"][i]
+        W, H = self.logical
+        m = int(min(W, H) * 0.06)  # a little room around the space, for the turning photo's near edge
+        part = (max(0, box[0] - m), max(0, box[1] - m), min(W, box[2] + m), min(H, box[3] + m))
+        under = lv["base"].crop(part)
+        under.paste(collage.BACKGROUND, (box[0] - part[0], box[1] - part[1], box[2] - part[0], box[3] - part[1]))
+        tile = (box[2] - box[0], box[3] - box[1])
+        logical = self.logical
+
+        def new_tile(path=p):
+            from PIL import ImageOps
+            return ImageOps.fit(render.open_image(path, logical), tile, Image.LANCZOS, centering=(0.5, 0.4))
+
+        self._drop_turn()
+        ms = self._motion_ms(1300)
+        self._turn = motion.Turn(kind, lv["base"].crop(box), new_tile, logical, self.panel,
+                                 self.cfg.get("display_rotation_deg"), key=(("tile", i, p), self._shown), ms=ms,
+                                 frames=motion.frames_for(ms, logical, self.panel), under=under,
+                                 at=(box[0] - part[0], box[1] - part[1]))
+        self._turn.rect = (part[0], part[1], part[2] - part[0], part[3] - part[1])
 
     def _living_new(self) -> tuple[bool, str]:
         n = self.cfg.get("collage_count") or random.choice((3, 4, 5))
@@ -678,6 +741,7 @@ class Frame:
                       self._cache_image(base), composed=base,
                       move=self._new_set_move())
         self._step_due = time.time() + self.cfg.get("living_minutes") * 60
+        self._living_ahead()
         return True, "living collage: new layout"
 
     # ---------- video moments ----------

@@ -230,6 +230,10 @@ class MovingDisplay(FileDisplay):
         self.calls.append(("slide", rect) if not edge else ("new set", edge))
         super().show(img, 0)
 
+    def play_part(self, frames, size, rect, img, ms, fade_ms=0, name=""):
+        self.calls.append(("part3d", rect, size))
+        super().show(img, 0)
+
     def play(self, frames, size, img, ms, fade_ms=0, name=""):
         self.calls.append(("3d", len(frames), size))
         super().show(img, 0)
@@ -535,3 +539,41 @@ def test_slides_copy_whole_pixels(disp, edge):  # noqa: F811
         assert m["SRC_X"] % 65536 == 0 and m["SRC_Y"] % 65536 == 0
         assert m["SRC_W"] >> 16 == m["CRTC_W"] and m["SRC_H"] >> 16 == m["CRTC_H"], m
         assert (m["SRC_Y"] >> 16) + m["CRTC_H"] <= d.size[1] and (m["SRC_X"] >> 16) + m["CRTC_W"] <= d.size[0]
+
+
+
+def test_living_collage_turns_one_photo_over_in_3d(mframe):
+    mframe.cfg.update({"slideshow_styles": ["living"], "collage_count": 3, "living_spotlight": False})
+    mframe._turn_n = 0  # 3D, slide, 3D, slide…
+    msgs = []
+    for _ in range(5):
+        msgs.append(mframe.rotate()[1])
+        wait_turn(mframe)
+    kinds = mframe.display.kinds()
+    assert kinds[1:5] == ["part3d", "slide", "part3d", "slide"], kinds
+    _, rect, size = next(c for c in mframe.display.calls if c[0] == "part3d")
+    assert rect[2] < PANEL[0] * 0.8 and size[0] <= rect[2] and size[1] <= rect[3]  # just around one space
+    assert "(3D)" in msgs[1]
+
+
+def test_part_turns_on_the_display_hardware(disp):  # noqa: F811
+    d, pk = disp
+    d.show(Image.new("RGB", d.size, (255, 0, 0)))
+    pk.log["commits"].clear()
+    frames = [bytes([0, 0, 200, 0]) * (300 * 200) for _ in range(6)]
+    d.play_part(frames, (300, 200), (100, 50, 300, 200), Image.new("RGB", d.size, (0, 0, 255)), 100)
+    parts = [c[0][1] for c in pk.log["commits"] if c[0][0] == 127 and c[0][1].get("SRC_W") == 300 << 16]
+    assert parts and all((p["CRTC_X"], p["CRTC_Y"], p["CRTC_W"], p["CRTC_H"]) == (100, 50, 300, 200) for p in parts)
+    assert all(c[0][0] == 127 for c in pk.log["commits"][:-1])  # the old picture stays put underneath
+    assert pk.log["commits"][-1] == [(91, d._plane_props(d.fbs[d.front])), (127, {"FB_ID": 0, "CRTC_ID": 0})]
+
+
+def test_turns_in_part_of_the_screen():
+    under = Image.new("RGB", (400, 300), (26, 25, 23))
+    old, new = photo(200, 150, 0), photo(200, 150, 5)
+    for kind in motion.KINDS_3D:
+        a = motion.frame_3d(kind, old, new, 0.0, under=under, at=(100, 75))
+        z = motion.frame_3d(kind, old, new, 1.0, under=under, at=(100, 75))
+        assert np.abs(np.asarray(a.crop((100, 75, 300, 225)), float) - np.asarray(old, float)).mean() < 6
+        assert np.abs(np.asarray(z.crop((100, 75, 300, 225)), float) - np.asarray(new, float)).mean() < 6
+        assert a.getpixel((5, 5)) == (26, 25, 23)  # around it: what's underneath

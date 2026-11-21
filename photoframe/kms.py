@@ -401,6 +401,48 @@ class KmsDisplay(BaseDisplay):
 
         self._moving(img, fade_ms, run)
 
+    def play_part(self, frames, frame_size, rect, img, ms, fade_ms=0, name="3D turn"):
+        """Flip-book frames on the top layer over rect (enlarged to fit it, never shrunk),
+        with the old picture still on the bottom layer around it; then img."""
+        if not frames or not self.motions:
+            return self.show(img, fade_ms)
+        fw, fh = frame_size
+        x, y, w, h = rect
+        w, h = max(w, fw), max(h, fh)  # (never shrink: see _shrink_factor)
+        W, H = self.size
+        x, y = min(max(0, x), W - w), min(max(0, y), H - h)
+
+        def run(back):
+            fbs, px = self._small_fbs((fw, fh))
+            n, shown, which = len(frames), -1, 0
+            start, count = time.monotonic(), 0
+            while True:
+                t = (time.monotonic() - start) * 1000 / max(1, ms)
+                if t >= 1.0:
+                    break
+                i = min(n - 1, int(t * n))
+                if i == shown:
+                    time.sleep(0.003)
+                    continue
+                np.copyto(px[which], np.frombuffer(frames[i], dtype=np.uint8).reshape(fh, fw * 4))
+                r = self.k.AtomicReq(self.card)
+                r.add(self.overlay, {"FB_ID": fbs[which].id, "CRTC_ID": self.crtc.id, "SRC_X": 0, "SRC_Y": 0,
+                                     "SRC_W": fw << 16, "SRC_H": fh << 16,
+                                     "CRTC_X": x, "CRTC_Y": y, "CRTC_W": w, "CRTC_H": h, "alpha": 65535})
+                t0 = time.monotonic()
+                r.commit_sync(allow_modeset=count == 0)
+                if time.monotonic() - t0 > 0.5:
+                    self.motions = False
+                    raise RuntimeError("the display hardware took too long for one step; moves are off until the "
+                                       "frame restarts")
+                shown, which, count = i, 1 - which, count + 1
+            secs = max(time.monotonic() - start, 1e-6)
+            log.info("%s played: %d of %d frames in %.2fs (%.1f a second)", name, count, n, secs, count / secs)
+            self.last_fade = {"frames": count, "secs": round(secs, 2), "fps": round(count / secs, 1),
+                              "t": time.time(), "hardware": True, "kind": name}
+
+        self._moving(img, fade_ms, run)
+
     def _power(self, on: bool) -> None:
         try:
             r = self.k.AtomicReq(self.card)
