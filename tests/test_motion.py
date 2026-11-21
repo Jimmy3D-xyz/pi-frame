@@ -259,7 +259,8 @@ def test_spotlight_zooms_in_and_out_of_the_collage(mframe):
     mframe.cfg.update({"slideshow_style": "spotlight", "collage_count": 3})
     for _ in range(5):
         mframe.rotate()
-    assert mframe.display.kinds() == ["new set", "zoom-in", "zoom-out", "zoom-in", "zoom-out"]  # a new set slides in
+    assert mframe.display.kinds()[1:] == ["zoom-in", "zoom-out", "zoom-in", "zoom-out"]
+    assert mframe.display.kinds()[0] in ("new set", "show")  # a new set slides or fades in
     _, src, dst = mframe.display.calls[1]
     assert dst[2] < PANEL[0] * 0.7 and src[2] > dst[2] * 0.5  # from a collage space
 
@@ -272,7 +273,7 @@ def test_story_turns_in_3d_from_photo_to_photo(mframe):
         mframe.rotate()
         wait_turn(mframe)
     kinds = mframe.display.kinds()
-    assert kinds[:2] == ["new set", "zoom-in"]
+    assert kinds[0] in ("new set", "show") and kinds[1] == "zoom-in"
     assert kinds[2:5] == ["3d", "show", "3d"]  # 3D turns, mixed with fades
 
 
@@ -483,12 +484,16 @@ def test_new_set_on_the_web(mframe):
 
 def test_new_rounds_slide_in_from_any_side(mframe):
     mframe.cfg.update({"slideshow_styles": ["living"], "collage_count": 3})
-    edges = []
-    for _ in range(12):
+    edges, fades = [], 0
+    for _ in range(30):
         mframe.reset_story()
         mframe.rotate()
+        if mframe.display.calls[-1][0] == "show":
+            fades += 1
+            continue
         assert mframe.display.calls[-1][0] == "new set"
         edges.append(mframe.display.calls[-1][1])
+    assert 3 <= fades <= 27  # a mix of fades and slides
     assert len(set(edges)) >= 3 and all(a != b for a, b in zip(edges, edges[1:]))  # mixed, never the same twice
     assert motion.edge_to_panel("right", (1080, 1920), (1920, 1080), 0) == "bottom"  # a portrait frame's right
     assert motion.edge_to_panel("right", (1920, 1080), (1920, 1080), 180) == "left"
