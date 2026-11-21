@@ -84,10 +84,11 @@ Tap a style's name (not its tick box) to open its settings.
   another, sliding in like a print laid on a table. After every space has
   changed twice, a new layout. "Swap a photo every" sets the pace.
 
-With several ticked, the frame changes style every 30 minutes to a day
-(Take turns every), always at the end of a round: after a story, or once a
-living collage's layout has finished, never half-way through. The web
-page says which one is showing.
+With several ticked, the frame changes style after every round, or every
+30 minutes to a day (Take turns), always at the end of a round, never
+half-way through one. A round is one story, one Spotlight collage and its
+photos, a living collage's layout (until every spot has changed twice), or
+5 Classic photos. The web page says which style is showing.
 
 Story and Spotlight share their collage and photo times (e.g. 5 and 10
 minutes); Living collage has its own swap time (5 minutes to start with).

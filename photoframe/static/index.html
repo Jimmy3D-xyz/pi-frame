@@ -452,8 +452,8 @@
             </div>
           </div>
         </div>
-        <label class="field" id="style-switch"><span>Take turns every</span>
-          <select data-ovl="style_switch_minutes" data-num><option value="30">30 minutes</option><option value="60">Hour</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="1440">Day</option></select></label>
+        <label class="field" id="style-switch"><span>Take turns</span>
+          <select data-ovl="style_switch_minutes" data-num><option value="0">After every round</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option><option value="120">Every 2 hours</option><option value="240">Every 4 hours</option><option value="1440">Every day</option></select></label>
         <p class="note" id="style-help" style="margin-top:0"></p>
         <label class="toggle" style="margin-top:.6rem"><input type="checkbox" data-ovl="video_surround"> Fill the space around videos with photos</label>
         <p class="note" style="margin-top:0">When a video doesn't fill the screen (a landscape video on a portrait screen, or a phone video on a landscape one), photos that suit the spaces go around it.</p>
@@ -2435,7 +2435,7 @@ function showStyleSettings() {
   const now = status && status.style_now;
   document.querySelectorAll(".style-card").forEach(c => c.querySelector(".style-now").hidden = !(several && c.dataset.style === now));
   $("#style-switch").hidden = !several;
-  $("#style-help").textContent = (several ? "They change over at the end of a round (after a story, or a living collage's layout). " : "") +
+  $("#style-help").textContent = (several ? "A round is one story, one Spotlight collage and its photos, a living collage's layout (until every spot has changed twice), or 5 Classic photos; a style never stops half-way through one. " : "") +
     (on.some(s => s !== "classic") && config.rotation_mode === "url" ? "Collage styles only use photos stored on this frame." : "");
   $('[data-ovl="clip_seconds"]').closest("label").hidden = !config.clip_every_minutes;
   $("#fun-own-row").hidden = config.overlay_fun === "off";

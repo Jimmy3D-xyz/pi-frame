@@ -50,7 +50,7 @@ DEFAULT_CONFIG: dict = {
     # its photos), spotlight (collage, a photo, collage, the next photo, ...)
     "slideshow_style": "classic",   # the first of slideshow_styles (kept for older pages and apps)
     "slideshow_styles": ["classic"],  # the styles the slideshow takes turns with
-    "style_switch_minutes": 60,     # with more than one style: switch after this long (at the end of a round)
+    "style_switch_minutes": 60,     # with more than one style: switch after this long (at the end of a round); 0 = every round
     "collage_count": 0,        # 3, 4 or 5 photos; 0 = mix it up
     "collage_minutes": 5,
     "single_minutes": 10,
@@ -326,8 +326,8 @@ class ConfigStore:
                 raise ConfigError(f"{key} must be a time like 21:00")
             if key == "slideshow_style" and "slideshow_styles" not in updates:
                 clean["slideshow_styles"] = [val]  # one style chosen the old way
-            if key == "style_switch_minutes" and val not in (30, 60, 120, 240, 1440):
-                raise ConfigError("style_switch_minutes must be 30, 60, 120, 240 or 1440")
+            if key == "style_switch_minutes" and val not in (0, 30, 60, 120, 240, 1440):
+                raise ConfigError("style_switch_minutes must be 0 (every round), 30, 60, 120, 240 or 1440")
             if key == "collage_count" and val not in (0, 3, 4, 5):
                 raise ConfigError("collage_count must be 3, 4, 5 or 0 (mix)")
             if key in ("collage_minutes", "single_minutes", "living_minutes") and not 1 <= val <= 240:

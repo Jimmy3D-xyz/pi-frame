@@ -123,6 +123,7 @@ class Frame:
         self._living: dict | None = None  # living collage style
         self._style: str | None = None  # the slideshow style showing now (of those ticked)
         self._style_since = 0.0
+        self._style_steps = 0  # steps shown in the current style
         self._demo_view: dict | None = None  # what demo mode has on screen (for its zooms and slides)
         self._demo_wait: float | None = None
 
@@ -410,7 +411,7 @@ class Frame:
         """The style showing now: with several ticked, they take turns."""
         styles = self.styles()
         if self._style not in styles:
-            self._style, self._style_since = styles[0], time.time()
+            self._style, self._style_since, self._style_steps = styles[0], time.time(), 0
         return self._style
 
     def story_style(self) -> str | None:
@@ -419,25 +420,33 @@ class Frame:
             return style
         return None
 
-    def _round_over(self) -> bool:
+    CLASSIC_ROUND = 5  # photos in a round of Classic, when styles change every round
+
+    def _round_over(self, every_round: bool = False) -> bool:
         """At a good place to change style: never mid-story or mid-way through a living collage."""
+        if every_round and self._style_steps == 0:
+            return False  # the style hasn't shown anything yet
         if self._style in ("story", "spotlight"):
             st = self._story
             return st is None or st["i"] >= len(st["steps"]) - 1
         if self._style == "living":
             lv = self._living
             return lv is None or lv["swaps"] >= 2 * len(lv["photos"])
-        return True
+        return not every_round or self._style_steps >= self.CLASSIC_ROUND
 
     def _maybe_switch_style(self) -> None:
         styles = self.styles()
         self.active_style()
-        if len(styles) < 2 or time.time() - self._style_since < self.cfg.get("style_switch_minutes") * 60:
+        if len(styles) < 2:
             return
-        if not self._round_over():
+        every = self.cfg.get("style_switch_minutes")
+        if every and time.time() - self._style_since < every * 60:
+            return
+        if not self._round_over(every_round=not every):
             return
         self._style = styles[(styles.index(self._style) + 1) % len(styles)]
         self._style_since = time.time()
+        self._style_steps = 0
         self._story = self._living = None
         self._reschedule = True  # classic goes back to the schedule rules
         log.info("slideshow style: %s now", self._style)
@@ -615,6 +624,7 @@ class Frame:
 
     def _rotate_storage(self) -> tuple[bool, str]:
         self._maybe_switch_style()
+        self._style_steps += 1
         style = self.story_style()
         if style == "living":
             return self._living_step()

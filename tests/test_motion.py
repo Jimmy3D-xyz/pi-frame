@@ -429,3 +429,13 @@ def test_frames_stay_within_memory(monkeypatch, tmp_path):
     monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(meminfo if p == "/proc/meminfo" else p, *a, **k))
     n = motion.frames_for(2600, (1920, 1080), PANEL)  # a third of 300 MB: about 27 frames of 1280x720
     assert 20 <= n <= 30
+
+
+def test_styles_can_change_after_every_round(mframe):
+    mframe.cfg.update({"slideshow_styles": ["classic", "spotlight"], "collage_count": 3, "style_switch_minutes": 0,
+                       "transition_effects": "fade"})
+    seen = []
+    for _ in range(5 + 6 + 2):  # 5 Classic photos, a Spotlight round (3 x collage + photo), then Classic again
+        mframe.rotate()
+        seen.append(mframe.active_style())
+    assert seen == ["classic"] * 5 + ["spotlight"] * 6 + ["classic"] * 2
