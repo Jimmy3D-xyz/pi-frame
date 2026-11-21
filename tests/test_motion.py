@@ -314,7 +314,8 @@ def test_dimmed_at_night_no_3d(mframe):
 
 
 def test_living_collage_swaps_one_photo_at_a_time(mframe):
-    mframe.cfg.update({"slideshow_style": "living", "collage_count": 3, "living_minutes": 2})
+    mframe.cfg.update({"slideshow_style": "living", "collage_count": 3, "living_minutes": 2,
+                       "living_spotlight": False})
     ok, msg = mframe.rotate()
     assert ok and "new layout" in msg
     before = list(mframe._living["photos"])
@@ -439,3 +440,18 @@ def test_styles_can_change_after_every_round(mframe):
         mframe.rotate()
         seen.append(mframe.active_style())
     assert seen == ["classic"] * 5 + ["spotlight"] * 6 + ["classic"] * 2
+
+
+def test_living_collage_puts_a_photo_in_the_spotlight_now_and_then(mframe):
+    mframe.cfg.update({"slideshow_styles": ["living"], "collage_count": 4, "living_minutes": 2, "single_minutes": 5})
+    msgs = [mframe.rotate()[1] for _ in range(7)]
+    assert ["new layout" in m for m in msgs[:1]] == [True]
+    assert "spotlight" in msgs[4] and "back to the collage" in msgs[5]  # after 3 swaps
+    kinds = mframe.display.kinds()
+    assert kinds[4] == "zoom-in" and kinds[5] == "zoom-out" and kinds[6] == "slide"
+    _, src, dst = mframe.display.calls[5]
+    assert dst in [motion.box_rect(b) for b in mframe._living["boxes"]]  # back into one of the spaces
+    assert mframe._living["swaps"] == 4  # the spotlight doesn't count as a swap
+    mframe.cfg.update({"living_spotlight": False})
+    msgs = [mframe.rotate()[1] for _ in range(4)]
+    assert not any("spotlight" in m for m in msgs)

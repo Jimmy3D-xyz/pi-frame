@@ -82,7 +82,9 @@ Tap a style's name (not its tick box) to open its settings.
   photo, and so on.
 - **Living collage**: a collage where one photo at a time is swapped for
   another, sliding in like a print laid on a table. After every space has
-  changed twice, a new layout. "Swap a photo every" sets the pace.
+  changed twice, a new layout. "Swap a photo every" sets the pace. After
+  every few swaps, one of its photos grows out of its spot to fill the
+  screen for a while, then shrinks back (this can be switched off).
 
 With several ticked, the frame changes style after every round, or every
 30 minutes to a day (Take turns), always at the end of a round, never

@@ -55,6 +55,7 @@ DEFAULT_CONFIG: dict = {
     "collage_minutes": 5,
     "single_minutes": 10,
     "living_minutes": 5,       # living collage: swap a photo this often
+    "living_spotlight": True,  # living collage: now and then, one of its photos full screen, then back
     # video moments: a short clip from a random point of a random video
     "clip_every_minutes": 0,   # 0 = off
     "clip_seconds": 20,

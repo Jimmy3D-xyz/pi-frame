@@ -431,7 +431,7 @@ class Frame:
             return st is None or st["i"] >= len(st["steps"]) - 1
         if self._style == "living":
             lv = self._living
-            return lv is None or lv["swaps"] >= 2 * len(lv["photos"])
+            return lv is None or (lv["swaps"] >= 2 * len(lv["photos"]) and lv.get("spot") is None)
         return not every_round or self._style_steps >= self.CLASSIC_ROUND
 
     def _maybe_switch_style(self) -> None:
@@ -532,8 +532,31 @@ class Frame:
         """A collage where one photo at a time is replaced, sliding in like a print laid
         on top. After every space has changed twice, a new layout."""
         lv = self._living
-        if lv is None or lv["swaps"] >= 2 * len(lv["photos"]) or not all(p.exists() for p in lv["photos"]):
+        if lv is None or not all(p.exists() for p in lv["photos"]):
             return self._living_new()
+        scale = self.cfg.processing.get("scaleMode", "fit")
+        if lv.get("spot") is not None:  # a photo's been in the spotlight: back into its space
+            i, size = lv.pop("spot")
+            box = lv["boxes"][i]
+            self._present([lv["base"]], {"source": "storage", "filepath": f"Living collage of {len(lv['photos'])} photos"},
+                          self._cache_image(lv["base"]), composed=lv["base"],
+                          move={"kind": "zoom-out", "src": motion.tile_source(size, box, self.logical, scale),
+                                "dst": motion.box_rect(box)})
+            self._step_due = time.time() + self.cfg.get("living_minutes") * 60
+            return True, "living collage: back to the collage"
+        if lv["swaps"] >= 2 * len(lv["photos"]):
+            return self._living_new()
+        if self.cfg.get("living_spotlight") and lv["since_spot"] >= 3:
+            # now and then, one of its photos grows to fill the screen for a while
+            i = lv["last"] if lv.get("last") is not None and random.random() < 0.5 else random.randrange(len(lv["photos"]))
+            p, box = lv["photos"][i], lv["boxes"][i]
+            img = render.open_image(p, self.logical)
+            lv["spot"], lv["since_spot"] = (i, img.size), 0
+            self._present([img], {"source": "storage", "filepath": f"{p.parent.name}/{p.name}"}, p,
+                          move={"kind": "zoom-in", "src": motion.tile_source(img.size, box, self.logical, scale),
+                                "dst": motion.box_rect(box)})
+            self._step_due = time.time() + self.cfg.get("single_minutes") * 60
+            return True, f"living collage: spotlight on {p.name}"
         n = len(lv["photos"])
         i = lv["order"][lv["swaps"] % n]
         box = lv["boxes"][i]
@@ -560,6 +583,8 @@ class Frame:
         collage.place_tile(base, img, box)
         lv["base"], lv["photos"][i] = base, p
         lv["swaps"] += 1
+        lv["since_spot"] += 1
+        lv["last"] = i
         self._present([base], {"source": "storage", "filepath": f"Living collage: {p.parent.name}/{p.name}"},
                       self._cache_image(base), move={"kind": "slide", "rect": motion.box_rect(box)}, composed=base)
         self._step_due = time.time() + self.cfg.get("living_minutes") * 60
@@ -583,7 +608,8 @@ class Frame:
         base, boxes = collage.layout(imgs, self.logical)
         order = list(range(len(chosen)))
         random.shuffle(order)
-        self._living = {"photos": chosen, "boxes": boxes, "base": base, "order": order, "swaps": 0}
+        self._living = {"photos": chosen, "boxes": boxes, "base": base, "order": order, "swaps": 0,
+                        "since_spot": 0}
         self._present([base], {"source": "storage", "filepath": f"Living collage of {len(chosen)} photos"},
                       self._cache_image(base), composed=base)
         self._step_due = time.time() + self.cfg.get("living_minutes") * 60
