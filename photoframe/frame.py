@@ -219,6 +219,9 @@ class Frame:
                 if kind == "slide" and self._can("moves"):
                     return self.display.slide_in(img, panel(move["rect"]), self._motion_ms(1100), fade)
                 turn = move.get("turn")
+                if kind == "3d" and turn is not None and not turn.ready():
+                    log.info("%s not drawn yet, so a fade instead", motion.NAMES.get(turn.kind, "3D turn"))
+                    turn.cancel()  # stop drawing it: it's no use now
                 if kind == "3d" and turn is not None and turn.ready() and self._can("3d"):
                     return self.display.play(turn.frames, turn.size, img, turn.ms, 400,
                                              name=motion.NAMES.get(turn.kind, "3D turn"))
