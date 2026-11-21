@@ -53,7 +53,13 @@ sudo systemctl start pi-photoframe
 
 **Zooms and slides** use the same top layer: the hardware moves and scales
 it on each refresh, so a photo growing out of its collage space or a print
-sliding into a living collage also runs at 60 fps. **3D turns** (card flip,
+sliding into a living collage also runs at 60 fps. The top layer only ever enlarges:
+shrinking a full-screen picture on it makes the hardware read more pixels
+than it can at 1440p, and the screen stops (the kernel logs `flip_done timed
+out`). So when a zoom's small end is smaller than the part of the picture it
+shows, the zoom runs from a copy shrunk in advance. If a step ever takes the
+hardware more than half a second, moves switch off (fades only) until the
+frame restarts. **3D turns** (card flip,
 tip away, turning cube) are perspective drawings the hardware can't do, so
 the frame draws them at half the screen's resolution in the background
 while the photo before is showing, on three of the Pi's four cores at low

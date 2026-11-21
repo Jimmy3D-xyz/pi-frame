@@ -102,7 +102,9 @@ def test_zoom_in_grows_the_new_picture_from_its_space(disp):  # noqa: F811
     commits = pk.log["commits"]
     first = commits[0][0][1]
     assert commits[0][0][0] == 127 and abs(first["CRTC_X"] - 40) + abs(first["CRTC_Y"] - 60) < 4  # starts in the space
-    assert abs(first["SRC_X"] / 65536 - 200) < 3 and first["FB_ID"] == d.fbs[d.front].id
+    # the space is half the size of its part of the picture: a copy shrunk in advance, so the layer never shrinks
+    assert first["FB_ID"] == d._scratch[1].id and abs(first["SRC_X"] / 65536 - 200 * d._scratch[0][0] / d.size[0]) < 3
+    assert_never_shrinks(commits)
     widths = [c[0][1]["CRTC_W"] for c in commits[:-1]]
     assert widths == sorted(widths) and widths[-1] > d.size[0] * 0.9  # and grows to fill the screen
     assert commits[-1] == [(91, d._plane_props(d.fbs[d.front])), (127, {"FB_ID": 0, "CRTC_ID": 0})]
@@ -117,11 +119,49 @@ def test_zoom_out_shrinks_the_old_picture_into_the_collage(disp):  # noqa: F811
     pk.log["commits"].clear()
     d.zoom_out(Image.new("RGB", d.size, (0, 255, 0)), (200, 100, 800, 450), (40, 60, 400, 225), 120)
     commits = pk.log["commits"]
-    assert commits[0][0][1]["FB_ID"] == old_fb and commits[0][0][1]["CRTC_W"] == d.size[0]  # old picture on top
+    assert commits[0][0][1]["FB_ID"] == d._scratch[1].id and commits[0][0][1]["CRTC_W"] == d.size[0]  # old picture on top
+    assert np.asarray(d._scratch[2]).reshape(-1, 4)[0][2] == 255  # (a shrunk copy of the old, red picture)
+    assert old_fb != d.fbs[d.front].id
+    assert_never_shrinks(commits)
     assert commits[0][1] == (91, d._plane_props(d.fbs[d.front]))  # new one underneath from the start
     last_move = commits[-2][0][1]
     assert last_move["CRTC_W"] < 500 and last_move["CRTC_X"] < 100  # ends in its space
     assert d._current.getpixel((0, 0)) == (0, 255, 0)
+
+
+def assert_never_shrinks(commits):
+    for c in commits:
+        for obj, p in c:
+            if obj == 127 and p.get("FB_ID"):
+                assert p["CRTC_W"] >= (p["SRC_W"] >> 16) - 1 and p["CRTC_H"] >= (p["SRC_H"] >> 16) - 1, p
+
+
+def test_zooms_that_dont_shrink_use_the_picture_itself(disp):  # noqa: F811
+    d, pk = disp
+    d.show(Image.new("RGB", d.size, (255, 0, 0)))
+    pk.log["commits"].clear()
+    d.zoom_in(Image.new("RGB", d.size, (0, 0, 255)), (200, 100, 400, 225), (40, 60, 400, 225), 100)
+    assert pk.log["commits"][0][0][1]["FB_ID"] == d.fbs[d.front].id
+    assert_never_shrinks(pk.log["commits"])
+
+
+def test_a_struggling_display_turns_moves_off(disp):  # noqa: F811
+    d, pk = disp
+    d.show(Image.new("RGB", d.size, (255, 0, 0)))
+    real = pk.AtomicReq.commit_sync
+
+    def slow(self, allow_modeset=False):
+        real(self, allow_modeset)
+        if any(obj == 127 and p.get("FB_ID") for obj, p in self.items):
+            time.sleep(0.6)
+
+    pk.AtomicReq.commit_sync = slow
+    d.zoom_in(Image.new("RGB", d.size, (0, 0, 255)), (0, 0, 400, 225), (0, 0, 400, 225), 2000)
+    assert not d.motions and d._current.getpixel((0, 0)) == (0, 0, 255)  # it still got there
+    pk.AtomicReq.commit_sync = real
+    pk.log["commits"].clear()
+    d.slide_in(Image.new("RGB", d.size, (0, 255, 0)), (0, 0, 100, 100), 100)
+    assert not any(c[0][0] == 127 and c[0][1].get("FB_ID") for c in pk.log["commits"])  # just a change now
 
 
 def test_slides_are_cut_off_at_the_screen_edge(disp):  # noqa: F811

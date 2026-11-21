@@ -177,10 +177,11 @@ class KmsDisplay(BaseDisplay):
     # ---------- moving transitions ----------
     motions = True
 
-    def _layer_props(self, fb, src, dst, alpha: float = 1.0) -> dict | None:
+    def _layer_props(self, fb, src, dst, alpha: float = 1.0, fb_size=None) -> dict | None:
         """Top-layer settings showing the src part of fb at dst on screen, with whatever
         sticks out past the screen's edges cut off (the hardware wants it all on screen)."""
         W, H = self.size
+        FW, FH = fb_size or self.size
         sx, sy, sw, sh = (float(v) for v in src)
         dx, dy, dw, dh = (float(v) for v in dst)
         if dw < 1 or dh < 1:
@@ -191,15 +192,15 @@ class KmsDisplay(BaseDisplay):
             return None
         sx, sy = sx + (x0 - dx) * kx, sy + (y0 - dy) * ky
         sw, sh = (x1 - x0) * kx, (y1 - y0) * ky
-        sx, sy = min(max(0.0, sx), W - 1.0), min(max(0.0, sy), H - 1.0)
-        sw, sh = max(1.0, min(sw, W - sx)), max(1.0, min(sh, H - sy))
+        sx, sy = min(max(0.0, sx), FW - 1.0), min(max(0.0, sy), FH - 1.0)
+        sw, sh = max(1.0, min(sw, FW - sx)), max(1.0, min(sh, FH - sy))
         ix0, iy0 = round(x0), round(y0)
         return {"FB_ID": fb.id, "CRTC_ID": self.crtc.id,
                 "SRC_X": int(sx * 65536), "SRC_Y": int(sy * 65536), "SRC_W": int(sw * 65536), "SRC_H": int(sh * 65536),
                 "CRTC_X": ix0, "CRTC_Y": iy0, "CRTC_W": max(2, round(x1) - ix0), "CRTC_H": max(2, round(y1) - iy0),
                 "alpha": int(65535 * min(1.0, max(0.0, alpha)))}
 
-    def _move(self, name: str, fb, path, ms: int, first=None) -> int:
+    def _move(self, name: str, fb, path, ms: int, first=None, fb_size=None) -> int:
         """Move the top layer along path(t) -> (src, dst, alpha), one step per screen refresh."""
         k = self.k
         start, frames, layer_on, began = time.monotonic(), 0, False, None
@@ -207,7 +208,7 @@ class KmsDisplay(BaseDisplay):
             t = (time.monotonic() - start) * 1000 / max(1, ms)
             if t >= 1.0:
                 break
-            props = self._layer_props(fb, *path(t))
+            props = self._layer_props(fb, *path(t), fb_size=fb_size)
             if props is None and not layer_on and not (frames == 0 and first):
                 time.sleep(1 / 60)  # still off the screen: nothing to show this refresh
                 continue
@@ -215,7 +216,12 @@ class KmsDisplay(BaseDisplay):
             r.add(self.overlay, props if props else {"FB_ID": 0, "CRTC_ID": 0})
             if frames == 0 and first:
                 first(r)
+            t0 = time.monotonic()
             r.commit_sync(allow_modeset=frames == 0)
+            if time.monotonic() - t0 > 0.5:  # a refresh is 17 ms: the display hardware is struggling
+                self.motions = False
+                raise RuntimeError(f"the display hardware took {time.monotonic() - t0:.1f}s for one step; "
+                                   "moves are off until the frame restarts")
             if began is None:
                 began = time.monotonic()
             layer_on = props is not None
@@ -263,25 +269,67 @@ class KmsDisplay(BaseDisplay):
                         pass
         self.show(img, fade_ms)
 
+    # The top layer must never shrink a picture: shrinking makes the hardware read more
+    # pixels than it shows, and with a full-screen picture underneath at 1440p that's
+    # more than it can fetch in time (the screen stops: "flip_done timed out"). So a zoom
+    # whose small end is smaller than its source part uses a copy of the picture shrunk
+    # in advance, and the layer only ever enlarges. (The zoom's scale changes steadily
+    # from one end to the other, so its smallest scale is at one end.)
+    def _shrink_factor(self, src, dst) -> float:
+        return min(1.0, dst[2] / max(1.0, src[2]), dst[3] / max(1.0, src[3]))
+
+    def _shrunk(self, img: Image.Image, k: float):
+        """A display buffer holding img shrunk by k (its own, reused while the size stays)."""
+        w, h = self.size
+        size = (max(2, int(w * k)), max(2, int(h * k)))
+        if getattr(self, "_scratch", None) is None or self._scratch[0] != size:
+            self._scratch = None
+            fb = self.k.DumbFramebuffer(self.card, size[0], size[1], self.k.PixelFormat.XRGB8888)
+            px = np.frombuffer(fb.map(0), dtype=np.uint8).reshape(size[1], fb.stride(0))[:, : size[0] * 4]
+            self._scratch = (size, fb, px)
+        size, fb, px = self._scratch
+        small = img.resize(size, Image.BILINEAR)
+        np.copyto(px, np.frombuffer(small.tobytes("raw", "BGRX"), dtype=np.uint8).reshape(size[1], size[0] * 4))
+        return fb, size, size[0] / w
+
+    def _zoom(self, name, picture, fb, src_a, dst_a, src_b, dst_b, ms, first=None):
+        """Move the top layer from (src_a at dst_a) to (src_b at dst_b), enlarging only."""
+        k = min(self._shrink_factor(src_a, dst_a), self._shrink_factor(src_b, dst_b))
+        size = None
+        if k < 0.995:
+            fb, size, k = self._shrunk(picture, k * 0.97)
+        else:
+            k = 1.0
+
+        def path(t):
+            e = _ease(t)
+            return tuple(v * k for v in _lerp(src_a, src_b, e)), _lerp(dst_a, dst_b, e), 1.0
+
+        self._move(name, fb, path, ms, first=first, fb_size=size)
+
     def zoom_in(self, img, src, dst, ms, fade_ms=0):
         full = (0, 0, *self.size)
-
-        def run(back):
-            self._move("zoom in", self.fbs[back], lambda t: (_lerp(src, full, _ease(t)), _lerp(dst, full, _ease(t)),
-                                                            1.0), ms)
-        self._moving(img, fade_ms, run)
+        if img.size != self.size:
+            img = img.resize(self.size, Image.BILINEAR)
+        if not self.motions:
+            return self.show(img, fade_ms)
+        self._moving(img, fade_ms, lambda back: self._zoom("zoom in", img, self.fbs[back], src, dst, full, full, ms))
 
     def zoom_out(self, img, src, dst, ms, fade_ms=0):
         full = (0, 0, *self.size)
+        if not self.motions or self._current is None:
+            return self.show(img, fade_ms)
+        old_picture = self._current
 
         def run(back):
-            old = self.fbs[self.front]
             # the old picture goes on the top layer while the new one slips in underneath
-            self._move("zoom out", old, lambda t: (_lerp(full, src, _ease(t)), _lerp(full, dst, _ease(t)), 1.0), ms,
+            self._zoom("zoom out", old_picture, self.fbs[self.front], full, full, src, dst, ms,
                        first=lambda r: r.add(self.primary, self._plane_props(self.fbs[back])))
         self._moving(img, fade_ms, run)
 
     def slide_in(self, img, rect, ms, fade_ms=0):
+        if not self.motions:
+            return self.show(img, fade_ms)
         W, H = self.size
         x, y, w, h = rect
         # off the nearest edge
@@ -303,7 +351,7 @@ class KmsDisplay(BaseDisplay):
         return self._small[1], self._small[2]
 
     def play(self, frames, frame_size, img, ms, fade_ms=0, name="3D turn"):
-        if not frames:
+        if not frames or not self.motions:
             return self.show(img, fade_ms)
         fw, fh = frame_size
         W, H = self.size
@@ -325,7 +373,12 @@ class KmsDisplay(BaseDisplay):
                 r.add(self.primary, {"FB_ID": fbs[which].id, "CRTC_ID": self.crtc.id, "SRC_X": 0, "SRC_Y": 0,
                                      "SRC_W": fw << 16, "SRC_H": fh << 16,
                                      "CRTC_X": 0, "CRTC_Y": 0, "CRTC_W": W, "CRTC_H": H})
+                t0 = time.monotonic()
                 r.commit_sync(allow_modeset=count == 0)
+                if time.monotonic() - t0 > 0.5:
+                    self.motions = False
+                    raise RuntimeError("the display hardware took too long for one step; moves are off until the "
+                                       "frame restarts")
                 shown, which, count = i, 1 - which, count + 1
             secs = time.monotonic() - start
             log.info("%s played: %d of %d frames in %.2fs (%.1f a second), then the on-screen info faded in",
@@ -368,7 +421,7 @@ class KmsDisplay(BaseDisplay):
             self._teardown()
 
     def _teardown(self) -> None:
-        self._small = None
+        self._small = self._scratch = None
         for name in ("px", "fbs", "overlay", "primary", "crtc", "conn", "res", "card"):
             if hasattr(self, name):
                 delattr(self, name)
