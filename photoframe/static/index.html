@@ -1032,6 +1032,7 @@ function fmtTime(ts) {
 }
 async function refreshStatus(reloadImage = false) {
   try { status = await api("/api/status"); } catch { return; }
+  if (config.slideshow_styles) showStyleSettings();
   const [w, h] = status.panel;
   const portrait = config.display_orientation === "portrait";
   $("#window").style.setProperty("--ratio", portrait ? `${Math.min(w,h)} / ${Math.max(w,h)}` : `${Math.max(w,h)} / ${Math.min(w,h)}`);
@@ -2365,7 +2366,8 @@ function showStyleSettings() {
     (collages && config.rotation_mode === "url" ? "Collage styles only use photos stored on this frame." : "");
   $("#style-opts").hidden = !collages;
   $("#collage-time").hidden = !on.some(s => s === "story" || s === "spotlight");
-  $("#single-time").textContent = on.length === 1 && on[0] === "living" ? "Swap a photo every"
+  const stories = on.some(s => s === "story" || s === "spotlight");
+  $("#single-time").textContent = !stories ? "Swap a photo every"
     : on.includes("living") ? "Show each photo (or swap one) every" : "Show each photo for";
   $('[data-ovl="clip_seconds"]').closest("label").hidden = !config.clip_every_minutes;
   $("#fun-own-row").hidden = config.overlay_fun === "off";
