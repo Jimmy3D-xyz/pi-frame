@@ -30,7 +30,7 @@ KINDS_3D = ("flip", "tip", "cube")
 NAMES = {"flip": "3D card flip", "tip": "3D tip away", "cube": "3D cube turn"}
 BACKDROP = (14, 14, 16)
 FRAME_LONG_SIDE = 1280  # 3D frames are drawn this big; the hardware scales them up
-FRAMES = 60             # played over about 1.3 seconds
+FRAMES = 78             # the default: 1.3 seconds at 60 a second (frames_for() sets it for the speed chosen)
 
 Rect = tuple[int, int, int, int]  # x, y, width, height
 
@@ -193,6 +193,20 @@ def frame_3d(kind: str, old: Image.Image, new: Image.Image, t: float) -> Image.I
     return canvas
 
 
+def frames_for(ms: int, logical, panel, rate: int = 60) -> int:
+    """Enough frames for a new one every screen refresh, as long as they fit
+    comfortably in memory (at most a third of what's free)."""
+    want = max(12, round(ms * rate / 1000))
+    w, h = frame_size(logical, panel)
+    try:
+        with open("/proc/meminfo") as f:
+            avail = next(int(line.split()[1]) * 1024 for line in f if line.startswith("MemAvailable:"))
+        want = min(want, max(12, avail // 3 // (w * h * 4)))
+    except (OSError, StopIteration, ValueError):
+        pass
+    return want
+
+
 def frame_size(logical, panel) -> tuple[int, int]:
     """How big 3D frames are drawn (logical orientation): about half a 1440p screen."""
     k = min(1.0, FRAME_LONG_SIDE / max(logical))
@@ -204,10 +218,10 @@ class Turn:
     frames are BGRX bytes in the panel's orientation, `size` big."""
 
     def __init__(self, kind: str, old: Image.Image, new, logical, panel, extra_rotation: int,
-                 key=None, frames: int | None = None, threads: int = 3):
+                 key=None, frames: int | None = None, threads: int = 3, ms: int = 1300):
         """new: the next picture (logical size), or a function that makes it (run in the background
         too); either way it's kept as new_full, so it needn't be made twice."""
-        self.kind, self.key = kind, key
+        self.kind, self.key, self.ms = kind, key, ms
         self.frames: list[bytes] = []
         self.size = (0, 0)
         self.new_full: Image.Image | None = None

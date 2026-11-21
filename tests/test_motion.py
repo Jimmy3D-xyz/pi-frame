@@ -15,6 +15,7 @@ from photoframe.storage import Storage
 from test_kms import disp  # noqa: F401  (the fake display hardware)
 
 PANEL = (1920, 1080)
+frames_for = motion.frames_for  # (the slideshow tests swap it for a quick one)
 
 
 def photo(w, h, seed=0):
@@ -200,7 +201,7 @@ class MovingDisplay(FileDisplay):
 @pytest.fixture
 def mframe(tmp_path, monkeypatch):
     monkeypatch.setattr("photoframe.frame.Frame._notify_ha", lambda *a, **k: None)
-    monkeypatch.setattr(motion, "FRAMES", 4)
+    monkeypatch.setattr(motion, "frames_for", lambda *a, **k: 4)
     cfg = ConfigStore(tmp_path)
     f = Frame(cfg, Storage(tmp_path, PANEL), MovingDisplay(PANEL, str(tmp_path / "f.png")), tmp_path)
     for i in range(8):
@@ -370,3 +371,21 @@ def test_styles_take_turns_at_the_end_of_a_round(mframe):
     mframe.cfg.update({"slideshow_styles": ["living"]})
     mframe.reset_story()
     assert mframe.active_style() == "living"
+
+
+def test_slower_turns_get_more_frames(mframe):
+    """Every screen refresh gets a new frame, whatever the speed setting."""
+    assert frames_for(1300, (1920, 1080), PANEL) == 78
+    assert frames_for(2600, (1920, 1080), PANEL) == 156
+    for speed, ms in ((1500, 1300), (4000, 2600), (800, 780)):
+        mframe.cfg.update({"transition_ms": speed})
+        assert mframe._motion_ms(1300) == ms
+
+
+def test_frames_stay_within_memory(monkeypatch, tmp_path):
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text("MemTotal: 1000000 kB\nMemAvailable:  300000 kB\n")
+    real_open = open
+    monkeypatch.setattr("builtins.open", lambda p, *a, **k: real_open(meminfo if p == "/proc/meminfo" else p, *a, **k))
+    n = motion.frames_for(2600, (1920, 1080), PANEL)  # a third of 300 MB: about 27 frames of 1280x720
+    assert 20 <= n <= 30

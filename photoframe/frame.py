@@ -220,7 +220,7 @@ class Frame:
                     return self.display.slide_in(img, panel(move["rect"]), self._motion_ms(1100), fade)
                 turn = move.get("turn")
                 if kind == "3d" and turn is not None and turn.ready() and self._can("3d"):
-                    return self.display.play(turn.frames, turn.size, img, self._motion_ms(1300), 400,
+                    return self.display.play(turn.frames, turn.size, img, turn.ms, 400,
                                              name=motion.NAMES.get(turn.kind, "3D turn"))
             except Exception:  # noqa: BLE001
                 log.exception("moving transition")
@@ -242,8 +242,10 @@ class Frame:
         kind = self._next_turn_kind(mix)
         if kind is None:
             return
+        ms = self._motion_ms(1300)  # one frame for every screen refresh, however slow it's set
         self._turn = motion.Turn(kind, self.current_full, new, self.logical, self.panel,
-                                 self.cfg.get("display_rotation_deg"), key=(key, self._shown))
+                                 self.cfg.get("display_rotation_deg"), key=(key, self._shown), ms=ms,
+                                 frames=motion.frames_for(ms, self.logical, self.panel))
 
     def _take_turn(self, key) -> motion.Turn | None:
         """The 3D turn drawn for this picture, if it was drawn from what's on screen now."""

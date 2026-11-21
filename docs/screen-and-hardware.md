@@ -55,10 +55,12 @@ sudo systemctl start pi-photoframe
 it on each refresh, so a photo growing out of its collage space or a print
 sliding into a living collage also runs at 60 fps. **3D turns** (card flip,
 tip away, turning cube) are perspective drawings the hardware can't do, so
-the frame draws about 44 frames at half the screen's resolution in the
-background while the photo before is showing (5–10 seconds, on three of the
-Pi's four cores, at low priority), then plays them like a flip-book with the
-hardware scaling them up. If they aren't ready in time, or the picture is
+the frame draws them at half the screen's resolution in the background
+while the photo before is showing, on three of the Pi's four cores at low
+priority, then plays them like a flip-book with the hardware scaling them
+up. There's a new frame for every screen refresh, so slower speeds get more
+frames: 78 at Normal (about 6–9 seconds to draw on a Pi 4, 290 MB while
+waiting), up to 156 at Very slow (twice that), fewer if memory is short. If they aren't ready in time, or the picture is
 being darkened for the night, it's a fade. Without the display hardware,
 every change is a fade. `deploy/kms_motion_test.py` tries each of these on
 the screen and reports the frame rates.
