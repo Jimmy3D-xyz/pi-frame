@@ -729,6 +729,9 @@
           <dl class="kv" id="m-net"></dl>
           <div class="actions" style="margin-top:.8rem"><button type="button" class="btn small" id="m-netcheck-btn">Check the network now</button></div>
           <ul class="plain" id="m-netcheck" style="margin-top:.5rem"></ul>
+          <h4 style="margin:1rem 0 .3rem">Saved Wi-Fi networks</h4>
+          <p class="note" style="margin-top:0">The frame joins any of these it finds. Forget one you used away from home (a friend's, say).</p>
+          <ul class="plain" id="m-saved"></ul>
           <h4>Automatic re-joins</h4>
           <ul class="plain" id="m-rejoins"></ul>
         </div></details></section>
@@ -1171,7 +1174,7 @@ $("#screen").onclick = async () => {
 
 /* ---------- tabs ---------- */
 document.querySelectorAll('[role="tab"]').forEach(tab => tab.onclick = () => {
-  if (tab.id === "t-maint") { loadMaint(); loadUpdate(); loadResolution(); loadBackup(); }
+  if (tab.id === "t-maint") { loadMaint(); loadSaved(); loadUpdate(); loadResolution(); loadBackup(); }
   if (tab.id === "t-source") loadOneDrive();
   if (tab.id === "t-display") { loadButtons(); loadMonitor(); loadFadeInfo(); loadPresence(); }
   document.querySelectorAll('[role="tab"]').forEach(t => {
@@ -1709,8 +1712,8 @@ async function loadMaint() {
   const n = h.network, link = n.link || {};
   const sig = signalWords(n.signal_dbm);
   const modeWords = { online: ["Connected", "good"], setup: ["Setup hotspot running", "bad"], connecting: ["Connecting…", "warn"],
-                      offline: ["Not connected", "bad"], unknown: ["Starting up", "warn"], disabled: ["Not monitored on this device", ""] };
-  const mw = modeWords[n.mode] || [n.mode, ""];
+                      offline: ["Not connected", "bad"], away: ["Away from home Wi-Fi: its own Wi-Fi is on", "warn"], unknown: ["Starting up", "warn"], disabled: ["Not monitored on this device", ""] };
+  const mw = modeWords[n.away ? "away" : n.mode] || [n.mode, ""];
   kv("#m-net", [
     ["Status", mw[0], mw[1]],
     ["Network", n.ssid || n.connection],
@@ -1800,6 +1803,19 @@ async function loadEvents() {
 }
 $("#m-refresh").onclick = loadMaint;
 $("#m-warn-only").onchange = loadEvents;
+async function loadSaved() {
+  let list = [];
+  try { list = await api("/api/maintenance/wifi"); } catch { return; }
+  $("#m-saved").innerHTML = list.length ? list.map(n => `<li style="display:flex;gap:.6rem;align-items:center;margin:.25rem 0">
+      <span style="flex:1">${escapeHtml(n.name)}${n.active ? ' <span class="muted">(in use)</span>' : ""}</span>
+      ${n.active ? "" : `<button type="button" class="btn small" data-forget="${escapeHtml(n.name)}">Forget</button>`}</li>`).join("")
+    : `<li class="muted">None</li>`;
+  document.querySelectorAll("[data-forget]").forEach(b => b.onclick = async () => {
+    if (!confirm(`Forget ${b.dataset.forget}? The frame won't join it again unless you set it up again.`)) return;
+    await act(() => api(`/api/maintenance/wifi?name=${encodeURIComponent(b.dataset.forget)}`, { method: "DELETE" }), "Forgotten");
+    loadSaved();
+  });
+}
 $("#m-netcheck-btn").onclick = async (e) => {
   e.target.disabled = true; $("#m-netcheck").innerHTML = `<li class="muted">Checking…</li>`;
   try {

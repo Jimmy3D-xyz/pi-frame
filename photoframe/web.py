@@ -201,6 +201,7 @@ def create_app(frame: Frame) -> Flask:
                 "ssid": st.ssid,
                 "hotspot_ssid": st.hotspot_ssid,
                 "message": st.message,
+                "away": frame.away,
             }
         )
 
@@ -224,6 +225,20 @@ def create_app(frame: Frame) -> Flask:
             return _err("Wi-Fi passwords are 8 to 63 characters")
         frame.wifi.connect(ssid, password, bool(data.get("hidden")))
         return _ok(f"Connecting to {ssid}")
+
+    @app.get("/api/maintenance/wifi")
+    def wifi_saved():
+        """Saved Wi-Fi networks (outside /api/wifi/, so the page password covers it)."""
+        if frame.wifi is None:
+            return jsonify([])
+        return jsonify(frame.wifi.saved_list())
+
+    @app.delete("/api/maintenance/wifi")
+    def wifi_forget():
+        if frame.wifi is None:
+            return _err("Wi-Fi isn't managed on this device", 404)
+        ok, msg = frame.wifi.forget(str(request.args.get("name", "")))
+        return _ok(msg) if ok else _err(msg)
 
     # ---------- system ----------
     @app.get("/api/system-info")
@@ -724,7 +739,7 @@ def create_app(frame: Frame) -> Flask:
                 details = {}
             from .network import probe_method
 
-            net = {"mode": w.status.mode, "connection": w.status.ssid, **details,
+            net = {"mode": w.status.mode, "connection": w.status.ssid, **details, "away": frame.away,
                    "online_since": w.online_since, "link": dict(w.link, method=probe_method()),
                    "rejoins": list(w.rejoins)[::-1], "hotspot": w.status.hotspot_ssid if w.status.mode == "setup" else None}
         albums = storage.albums()

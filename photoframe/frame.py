@@ -115,6 +115,7 @@ class Frame:
         self.backups = None  # backups and restoring, set by __main__ (or the web app)
         self.notice: str | None = None  # None | "empty" | "wifi" while a card is on screen
         self.wifi = None  # WifiManager, when running on a Pi with NetworkManager
+        self.away = False  # away from its Wi-Fi, carrying on with the photos (see _go_away)
         # moving transitions (motion.py)
         self._shown = 0  # counts pictures put on screen, so a 3D turn drawn ahead knows it's still current
         self._turn: motion.Turn | None = None  # a 3D turn being drawn for the next picture
@@ -163,9 +164,7 @@ class Frame:
             details = photo_details(Path(remember))
         self._base, self._base_details, self._base_caption = frame, details, caption
         self.overlay.fun.next()  # a new joke/fact with each new picture
-        shown = self.overlay.apply(frame, details)
-        if caption:  # demo mode's samples: "Sample photo" and the credit
-            shown = demo.draw_caption(shown, caption, self.cfg.get("overlay_corner"))
+        shown = self._decorate(self.overlay.apply(frame, details), caption)
         panel_img = render.to_panel(shown, self.panel, self.cfg.get("display_rotation_deg"))
         if self._turn_now:  # the 3D button: draw a turn to this picture now, then play it
             kind, self._turn_now = self._turn_now, None
@@ -324,6 +323,49 @@ class Frame:
             self._turn.cancel()
             self._turn = None
 
+    def _decorate(self, shown: Image.Image, caption: str | None) -> Image.Image:
+        """Extras over the on-screen info: demo mode's sample credit, and (away from its Wi-Fi)
+        how to reach the frame through its own."""
+        corner = self.cfg.get("overlay_corner")
+        if caption:
+            shown = demo.draw_caption(shown, caption, corner)
+        if self.away and self.wifi is not None and self.wifi.status.hotspot_ssid:
+            st = self.wifi.status
+            shown = screens.away_badge(shown, st.hotspot_ssid, st.hotspot_password, corner)
+        return shown
+
+    # ---------- away from its Wi-Fi ----------
+    AWAY_AFTER = 60  # seconds of the Wi-Fi setup screen before the photos carry on
+
+    def can_go_away(self) -> bool:
+        """A set-up frame with something to show can carry on without Wi-Fi."""
+        if (Path(self.data_dir) / ".first-run").exists():
+            return False
+        return self.demo_active() or any(self.storage.images(a["name"]) for a in self.storage.albums())
+
+    def _go_away(self) -> bool:
+        """Leave the Wi-Fi setup screen and carry on with the photos, keeping the frame's own
+        Wi-Fi up so a phone can still reach it (with a reminder of how in a corner)."""
+        if self.wifi is None or self.wifi.status.mode != "setup" or self.notice != "wifi" or not self.can_go_away():
+            return False
+        self.away = self.wifi.away = True
+        self.overlay.offline = True
+        self.notice = None
+        log.info("away from home Wi-Fi: carrying on with the photos; the frame's own Wi-Fi %s stays on",
+                 self.wifi.status.hotspot_ssid)
+        return True
+
+    def _away_soon(self) -> None:
+        def later():
+            if self._stop.wait(self.AWAY_AFTER):
+                return
+            with self._rotate_lock:
+                went = self._go_away()
+            if went:
+                self._resume()
+
+        threading.Thread(target=later, name="away", daemon=True).start()
+
     def _cache_image(self, img: Image.Image) -> Path:
         path = self.cache / f"{time.time_ns()}.jpg"
         img.save(path, "JPEG", quality=92)
@@ -352,7 +394,7 @@ class Frame:
     def rotate(self) -> tuple[bool, str]:
         """Show the next image according to rotation_mode. Returns (ok, message)."""
         with self._rotate_lock:
-            if self.notice == "wifi":
+            if self.notice == "wifi" and not self._go_away():  # (Next leaves the setup screen when it can)
                 return False, "the frame is in Wi-Fi setup mode"
             if self.notice in ("update", "power"):
                 return False, "the frame is updating" if self.notice == "update" else "the frame is shutting down"
@@ -1312,9 +1354,7 @@ class Frame:
         try:
             if self.notice is not None or self.player.playing:
                 return False
-            shown = self.overlay.apply(self._base, self._base_details)
-            if self._base_caption:
-                shown = demo.draw_caption(shown, self._base_caption, self.cfg.get("overlay_corner"))
+            shown = self._decorate(self.overlay.apply(self._base, self._base_details), self._base_caption)
             self.display.show(self._dim(render.to_panel(shown, self.panel, self.cfg.get("display_rotation_deg"))), 0)
             self.current_thumb = render.thumbnail_jpeg(shown)
             self.current_full = shown
@@ -1352,6 +1392,13 @@ class Frame:
     def on_wifi_change(self, status) -> None:
         """Called by WifiManager whenever its mode changes."""
         with self._rotate_lock:
+            if status.mode == "setup" and self.away:
+                # still away (the hotspot restarted after a try of the saved Wi-Fi): keep the photos up
+                threading.Thread(target=self.refresh_overlay, daemon=True).start()
+                return
+            if status.mode == "connecting":
+                self.away = self.wifi.away = False
+                self.overlay.offline = False
             if status.mode == "setup":
                 self.player.stop()
                 self._power(True)  # the QR codes must be visible, even at night
@@ -1363,10 +1410,17 @@ class Frame:
                     ),
                     "wifi",
                 )
+                if self.can_go_away():
+                    self._away_soon()
             elif status.mode == "connecting":
                 self._show_card(
                     screens.message_card(self.logical, status.message, "This takes up to a minute."), "wifi"
                 )
+            elif status.mode == "online" and self.away:  # back on Wi-Fi: the reminder goes
+                self.away = self.wifi.away = False
+                self.overlay.offline = False
+                log.info("back on Wi-Fi (%s)", status.ssid)
+                threading.Thread(target=self.refresh_overlay, daemon=True).start()
             elif status.mode == "online" and self.notice == "welcome":
                 self._show_welcome()  # now it can show the IP address and network name
             elif status.mode == "online" and self.notice is not None and self.notice not in ("update", "power"):

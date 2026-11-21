@@ -92,6 +92,15 @@ class FakeWifi:
                                  networks=[network.Network("Home", 80, True)])
         self.last_portal_hit = 0.0
         self.connected = None
+        self.away = False
+        self.forgotten = []
+
+    def saved_list(self):
+        return [{"name": "Home", "active": False}, {"name": "Grandma", "active": False}]
+
+    def forget(self, name):
+        self.forgotten.append(name)
+        return True, f"Forgot {name}"
 
     def connect(self, ssid, pw, hidden=False):
         self.connected = (ssid, pw, hidden)
@@ -104,9 +113,12 @@ def test_captive_portal_and_connect(env):
     frame, client, _ = env
     frame.cfg.update({"http_password": "secret"})
     frame.wifi = FakeWifi()
+    first_run = Path(frame.data_dir) / ".first-run"
+    first_run.write_text("")  # a new frame: nothing to carry on with
     frame.on_wifi_change(frame.wifi.status)
     assert frame.notice == "wifi"
     assert not frame.rotate()[0]  # rotation paused while the setup card shows
+    first_run.unlink()
     # phone connectivity probe -> redirected to setup
     r = client.get("/generate_204", headers={"Host": "connectivitycheck.gstatic.com"})
     assert r.status_code == 302 and r.headers["Location"] == f"http://{HOTSPOT_IP}/setup"
@@ -444,3 +456,67 @@ def test_sample_caption_survives_the_clock_redraw(env):
     w, h = frame.current_full.size
     box = (int(w * 0.6), int(h * 0.85), w, h)  # the caption's corner (the clock is bottom-left)
     assert before.crop(box).tobytes() == frame.current_full.crop(box).tobytes()
+
+
+
+def test_away_from_home_the_photos_carry_on(env, monkeypatch):
+    frame, client, tmp = env
+    monkeypatch.setattr(Frame, "AWAY_AFTER", 0.2)
+    client.post("/api/upload", data={"album": "Default", "image": (io.BytesIO(jpeg(1600, 1200)), "a.jpg")},
+                content_type="multipart/form-data")
+    frame.rotate()
+    frame.wifi = FakeWifi()
+    frame.on_wifi_change(frame.wifi.status)  # no home Wi-Fi: the setup screen first...
+    assert frame.notice == "wifi" and not frame.away
+    for _ in range(50):
+        if frame.away and frame.notice is None:
+            break
+        _real_sleep(0.05)
+    assert frame.away and frame.wifi.away and frame.notice is None  # ...then the photos again
+    assert frame.overlay.offline
+    shown = frame.current_full
+    assert shown is not None
+    # the frame's own Wi-Fi still works, for the full page (and the setup page says so)
+    assert client.get("/", headers={"Host": HOTSPOT_IP}).status_code == 200
+    assert client.get("/api/wifi/status", headers={"Host": HOTSPOT_IP}).get_json()["away"] is True
+    # the hotspot restarting after a try of the saved Wi-Fi doesn't bring the setup screen back
+    frame.on_wifi_change(frame.wifi.status)
+    assert frame.notice is None and frame.rotate()[0]
+    # back home: the reminder goes
+    frame.wifi.status = WifiStatus(mode="online", ssid="Home")
+    frame.on_wifi_change(frame.wifi.status)
+    assert not frame.away and not frame.overlay.offline
+
+
+def test_next_leaves_the_setup_screen_when_away(env):
+    frame, client, tmp = env
+    client.post("/api/upload", data={"album": "Default", "image": (io.BytesIO(jpeg(1600, 1200)), "a.jpg")},
+                content_type="multipart/form-data")
+    frame.wifi = FakeWifi()
+    frame.on_wifi_change(frame.wifi.status)
+    ok, _ = frame.rotate()
+    assert ok and frame.away and frame.notice is None
+
+
+def test_saved_networks_can_be_forgotten(env):
+    frame, client, tmp = env
+    frame.wifi = FakeWifi()
+    frame.wifi.status = WifiStatus(mode="online", ssid="Home")
+    assert [n["name"] for n in client.get("/api/maintenance/wifi").get_json()] == ["Home", "Grandma"]
+    assert client.delete("/api/maintenance/wifi?name=Grandma").status_code == 200
+    assert frame.wifi.forgotten == ["Grandma"]
+
+
+def test_away_badge_and_no_wrong_clock(tmp_path, monkeypatch):
+    img = Image.new("RGB", (1920, 1080), (90, 90, 90))
+    out = screens.away_badge(img, "PiFrame-AB12", "12345678", "bottom-left")
+    assert out.size == img.size and out.crop((0, 0, 600, 300)).getbbox() and out.getpixel((60, 1050)) == (90, 90, 90)
+    from photoframe import overlay
+    sync = tmp_path / "timesync"
+    sync.mkdir()
+    monkeypatch.setattr(overlay, "TIMESYNC_DIR", sync)
+    assert not overlay.clock_synced()  # the Pi hasn't reached a time server yet
+    (sync / "synchronized").write_text("")
+    assert overlay.clock_synced()
+    monkeypatch.setattr(overlay, "TIMESYNC_DIR", tmp_path / "none")
+    assert overlay.clock_synced()  # a computer whose clock isn't kept by timesyncd

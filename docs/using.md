@@ -224,6 +224,22 @@ the router every 15 seconds; if it stops answering, the frame re-joins,
 preferring another radio of the same network (e.g. the router's 5 GHz one).
 An internet outage alone doesn't trigger this.
 
+**Away from home** (taking the frame to show someone, or a router outage):
+a frame that's been set up shows the setup screen for a minute (press
+Next to skip it), then carries on with its photos, as they're all stored on
+the frame. Its own Wi-Fi stays on, and a small panel in a corner shows how
+to join it (scan its QR code, or use the name and password shown). Then
+open `http://10.42.0.1/` for the full web page: browse, change styles, even
+add photos from that phone. Or join the place's Wi-Fi from the setup page.
+While away, the clock and date are hidden until the frame has the right
+time (the Pi has no clock battery, so it only knows the time once it's
+online), weather is hidden, and the frame tries your saved Wi-Fi every 10
+minutes (its own Wi-Fi drops for about a minute each time). Back home, it
+rejoins your Wi-Fi by itself and the panel goes.
+
+Maintenance → Wi-Fi and network lists the saved networks, so you can
+forget one you used away from home.
+
 To change network from the web page: Photo source → Change Wi-Fi network.
 
 ## Page password

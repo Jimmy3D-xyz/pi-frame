@@ -36,6 +36,7 @@ NO_SAVED_GRACE = 15  # ...when there's no saved Wi-Fi network to wait for
 MAX_CONNECTING = 300  # never cut off a connection attempt sooner than this
 DROPOUT_GRACE = 300  # how long a lost connection may last before setup mode
 RETRY_EVERY = 180  # in setup mode, retry saved networks this often...
+RETRY_EVERY_AWAY = 600  # ...or this often while the frame carries on away from home (each try drops its Wi-Fi a minute)
 IDLE_BEFORE_RETRY = 180  # ...but only if nobody has used the setup page lately
 LINK_CHECK_EVERY = 15  # while on Wi-Fi, check traffic actually flows this often
 FIRST_LINK_CHECK = 5  # first check this many seconds after the frame starts
@@ -223,6 +224,7 @@ class WifiManager:
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self.last_portal_hit = 0.0
+        self.away = False  # the frame's carrying on with photos (set by Frame): retry saved Wi-Fi less often
         self.link_ok: bool | None = None
         self.link = {"last_check": None, "last_ok": None, "fails_in_a_row": 0, "checks": 0, "failed_checks": 0}
         self.rejoins: collections.deque = collections.deque(maxlen=20)
@@ -265,6 +267,22 @@ class WifiManager:
             if len(f) >= 2 and f[1] == "802-11-wireless" and f[0] != HOTSPOT_CON:
                 out.append(f[0])
         return out
+
+    def saved_list(self) -> list[dict]:
+        """Saved Wi-Fi networks, and which one is in use."""
+        active = {n for n, _t, _d in self.active()}
+        return [{"name": n, "active": n in active} for n in self.saved_wifi()]
+
+    def forget(self, name: str) -> tuple[bool, str]:
+        if name == HOTSPOT_CON or name not in self.saved_wifi():
+            return False, "no saved network by that name"
+        if any(n == name for n, _t, _d in self.active()):
+            return False, "that's the network the frame is using now"
+        r = _nmcli("connection", "delete", "id", name)
+        if r.returncode != 0:
+            return False, (r.stderr or r.stdout).strip() or "couldn't forget it"
+        log.info("forgot the Wi-Fi network %s", name)
+        return True, f"Forgot {name}"
 
     def _on_wifi(self, name: str) -> bool:
         return any(n == name and d == self.iface for n, _t, d in self.active())
@@ -491,7 +509,7 @@ class WifiManager:
                 continue
             if mode == "setup":
                 idle = time.time() - self.last_portal_hit > IDLE_BEFORE_RETRY
-                if idle and time.monotonic() - last_retry > RETRY_EVERY:
+                if idle and time.monotonic() - last_retry > (RETRY_EVERY_AWAY if self.away else RETRY_EVERY):
                     last_retry = time.monotonic()
                     if not self._retry_saved():  # same password, so the QR stays valid
                         self.start_hotspot("Still couldn't connect to your saved Wi-Fi.")

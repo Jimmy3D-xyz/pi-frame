@@ -57,6 +57,9 @@
 <main>
   <h1>Connect the frame to Wi-Fi</h1>
   <p class="muted" id="intro">Pick your home network and enter its password.</p>
+  <p class="card" id="away" hidden>The frame is away from its home Wi-Fi and carrying on with its photos.
+    <a href="/" class="btn" style="display:inline-block;margin-top:.5rem;text-decoration:none">Open the frame's page</a><br>
+    <span class="muted">Or join this place's Wi-Fi below.</span></p>
 
   <form class="card" id="form">
     <div class="nets" id="nets" role="radiogroup" aria-label="Wi-Fi networks">
@@ -94,6 +97,7 @@ function bars(signal) {
 async function load() {
   try { status = await (await fetch("/api/wifi/status")).json(); } catch {}
   if (status.url) $("#frame-url").textContent = status.url;
+  $("#away").hidden = !status.away;
   if (status.mode === "online") {
     $("#intro").textContent = `The frame is connected to ${status.ssid}. Choosing another network disconnects it; if that fails, the frame starts its setup hotspot.`;
   }

@@ -28,6 +28,16 @@ log = logging.getLogger(__name__)
 
 WEATHER_EVERY = 15 * 60
 WEATHER_STALE = 3 * 3600  # hide weather older than this
+TIMESYNC_DIR = Path("/run/systemd/timesync")
+
+
+def clock_synced() -> bool:
+    """Is the time right? The Pi has no clock battery: until it's reached a time server, its clock
+    is wherever it stopped (usually when it was last unplugged). Machines whose clock isn't kept by
+    systemd-timesyncd count as right."""
+    if not TIMESYNC_DIR.is_dir():
+        return True
+    return (TIMESYNC_DIR / "synchronized").exists()
 USER_AGENT = f"PiFrame/{__version__} (personal digital photo frame; https://github.com/aitjcize/esp32-photoframe)"
 
 INK = (250, 248, 242)
@@ -369,6 +379,7 @@ class Overlay:
         self.weather = Weather(cfg, data_dir)
         self.places = Places(data_dir, on_found=on_change)
         self.fun = Fun(cfg)
+        self.offline = False  # away from its Wi-Fi: no weather (it'd be out of date)
 
     def enabled(self) -> bool:
         c = self.cfg.snapshot()
@@ -385,7 +396,7 @@ class Overlay:
         first = " · ".join(x for x in (_nice_date(taken) if taken else "", place or "") if x)
         if first:
             lines.append(first)
-        if taken and c.get("overlay_memories", True):
+        if taken and c.get("overlay_memories", True) and clock_synced():
             n = years_ago_today(taken, now)
             if n:
                 lines.append(f"{n} year{'s' if n != 1 else ''} ago today")
@@ -415,12 +426,13 @@ class Overlay:
 
         # ---- main panel: time, date, weather
         rows: list[tuple] = []
-        if c.get("overlay_clock"):
+        time_ok = clock_synced()  # a clock that's wrong is worse than none
+        if c.get("overlay_clock") and time_ok:
             t, ampm = _fmt_time(now, c.get("overlay_24h", False))
             rows.append(("clock", t, ampm))
-        if c.get("overlay_date"):
+        if c.get("overlay_date") and time_ok:
             rows.append(("text", now.strftime("%A ") + f"{now.day} " + now.strftime("%B"), SOFT, small))
-        wx = self.weather.current() if c.get("overlay_weather") else None
+        wx = self.weather.current() if c.get("overlay_weather") and not self.offline else None
         if wx:
             rows.append(("weather", wx))
         if rows:

@@ -131,6 +131,7 @@ errors or placeholder values. Pi Frame adds:
 | `GET /api/cloud/folders`, `GET /api/cloud/count` | Browse a service's folders |
 | `POST /api/cloud/links`, `PATCH/DELETE /api/cloud/links/<id>`, `POST /api/cloud/links/<id>/sync` | Synced folders |
 | `GET /api/wifi/status`, `GET /api/wifi/networks`, `POST /api/wifi/connect`, `GET /setup` | Wi-Fi setup |
+| `GET/DELETE /api/maintenance/wifi[?name=…]` | Saved Wi-Fi networks; forget one |
 | `GET /api/maintenance`, `GET /api/maintenance/events` | Health and recent activity |
 | `POST /api/maintenance/check-network\|restart\|reboot`, `GET /api/maintenance/diagnostics` | Maintenance actions |
 | `GET/DELETE /api/maintenance/update`, `POST /api/maintenance/update/upload\|install` | Software updates |

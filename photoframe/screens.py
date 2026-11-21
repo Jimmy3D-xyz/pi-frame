@@ -374,3 +374,38 @@ def update_card(size: tuple[int, int], title: str, subtitle: str, step: int | No
 
 def message_card(size: tuple[int, int], title: str, subtitle: str) -> Image.Image:
     return card(size, title, subtitle, [])
+
+
+def away_badge(img: Image.Image, ssid: str, password: str, overlay_corner: str = "bottom-left") -> Image.Image:
+    """Away from its Wi-Fi: a small panel saying how to reach the frame through its own
+    Wi-Fi, with a QR code that joins it. In the corner above or below the on-screen info."""
+    from .overlay import _glass
+
+    img = img.copy()
+    w, h = img.size
+    unit = min(w, h)
+    margin, pad = int(unit * 0.035), int(unit * 0.016)
+    head_f = _font("sans", max(11, int(unit * 0.02)))
+    body_f = _font("sans", max(11, int(unit * 0.022)))
+    lines = [f"Join  {ssid}", f"Password  {password[:4]} {password[4:]}" if password else "", "then open  10.42.0.1"]
+    lines = [x for x in lines if x]
+    d = ImageDraw.Draw(img)
+    qr_side = int(unit * 0.11)
+    text_w = int(max(d.textlength(x, font=body_f) for x in lines + ["AWAY FROM HOME WI-FI"]))
+    box_w = qr_side + pad * 3 + text_w
+    box_h = max(qr_side + 2 * pad, int(head_f.size * 1.6 + len(lines) * body_f.size * 1.35) + 2 * pad)
+    right = overlay_corner.endswith("right")
+    top = overlay_corner.startswith("bottom")  # the other end of the same side as the on-screen info
+    x0 = w - margin - box_w if right else margin
+    y0 = margin if top else h - margin - box_h
+    _glass(img, (x0, y0, x0 + box_w, y0 + box_h), int(pad * 1.2))
+    qr = qr_image(wifi_qr_payload(ssid, password), qr_side)
+    img.paste(qr.resize((qr_side, qr_side)), (x0 + pad, y0 + (box_h - qr_side) // 2))
+    d = ImageDraw.Draw(img)
+    tx, ty = x0 + 2 * pad + qr_side, y0 + pad
+    d.text((tx, ty), "AWAY FROM HOME WI-FI", font=head_f, fill=SUN)
+    ty += int(head_f.size * 1.6)
+    for line in lines:
+        d.text((tx, ty), line, font=body_f, fill=INK)
+        ty += int(body_f.size * 1.35)
+    return img
