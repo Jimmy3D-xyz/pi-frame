@@ -100,7 +100,10 @@ Story, Spotlight and Living collage use photos stored on the frame.
 **Next** moves on one step: the next photo, collage or swap. **New set**
 (next to it on the web page, or hold the Next button for a second) skips
 the rest of the round: a new collage and its photos, a new living collage
-layout, or the next style when several take turns.
+layout, or the next style when several take turns. Each new set slides
+in over the old one from the right. **3D** moves on a step with a 3D turn
+(card flip, tip away and cube in turn), drawn there and then: it plays
+after a few seconds (longer at slower speeds).
 
 **Photos around videos** (on by default): when a video doesn't fill the
 screen, such as a landscape video on a portrait screen or a phone video on

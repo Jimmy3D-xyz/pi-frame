@@ -125,6 +125,8 @@ class Frame:
         self._style_since = 0.0
         self._style_steps = 0  # steps shown in the current style
         self._force_switch = False  # "New set" asked for the next style
+        self._turn_now: str | None = None  # the 3D button: this change is a 3D turn of this kind
+        self._turn_now_n = 0
         self._demo_view: dict | None = None  # what demo mode has on screen (for its zooms and slides)
         self._demo_wait: float | None = None
 
@@ -164,6 +166,9 @@ class Frame:
         if caption:  # demo mode's samples: "Sample photo" and the credit
             shown = demo.draw_caption(shown, caption, self.cfg.get("overlay_corner"))
         panel_img = render.to_panel(shown, self.panel, self.cfg.get("display_rotation_deg"))
+        if self._turn_now:  # the 3D button: draw a turn to this picture now, then play it
+            kind, self._turn_now = self._turn_now, None
+            move = self._draw_turn_now(kind, shown) or move
         self._transition(self._dim(panel_img), move)
         self._shown += 1
         self.notice = None
@@ -219,17 +224,47 @@ class Frame:
                     return self.display.zoom_out(img, panel(move["src"]), panel(move["dst"]), self._motion_ms(1600),
                                                  fade)
                 if kind == "slide" and self._can("moves"):
-                    return self.display.slide_in(img, panel(move["rect"]), self._motion_ms(1100), fade)
+                    edge = move.get("edge")
+                    if edge:  # which panel edge the logical edge is on
+                        edge = motion.edge_to_panel(edge, self.logical, self.panel, rot)
+                    return self.display.slide_in(img, panel(move["rect"]), self._motion_ms(1100 if not edge else 1500),
+                                                 fade, edge=edge)
                 turn = move.get("turn")
                 if kind == "3d" and turn is not None and not turn.ready():
                     log.info("%s not drawn yet, so a fade instead", motion.NAMES.get(turn.kind, "3D turn"))
                     turn.cancel()  # stop drawing it: it's no use now
                 if kind == "3d" and turn is not None and turn.ready() and self._can("3d"):
-                    return self.display.play(turn.frames, turn.size, img, turn.ms, 400,
+                    return self.display.play(turn.frames, turn.size, img, turn.ms, 0 if move.get("info_drawn") else 400,
                                              name=motion.NAMES.get(turn.kind, "3D turn"))
             except Exception:  # noqa: BLE001
                 log.exception("moving transition")
         self.display.show(img, fade)
+
+    def turn_now(self, kind: str | None = None) -> tuple[bool, str]:
+        """The 3D button: move on a step with a 3D turn, drawn there and then (a few seconds)."""
+        if not getattr(self.display, "motions", False) or self.cfg.get("transition") != "fade":
+            return False, "3D turns need the display hardware and changes that aren't instant"
+        if kind not in motion.KINDS_3D:
+            kind = motion.KINDS_3D[self._turn_now_n % len(motion.KINDS_3D)]
+            self._turn_now_n += 1
+        self._turn_now = kind
+        try:
+            return self.rotate()
+        finally:
+            self._turn_now = None
+
+    def _draw_turn_now(self, kind: str, shown: Image.Image) -> dict | None:
+        if self.current_full is None or (self.monitor is not None and self.monitor.software_level < 0.999):
+            return None
+        self._drop_turn()
+        ms = self._motion_ms(1300)
+        log.info("%s: drawing it now", motion.NAMES[kind])
+        turn = motion.Turn(kind, self.current_full, shown, self.logical, self.panel,
+                           self.cfg.get("display_rotation_deg"), ms=ms,
+                           frames=motion.frames_for(ms, self.logical, self.panel))
+        if not turn.wait(90):
+            return None
+        return {"kind": "3d", "turn": turn, "info_drawn": True}
 
     def _next_turn_kind(self, mix: bool) -> str | None:
         """Which 3D turn next; with mix, every other change is a plain fade."""
@@ -510,7 +545,7 @@ class Frame:
             imgs = [render.open_image(p, self.logical) for p in st["photos"]]
             img, boxes = collage.layout(imgs, self.logical)
             st["boxes"] = {p: (b, im.size) for p, b, im in zip(st["photos"], boxes, imgs)}
-            move = None
+            move = {"kind": "slide", "rect": (0, 0, *self.logical), "edge": "right"} if st["i"] == 0 else None  # a new set
             if prev[0] == "photo" and prev[1] in st["boxes"]:  # spotlight: the photo shrinks back into its space
                 box, size = st["boxes"][prev[1]]
                 move = {"kind": "zoom-out", "src": motion.tile_source(size, box, self.logical, scale),
@@ -626,7 +661,8 @@ class Frame:
         self._living = {"photos": chosen, "boxes": boxes, "base": base, "order": order, "swaps": 0,
                         "since_spot": 0}
         self._present([base], {"source": "storage", "filepath": f"Living collage of {len(chosen)} photos"},
-                      self._cache_image(base), composed=base)
+                      self._cache_image(base), composed=base,
+                      move={"kind": "slide", "rect": (0, 0, *self.logical), "edge": "right"})  # a new set
         self._step_due = time.time() + self.cfg.get("living_minutes") * 60
         return True, "living collage: new layout"
 

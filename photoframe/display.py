@@ -75,7 +75,7 @@ class BaseDisplay:
         """The picture on screen (its `src` part) shrinks into `dst` of the new one."""
         self.show(img, fade_ms)
 
-    def slide_in(self, img: Image.Image, rect, ms: int, fade_ms: int = 0) -> None:
+    def slide_in(self, img: Image.Image, rect, ms: int, fade_ms: int = 0, edge: str | None = None) -> None:
         """The `rect` part of the new picture slides in from the nearest edge, like a print laid down."""
         self.show(img, fade_ms)
 

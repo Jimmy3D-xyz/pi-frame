@@ -375,6 +375,13 @@ def create_app(frame: Frame) -> Flask:
             return _ok(msg)
         return _err(msg, 502 if cfg.get("rotation_mode") == "url" else 404)
 
+    @app.post("/api/next-3d")
+    def next_3d():
+        """Pi extra: move on a step with a 3D turn, drawn there and then (takes a few seconds)."""
+        data = request.get_json(silent=True) or {}
+        ok, msg = frame.turn_now(data.get("kind"))
+        return _ok(msg) if ok else _err(msg, 409)
+
     @app.post("/api/next-set")
     def next_set():
         """Pi extra: skip the rest of this set (collage round, or style when they take turns)."""
@@ -442,6 +449,7 @@ def create_app(frame: Frame) -> Flask:
                 "screen_on": frame.display.screen_on,
                 "next_rotation": frame.next_rotation,
                 "style_now": frame.active_style(),
+                "motions": bool(getattr(frame.display, "motions", False)),
                 "last_rotation": frame.last_rotation,
                 "thumb_version": frame.thumb_version,
                 "last_fetch_error": frame.state.get("last_fetch_error", ""),

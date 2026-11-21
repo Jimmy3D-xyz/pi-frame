@@ -333,6 +333,7 @@
     <div class="controls">
       <button class="btn" id="prev" title="Show the previous photo">Previous</button>
       <button class="btn primary" id="next" title="Move on one step: the next photo, collage or swap">Next</button>
+      <button class="btn" id="next-3d" title="Move on a step with a 3D turn (card flip, tip away or cube, in turn). Drawing it takes a few seconds." hidden>3D</button>
       <button class="btn" id="next-set" title="Start a fresh set: a new collage and its photos, or the next style when styles take turns" hidden>New set</button>
       <button class="btn" id="screen">Turn screen off</button>
     </div>
@@ -1138,6 +1139,7 @@ async function refreshStatus(reloadImage = false) {
   $("#screen").textContent = status.screen_on ? "Turn screen off" : "Turn screen on";
   $("#prev").disabled = !status.can_go_back;
   const st = config.slideshow_styles || [config.slideshow_style || "classic"];
+  $("#next-3d").hidden = !status.motions || config.transition !== "fade";
   $("#next-set").hidden = config.rotation_mode !== "storage" || (st.length === 1 && st[0] === "classic") || !!config.demo_mode;
   const fe = $("#fetch-error");
   fe.hidden = !status.last_fetch_error;
@@ -1148,6 +1150,12 @@ function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&l
 $("#next").onclick = async (e) => {
   e.target.disabled = true;
   await act(() => api("/api/rotate", { method: "POST" }));
+  e.target.disabled = false; refreshStatus(true);
+};
+$("#next-3d").onclick = async (e) => {
+  e.target.disabled = true;
+  toast("Drawing a 3D turn… it plays in a few seconds");
+  await act(() => api("/api/next-3d", { method: "POST" }));
   e.target.disabled = false; refreshStatus(true);
 };
 $("#next-set").onclick = async (e) => {

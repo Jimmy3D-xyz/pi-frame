@@ -327,18 +327,19 @@ class KmsDisplay(BaseDisplay):
                        first=lambda r: r.add(self.primary, self._plane_props(self.fbs[back])))
         self._moving(img, fade_ms, run)
 
-    def slide_in(self, img, rect, ms, fade_ms=0):
+    def slide_in(self, img, rect, ms, fade_ms=0, edge=None):
         if not self.motions:
             return self.show(img, fade_ms)
         W, H = self.size
         x, y, w, h = rect
-        # off the nearest edge
-        dist = {(-(x + w), 0): x + w, (W - x, 0): W - x, (0, -(y + h)): y + h, (0, H - y): H - y}
-        (ox, oy) = min(dist, key=dist.get)
+        # off the given edge, else the nearest one
+        offs = {"left": (-(x + w), 0), "right": (W - x, 0), "top": (0, -(y + h)), "bottom": (0, H - y)}
+        dist = {"left": x + w, "right": W - x, "top": y + h, "bottom": H - y}
+        (ox, oy) = offs[edge] if edge in offs else offs[min(dist, key=dist.get)]
 
         def path(t):
             e = 1 - _ease_out(t)
-            return rect, (x + ox * e, y + oy * e, w, h), 0.35 + 0.65 * min(1.0, t * 2.5)
+            return rect, (x + ox * e, y + oy * e, w, h), 1.0 if edge else 0.35 + 0.65 * min(1.0, t * 2.5)
 
         self._moving(img, fade_ms, lambda back: self._move("slide", self.fbs[back], path, ms))
 

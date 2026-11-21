@@ -226,8 +226,8 @@ class MovingDisplay(FileDisplay):
         self.calls.append(("zoom-out", src, dst))
         super().show(img, 0)
 
-    def slide_in(self, img, rect, ms, fade_ms=0):
-        self.calls.append(("slide", rect))
+    def slide_in(self, img, rect, ms, fade_ms=0, edge=None):
+        self.calls.append(("slide", rect) if not edge else ("new set", edge))
         super().show(img, 0)
 
     def play(self, frames, size, img, ms, fade_ms=0, name=""):
@@ -259,7 +259,7 @@ def test_spotlight_zooms_in_and_out_of_the_collage(mframe):
     mframe.cfg.update({"slideshow_style": "spotlight", "collage_count": 3})
     for _ in range(5):
         mframe.rotate()
-    assert mframe.display.kinds() == ["show", "zoom-in", "zoom-out", "zoom-in", "zoom-out"]
+    assert mframe.display.kinds() == ["new set", "zoom-in", "zoom-out", "zoom-in", "zoom-out"]  # a new set slides in
     _, src, dst = mframe.display.calls[1]
     assert dst[2] < PANEL[0] * 0.7 and src[2] > dst[2] * 0.5  # from a collage space
 
@@ -272,7 +272,7 @@ def test_story_turns_in_3d_from_photo_to_photo(mframe):
         mframe.rotate()
         wait_turn(mframe)
     kinds = mframe.display.kinds()
-    assert kinds[:2] == ["show", "zoom-in"]
+    assert kinds[:2] == ["new set", "zoom-in"]
     assert kinds[2:5] == ["3d", "show", "3d"]  # 3D turns, mixed with fades
 
 
@@ -478,3 +478,32 @@ def test_new_set_on_the_web(mframe):
     mframe.cfg.update({"slideshow_styles": ["story"], "collage_count": 3, "transition_effects": "fade"})
     assert c.post("/api/next-set").status_code == 200
     assert mframe.state["current"]["filepath"].startswith("Collage")
+
+
+
+def test_new_rounds_slide_in_from_the_right(mframe):
+    mframe.cfg.update({"slideshow_styles": ["living"], "collage_count": 3})
+    mframe.rotate()
+    assert mframe.display.calls[-1] == ("new set", "right")
+    mframe.cfg.update({"display_orientation": "portrait"})  # pictures are turned clockwise onto the panel,
+    mframe.reset_story()                                       # so their right edge is the panel's bottom
+    mframe.rotate()
+    assert mframe.display.calls[-1] == ("new set", "bottom")
+    assert motion.edge_to_panel("right", (1080, 1920), (1920, 1080), 0) == "bottom"
+    assert motion.edge_to_panel("right", (1920, 1080), (1920, 1080), 180) == "left"
+
+
+def test_the_3d_button_draws_a_turn_and_plays_it(mframe):
+    mframe.cfg.update({"local_collage": False})
+    mframe.rotate()
+    mframe._drop_turn()
+    ok, msg = mframe.turn_now()
+    assert ok and mframe.display.calls[-1][0] == "3d"
+    ok, msg = mframe.turn_now("cube")
+    assert mframe.display.calls[-1][0] == "3d"
+    from photoframe.web import create_app
+    c = create_app(mframe).test_client()
+    assert c.post("/api/next-3d").status_code == 200 and mframe.display.calls[-1][0] == "3d"
+    assert c.get("/api/status").get_json()["motions"] is True
+    mframe.cfg.update({"transition": "none"})
+    assert c.post("/api/next-3d").status_code == 409

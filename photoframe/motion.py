@@ -101,6 +101,13 @@ def rect_to_panel(rect: Rect, logical, panel, extra_rotation: int) -> Rect:
     return round(x * sx), round(y * sy), max(2, round(w * sx)), max(2, round(h * sy))
 
 
+def edge_to_panel(edge: str, logical, panel, extra_rotation: int) -> str:
+    """Which edge of the panel a logical edge (left/right/top/bottom) ends up on."""
+    order = ["top", "right", "bottom", "left"]  # clockwise
+    rot = panel_rotation(logical, panel, extra_rotation)
+    return order[(order.index(edge) + rot // 90) % 4]
+
+
 # ---------- 3D turns ----------
 def _coeffs(dst, src):
     """Perspective coefficients mapping output points dst to input points src."""
