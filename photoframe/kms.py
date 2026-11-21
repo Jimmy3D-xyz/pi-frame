@@ -187,13 +187,23 @@ class KmsDisplay(BaseDisplay):
         if dw < 1 or dh < 1:
             return None
         kx, ky = sw / dw, sh / dh
+        unscaled = abs(kx - 1) < 0.002 and abs(ky - 1) < 0.002
+        if unscaled:
+            # whole pixels throughout, so the hardware copies the picture as it is. A picture a
+            # fraction of a pixel off its size gets scaled, and the scaler's last line reads past
+            # the bottom of the picture: a white line along a slide's edge
+            kx = ky = 1.0
+            dx, dy, sx, sy = float(round(dx)), float(round(dy)), float(round(sx)), float(round(sy))
+            dw = sw = float(round(sw))
+            dh = sh = float(round(sh))
         x0, y0, x1, y1 = max(dx, 0.0), max(dy, 0.0), min(dx + dw, W), min(dy + dh, H)
         if x1 - x0 < 2 or y1 - y0 < 2:
             return None
         sx, sy = sx + (x0 - dx) * kx, sy + (y0 - dy) * ky
         sw, sh = (x1 - x0) * kx, (y1 - y0) * ky
         sx, sy = min(max(0.0, sx), FW - 1.0), min(max(0.0, sy), FH - 1.0)
-        sw, sh = max(1.0, min(sw, FW - sx)), max(1.0, min(sh, FH - sy))
+        edge = 0.0 if unscaled else 1.0  # scaled: keep a pixel clear of the picture's edge, for the same reason
+        sw, sh = max(1.0, min(sw, FW - edge - sx)), max(1.0, min(sh, FH - edge - sy))
         ix0, iy0 = round(x0), round(y0)
         return {"FB_ID": fb.id, "CRTC_ID": self.crtc.id,
                 "SRC_X": int(sx * 65536), "SRC_Y": int(sy * 65536), "SRC_W": int(sw * 65536), "SRC_H": int(sh * 65536),

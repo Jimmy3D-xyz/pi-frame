@@ -515,3 +515,18 @@ def test_the_3d_button_draws_a_turn_and_plays_it(mframe):
     assert msg.startswith("collage 1") and mframe._story["photos"] != before and mframe.display.calls[-1][0] == "3d"
     mframe.cfg.update({"transition": "none"})
     assert c.post("/api/next-3d").status_code == 409
+
+
+@pytest.mark.parametrize("edge", ["top", "bottom", "left", "right"])
+def test_slides_copy_whole_pixels(disp, edge):  # noqa: F811
+    """A slide must never be scaled, even by a fraction of a pixel: the scaler's last line reads past the picture."""
+    d, pk = disp
+    d.show(Image.new("RGB", d.size, (255, 0, 0)))
+    pk.log["commits"].clear()
+    d.slide_in(Image.new("RGB", d.size, (0, 0, 255)), (0, 0, *d.size), 200, edge=edge)
+    moves = [c[0][1] for c in pk.log["commits"] if c[0][0] == 127 and c[0][1].get("FB_ID")]
+    assert moves
+    for m in moves:
+        assert m["SRC_X"] % 65536 == 0 and m["SRC_Y"] % 65536 == 0
+        assert m["SRC_W"] >> 16 == m["CRTC_W"] and m["SRC_H"] >> 16 == m["CRTC_H"], m
+        assert (m["SRC_Y"] >> 16) + m["CRTC_H"] <= d.size[1] and (m["SRC_X"] >> 16) + m["CRTC_W"] <= d.size[0]
