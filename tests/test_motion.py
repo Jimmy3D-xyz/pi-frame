@@ -481,15 +481,16 @@ def test_new_set_on_the_web(mframe):
 
 
 
-def test_new_rounds_slide_in_from_the_right(mframe):
+def test_new_rounds_slide_in_from_any_side(mframe):
     mframe.cfg.update({"slideshow_styles": ["living"], "collage_count": 3})
-    mframe.rotate()
-    assert mframe.display.calls[-1] == ("new set", "right")
-    mframe.cfg.update({"display_orientation": "portrait"})  # pictures are turned clockwise onto the panel,
-    mframe.reset_story()                                       # so their right edge is the panel's bottom
-    mframe.rotate()
-    assert mframe.display.calls[-1] == ("new set", "bottom")
-    assert motion.edge_to_panel("right", (1080, 1920), (1920, 1080), 0) == "bottom"
+    edges = []
+    for _ in range(12):
+        mframe.reset_story()
+        mframe.rotate()
+        assert mframe.display.calls[-1][0] == "new set"
+        edges.append(mframe.display.calls[-1][1])
+    assert len(set(edges)) >= 3 and all(a != b for a, b in zip(edges, edges[1:]))  # mixed, never the same twice
+    assert motion.edge_to_panel("right", (1080, 1920), (1920, 1080), 0) == "bottom"  # a portrait frame's right
     assert motion.edge_to_panel("right", (1920, 1080), (1920, 1080), 180) == "left"
 
 

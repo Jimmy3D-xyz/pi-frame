@@ -127,6 +127,7 @@ class Frame:
         self._force_switch = False  # "New set" asked for the next style
         self._turn_now: str | None = None  # the 3D button: this change is a 3D turn of this kind
         self._turn_now_n = 0
+        self._last_edge: str | None = None  # the side the last new set slid in from
         self._demo_view: dict | None = None  # what demo mode has on screen (for its zooms and slides)
         self._demo_wait: float | None = None
 
@@ -239,6 +240,12 @@ class Frame:
             except Exception:  # noqa: BLE001
                 log.exception("moving transition")
         self.display.show(img, fade)
+
+    def _set_edge(self) -> str:
+        """Which side a new set slides in from: any side, but not the same one twice running."""
+        edge = random.choice([e for e in ("left", "right", "top", "bottom") if e != self._last_edge])
+        self._last_edge = edge
+        return edge
 
     def turn_now(self, kind: str | None = None) -> tuple[bool, str]:
         """The 3D button: move on a step with a 3D turn, drawn there and then (a few seconds)."""
@@ -545,7 +552,7 @@ class Frame:
             imgs = [render.open_image(p, self.logical) for p in st["photos"]]
             img, boxes = collage.layout(imgs, self.logical)
             st["boxes"] = {p: (b, im.size) for p, b, im in zip(st["photos"], boxes, imgs)}
-            move = {"kind": "slide", "rect": (0, 0, *self.logical), "edge": "right"} if st["i"] == 0 else None  # a new set
+            move = {"kind": "slide", "rect": (0, 0, *self.logical), "edge": self._set_edge()} if st["i"] == 0 else None
             if prev[0] == "photo" and prev[1] in st["boxes"]:  # spotlight: the photo shrinks back into its space
                 box, size = st["boxes"][prev[1]]
                 move = {"kind": "zoom-out", "src": motion.tile_source(size, box, self.logical, scale),
@@ -662,7 +669,7 @@ class Frame:
                         "since_spot": 0}
         self._present([base], {"source": "storage", "filepath": f"Living collage of {len(chosen)} photos"},
                       self._cache_image(base), composed=base,
-                      move={"kind": "slide", "rect": (0, 0, *self.logical), "edge": "right"})  # a new set
+                      move={"kind": "slide", "rect": (0, 0, *self.logical), "edge": self._set_edge()})
         self._step_due = time.time() + self.cfg.get("living_minutes") * 60
         return True, "living collage: new layout"
 
