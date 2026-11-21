@@ -248,7 +248,8 @@ class Frame:
         return edge
 
     def turn_now(self, kind: str | None = None) -> tuple[bool, str]:
-        """The 3D button: move on a step with a 3D turn, drawn there and then (a few seconds)."""
+        """The 3D button: a new set (as the New set button) with a 3D turn, drawn there and then
+        (a few seconds). With Classic, just the next photo."""
         if not getattr(self.display, "motions", False) or self.cfg.get("transition") != "fade":
             return False, "3D turns need the display hardware and changes that aren't instant"
         if kind not in motion.KINDS_3D:
@@ -256,7 +257,7 @@ class Frame:
             self._turn_now_n += 1
         self._turn_now = kind
         try:
-            return self.rotate()
+            return self.next_set()
         finally:
             self._turn_now = None
 

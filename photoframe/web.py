@@ -377,7 +377,7 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/next-3d")
     def next_3d():
-        """Pi extra: move on a step with a 3D turn, drawn there and then (takes a few seconds)."""
+        """Pi extra: a new set (as /api/next-set) with a 3D turn drawn there and then (takes a few seconds)."""
         data = request.get_json(silent=True) or {}
         ok, msg = frame.turn_now(data.get("kind"))
         return _ok(msg) if ok else _err(msg, 409)

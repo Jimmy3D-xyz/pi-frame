@@ -506,5 +506,12 @@ def test_the_3d_button_draws_a_turn_and_plays_it(mframe):
     c = create_app(mframe).test_client()
     assert c.post("/api/next-3d").status_code == 200 and mframe.display.calls[-1][0] == "3d"
     assert c.get("/api/status").get_json()["motions"] is True
+    # with a collage style, it's a new set: a new collage, not the next step of this one
+    mframe.cfg.update({"slideshow_styles": ["spotlight"], "collage_count": 3})
+    mframe.rotate()
+    mframe.rotate()  # collage, then its first photo
+    before = list(mframe._story["photos"])
+    ok, msg = mframe.turn_now()
+    assert msg.startswith("collage 1") and mframe._story["photos"] != before and mframe.display.calls[-1][0] == "3d"
     mframe.cfg.update({"transition": "none"})
     assert c.post("/api/next-3d").status_code == 409
