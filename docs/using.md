@@ -71,9 +71,11 @@ firmware (`minute hour day-of-week`, e.g. every 30 minutes), in random order
 or in turn.
 
 **Slideshow styles** (Schedule tab): tick one, or several to take turns.
+Tap a style's name (not its tick box) to open its settings.
 
 - **Classic**: one photo at a time. When a photo's shape doesn't suit the
-  screen (a portrait photo on a landscape screen), two are shown side by side.
+  screen (a portrait photo on a landscape screen), two are shown side by
+  side (switch this off in Classic's settings).
 - **Story**: a collage of 3, 4 or 5 photos (or a mix), then each of those
   photos full screen in turn, then a new collage.
 - **Spotlight**: collage, one of its photos, back to the collage, the next
@@ -87,7 +89,8 @@ With several ticked, the frame changes style every 30 minutes to a day
 living collage's layout has finished, never half-way through. The web
 page says which one is showing.
 
-Collage and single-photo times are set separately (e.g. 5 and 10 minutes).
+Story and Spotlight share their collage and photo times (e.g. 5 and 10
+minutes); Living collage has its own swap time (5 minutes to start with).
 Collages put portrait photos in tall spaces and suit both screen shapes.
 Story, Spotlight and Living collage use photos stored on the frame.
 

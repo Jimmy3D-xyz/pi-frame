@@ -274,7 +274,7 @@ def test_dimmed_at_night_no_3d(mframe):
 
 
 def test_living_collage_swaps_one_photo_at_a_time(mframe):
-    mframe.cfg.update({"slideshow_style": "living", "collage_count": 3, "single_minutes": 2})
+    mframe.cfg.update({"slideshow_style": "living", "collage_count": 3, "living_minutes": 2})
     ok, msg = mframe.rotate()
     assert ok and "new layout" in msg
     before = list(mframe._living["photos"])

@@ -550,7 +550,7 @@ class Frame:
         lv["swaps"] += 1
         self._present([base], {"source": "storage", "filepath": f"Living collage: {p.parent.name}/{p.name}"},
                       self._cache_image(base), move={"kind": "slide", "rect": motion.box_rect(box)}, composed=base)
-        self._step_due = time.time() + self.cfg.get("single_minutes") * 60
+        self._step_due = time.time() + self.cfg.get("living_minutes") * 60
         return True, f"living collage: swapped in {p.name}"
 
     def _living_new(self) -> tuple[bool, str]:
@@ -574,7 +574,7 @@ class Frame:
         self._living = {"photos": chosen, "boxes": boxes, "base": base, "order": order, "swaps": 0}
         self._present([base], {"source": "storage", "filepath": f"Living collage of {len(chosen)} photos"},
                       self._cache_image(base), composed=base)
-        self._step_due = time.time() + self.cfg.get("single_minutes") * 60
+        self._step_due = time.time() + self.cfg.get("living_minutes") * 60
         return True, "living collage: new layout"
 
     # ---------- video moments ----------

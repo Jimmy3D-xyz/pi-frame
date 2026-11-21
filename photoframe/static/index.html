@@ -263,9 +263,22 @@
   .odlink .res.bad { color: var(--warn); }
   .odlink .opts { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; align-items: center; font-size: .92rem; margin-bottom: .6rem; }
   .odlink .opts .toggle { margin: 0; }
-  .styles .toggle { align-items: flex-start; margin-bottom: .7rem; }
-  .styles .toggle input { margin-top: .2rem; }
-  .styles small { color: var(--ink-soft); line-height: 1.35; }
+  .styles { display: grid; gap: .5rem; margin-bottom: .9rem; }
+  .style-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+  .style-card.on { border-color: var(--sage); }
+  .style-head { display: flex; align-items: flex-start; gap: .2rem; }
+  .style-head input { flex: none; width: 1.15rem; height: 1.15rem; margin: .85rem .3rem .85rem .85rem; cursor: pointer; }
+  .style-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: .7rem; text-align: left; background: none;
+                border: 0; padding: .65rem .85rem .65rem .3rem; font: inherit; color: inherit; cursor: pointer; }
+  .style-open:focus-visible { outline: 2px solid var(--sage); outline-offset: -2px; border-radius: 8px; }
+  .style-text { flex: 1; min-width: 0; }
+  .style-text small { color: var(--ink-soft); line-height: 1.35; }
+  .style-now { margin-left: .5rem; font-size: .75rem; font-weight: 600; color: var(--sage); }
+  .style-open .chev { flex: none; width: .55rem; height: .55rem; border-right: 2px solid var(--ink-soft);
+                      border-bottom: 2px solid var(--ink-soft); transform: rotate(45deg); transition: transform .15s; }
+  .style-open[aria-expanded="true"] .chev { transform: rotate(-135deg); }
+  .style-body { padding: 0 .85rem .85rem 2.35rem; }
+  .style-body .row { margin-bottom: .3rem; }
   .odlink select { font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: .3rem .4rem; background: #fff; }
   /* ---------- larger view of what's on screen ---------- */
   .window img { cursor: zoom-in; }
@@ -365,24 +378,83 @@
     <div class="tabpanel" id="tab-schedule" role="tabpanel" aria-labelledby="t-schedule" hidden>
       <fieldset id="style">
         <legend>Slideshow styles</legend>
-        <p class="note" style="margin-top:0">Tick one, or several to take turns.</p>
+        <p class="note" style="margin-top:0">Tick one, or several to take turns. Tap a style's name for its settings.</p>
         <div class="styles">
-          <label class="toggle"><input type="checkbox" name="sstyle" value="classic"> <span><b>Classic</b><br><small>One photo at a time, changing on the schedule below. Two side by side when one doesn't suit the screen's shape.</small></span></label>
-          <label class="toggle"><input type="checkbox" name="sstyle" value="story"> <span><b>Story</b><br><small>A collage of a few photos, then each of them full screen in turn, then a new collage.</small></span></label>
-          <label class="toggle"><input type="checkbox" name="sstyle" value="spotlight"> <span><b>Spotlight</b><br><small>A collage, then one of its photos, back to the collage, the next photo, and so on.</small></span></label>
-          <label class="toggle"><input type="checkbox" name="sstyle" value="living"> <span><b>Living collage</b><br><small>One photo at a time swapped for another, like prints laid on a table. A new layout once every space has changed twice.</small></span></label>
+          <div class="style-card" data-style="classic">
+            <div class="style-head">
+              <input type="checkbox" name="sstyle" value="classic" aria-label="Use Classic">
+              <button type="button" class="style-open" aria-expanded="false" aria-controls="sb-classic">
+                <span class="style-text"><b>Classic</b><span class="style-now" hidden>Showing now</span><br><small>One photo at a time, changing on the schedule further down this tab.</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="style-body" id="sb-classic" hidden>
+              <label class="toggle" style="margin:0"><input type="checkbox" data-ovl="local_collage"> Pair two photos when one wouldn't suit the screen's shape</label>
+              <p class="note" style="margin:.3rem 0 0">A portrait photo on a landscape screen (or the other way round) is shown side by side with another of the same shape. When it changes: the schedule rules further down.</p>
+            </div>
+          </div>
+          <div class="style-card" data-style="story">
+            <div class="style-head">
+              <input type="checkbox" name="sstyle" value="story" aria-label="Use Story">
+              <button type="button" class="style-open" aria-expanded="false" aria-controls="sb-story">
+                <span class="style-text"><b>Story</b><span class="style-now" hidden>Showing now</span><br><small>A collage of a few photos, then each of them full screen in turn, then a new collage.</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="style-body" id="sb-story" hidden>
+              <div class="row">
+              <label class="field"><span>Photos in a collage</span>
+                <select data-ovl="collage_count" data-num><option value="0">Mix it up (3–5)</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+              <label class="field"><span>Show each collage for</span>
+                <select data-ovl="collage_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
+              <label class="field"><span>Show each photo for</span>
+                <select data-ovl="single_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
+              </div>
+              <p class="note" style="margin:0">Story and Spotlight share these.</p>
+            </div>
+          </div>
+          <div class="style-card" data-style="spotlight">
+            <div class="style-head">
+              <input type="checkbox" name="sstyle" value="spotlight" aria-label="Use Spotlight">
+              <button type="button" class="style-open" aria-expanded="false" aria-controls="sb-spotlight">
+                <span class="style-text"><b>Spotlight</b><span class="style-now" hidden>Showing now</span><br><small>A collage, then one of its photos, back to the collage, the next photo, and so on.</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="style-body" id="sb-spotlight" hidden>
+              <div class="row">
+              <label class="field"><span>Photos in a collage</span>
+                <select data-ovl="collage_count" data-num><option value="0">Mix it up (3–5)</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+              <label class="field"><span>Show each collage for</span>
+                <select data-ovl="collage_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
+              <label class="field"><span>Show each photo for</span>
+                <select data-ovl="single_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
+              </div>
+              <p class="note" style="margin:0">Story and Spotlight share these.</p>
+            </div>
+          </div>
+          <div class="style-card" data-style="living">
+            <div class="style-head">
+              <input type="checkbox" name="sstyle" value="living" aria-label="Use Living collage">
+              <button type="button" class="style-open" aria-expanded="false" aria-controls="sb-living">
+                <span class="style-text"><b>Living collage</b><span class="style-now" hidden>Showing now</span><br><small>One photo at a time swapped for another, like prints laid on a table. A new layout once every space has changed twice.</small></span>
+                <span class="chev" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="style-body" id="sb-living" hidden>
+              <div class="row">
+              <label class="field"><span>Photos in a collage</span>
+                <select data-ovl="collage_count" data-num><option value="0">Mix it up (3–5)</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+              <label class="field"><span>Swap a photo every</span>
+                <select data-ovl="living_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
+              </div>
+              <p class="note" style="margin:0">Photos in a collage is shared with Story and Spotlight.</p>
+            </div>
+          </div>
         </div>
         <label class="field" id="style-switch"><span>Take turns every</span>
           <select data-ovl="style_switch_minutes" data-num><option value="30">30 minutes</option><option value="60">Hour</option><option value="120">2 hours</option><option value="240">4 hours</option><option value="1440">Day</option></select></label>
         <p class="note" id="style-help" style="margin-top:0"></p>
-        <div class="row" id="style-opts">
-          <label class="field"><span>Photos in a collage</span>
-            <select data-ovl="collage_count" data-num><option value="0">Mix it up (3–5)</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
-          <label class="field" id="collage-time"><span>Show each collage for</span>
-            <select data-ovl="collage_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option></select></label>
-          <label class="field"><span id="single-time">Show each photo for</span>
-            <select data-ovl="single_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
-        </div>
         <label class="toggle" style="margin-top:.6rem"><input type="checkbox" data-ovl="video_surround"> Fill the space around videos with photos</label>
         <p class="note" style="margin-top:0">When a video doesn't fill the screen (a landscape video on a portrait screen, or a phone video on a landscape one), photos that suit the spaces go around it.</p>
         <h4 style="margin:.9rem 0 .3rem">Video moments</h4>
@@ -577,7 +649,6 @@
               <option value="white">White</option>
             </select>
           </label>
-          <label class="toggle"><input type="checkbox" name="local_collage"> Pair two photos when one wouldn't fit the screen well</label>
           <label class="field"><span>Changing pictures</span>
             <select name="changes">
               <option value="all">Fades, zooms, slides and 3D turns</option>
@@ -1555,7 +1626,6 @@ $("#f-display").onsubmit = (e) => {
     await api("/api/config", { json: {
       display_orientation: f.display_orientation.value,
       display_rotation_deg: Number(f.display_rotation_deg.value),
-      local_collage: f.local_collage.checked,
       transition: f.changes.value === "none" ? "none" : "fade",
       ...(f.changes.value === "none" ? {} : { transition_effects: f.changes.value }),
       transition_ms: Number(f.transition_ms.value),
@@ -2357,22 +2427,37 @@ function ticked() {
 }
 function showStyleSettings() {
   const on = ticked();
-  document.querySelectorAll('input[name="sstyle"]').forEach(r => r.checked = on.includes(r.value));
-  const collages = on.some(s => s !== "classic");
+  document.querySelectorAll('input[name="sstyle"]').forEach(r => {
+    r.checked = on.includes(r.value);
+    r.closest(".style-card").classList.toggle("on", r.checked);
+  });
   const several = on.length > 1;
-  $("#style-switch").hidden = !several;
   const now = status && status.style_now;
-  $("#style-help").textContent = (several && now ? `Showing ${STYLE_NAMES[now]} now. They change over at the end of a round (a story, or a living collage's layout). ` : "") +
-    (collages && config.rotation_mode === "url" ? "Collage styles only use photos stored on this frame." : "");
-  $("#style-opts").hidden = !collages;
-  $("#collage-time").hidden = !on.some(s => s === "story" || s === "spotlight");
-  const stories = on.some(s => s === "story" || s === "spotlight");
-  $("#single-time").textContent = !stories ? "Swap a photo every"
-    : on.includes("living") ? "Show each photo (or swap one) every" : "Show each photo for";
+  document.querySelectorAll(".style-card").forEach(c => c.querySelector(".style-now").hidden = !(several && c.dataset.style === now));
+  $("#style-switch").hidden = !several;
+  $("#style-help").textContent = (several ? "They change over at the end of a round (after a story, or a living collage's layout). " : "") +
+    (on.some(s => s !== "classic") && config.rotation_mode === "url" ? "Collage styles only use photos stored on this frame." : "");
   $('[data-ovl="clip_seconds"]').closest("label").hidden = !config.clip_every_minutes;
   $("#fun-own-row").hidden = config.overlay_fun === "off";
   if (document.activeElement !== $("#fun-own")) $("#fun-own").value = (config.fun_custom || []).join("\n");
 }
+function openStyle(card, open) {
+  const btn = card.querySelector(".style-open");
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  card.querySelector(".style-body").hidden = !open;
+}
+document.querySelectorAll(".style-card").forEach(card => {
+  card.querySelector(".style-open").onclick = () => {
+    const open = card.querySelector(".style-open").getAttribute("aria-expanded") !== "true";
+    openStyle(card, open);
+    try {
+      const keep = new Set(JSON.parse(localStorage.getItem("open-styles") || "[]"));
+      open ? keep.add(card.dataset.style) : keep.delete(card.dataset.style);
+      localStorage.setItem("open-styles", JSON.stringify([...keep]));
+    } catch {}
+  };
+  try { if (JSON.parse(localStorage.getItem("open-styles") || "[]").includes(card.dataset.style)) openStyle(card, true); } catch {}
+});
 document.querySelectorAll('input[name="sstyle"]').forEach(r => r.onchange = () => {
   const on = [...document.querySelectorAll('input[name="sstyle"]')].filter(x => x.checked).map(x => x.value);
   if (!on.length) { r.checked = true; toast("Keep at least one style ticked", true); return; }

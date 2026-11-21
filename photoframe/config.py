@@ -54,6 +54,7 @@ DEFAULT_CONFIG: dict = {
     "collage_count": 0,        # 3, 4 or 5 photos; 0 = mix it up
     "collage_minutes": 5,
     "single_minutes": 10,
+    "living_minutes": 5,       # living collage: swap a photo this often
     # video moments: a short clip from a random point of a random video
     "clip_every_minutes": 0,   # 0 = off
     "clip_seconds": 20,
@@ -329,7 +330,7 @@ class ConfigStore:
                 raise ConfigError("style_switch_minutes must be 30, 60, 120, 240 or 1440")
             if key == "collage_count" and val not in (0, 3, 4, 5):
                 raise ConfigError("collage_count must be 3, 4, 5 or 0 (mix)")
-            if key in ("collage_minutes", "single_minutes") and not 1 <= val <= 240:
+            if key in ("collage_minutes", "single_minutes", "living_minutes") and not 1 <= val <= 240:
                 raise ConfigError(f"{key} must be 1 to 240")
             if key == "clip_every_minutes" and val not in (0, 15, 30, 60, 120, 240):
                 raise ConfigError("clip_every_minutes must be 0, 15, 30, 60, 120 or 240")
