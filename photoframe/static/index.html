@@ -47,7 +47,15 @@
                  border: 1px solid rgba(244,241,234,.22); border-radius: 999px; padding: .25rem .7rem; white-space: nowrap; }
   .screen-chip i { width: .55rem; height: .55rem; border-radius: 50%; background: #8fbf9f; box-shadow: 0 0 0 3px rgba(143,191,159,.18); }
   .screen-chip.off i { background: #8a8378; box-shadow: none; }
-  @media (max-width: 480px) { .screen-chip span { display: none; } .wordmark { font-size: 1.35rem; } }
+  .chips { flex: none; margin-left: auto; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  button.screen-chip { background: transparent; cursor: pointer; font: inherit; font-size: .82rem; }
+  button.screen-chip:hover { border-color: rgba(244,241,234,.55); color: #f4f1ea; }
+  button.screen-chip:disabled { opacity: .6; cursor: progress; }
+  .screen-chip.conn { border-color: transparent; padding-left: .2rem; }
+  .screen-chip.warn i { background: #e0b354; box-shadow: 0 0 0 3px rgba(224,179,84,.2); }
+  .screen-chip.bad i { background: #e07a5f; box-shadow: 0 0 0 3px rgba(224,122,95,.22); }
+  @media (max-width: 560px) { .screen-chip.conn .net { display: none; } }
+  @media (max-width: 480px) { .screen-chip.conn > span { display: none; } .wordmark { font-size: 1.35rem; } }
 
   .foot { max-width: 1100px; margin: 0 auto; padding: .5rem 1.25rem 1.5rem; color: var(--ink-soft); font-size: .82rem;
           display: flex; gap: .6rem; align-items: center; }
@@ -317,7 +325,10 @@
       <h1 class="wordmark"><span class="pi">Pi</span> Frame</h1>
       <p class="sub" id="subtitle">Connecting…</p>
     </div>
-    <span class="screen-chip" id="brand-screen" title="The frame's screen"><i></i><span>Screen on</span></span>
+    <div class="chips">
+      <span class="screen-chip conn" id="brand-conn" role="status" title="Whether this page can reach the frame"><i></i><span>Connecting…</span></span>
+      <button type="button" class="screen-chip" id="brand-screen" aria-pressed="true" title="Turn the screen off"><i></i><span>Screen on</span></button>
+    </div>
   </div>
 </header>
 <div class="layout">
@@ -335,7 +346,6 @@
       <button class="btn primary" id="next" title="Move on one step: the next photo, collage or swap">Next</button>
       <button class="btn" id="next-3d" title="A new set with a 3D turn (card flip, tip away or cube, in turn): a new collage, or the next style when styles take turns; with Classic, the next photo. Drawing it takes a few seconds." hidden>3D</button>
       <button class="btn" id="next-set" title="Start a fresh set: a new collage and its photos, or the next style when styles take turns" hidden>New set</button>
-      <button class="btn" id="screen">Turn screen off</button>
     </div>
   </section>
 
@@ -1107,8 +1117,29 @@ let status = {}, config = {}, processing = {};
 function fmtTime(ts) {
   return new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
+let failures = 0;
+function showConnection(ok) {
+  const c = $("#brand-conn");
+  c.classList.remove("warn", "bad");
+  if (!ok) {
+    failures++;
+    if (failures < 2) return;           // one missed check is just a blip
+    c.classList.add("bad");
+    c.querySelector("span").textContent = "Can't reach the frame";
+    c.title = "This page hasn't heard from the frame for a while. It keeps trying.";
+    return;
+  }
+  failures = 0;
+  const away = status.away, ssid = status.ssid;
+  if (away) c.classList.add("warn");
+  c.querySelector("span").innerHTML = away ? "Connected · <span class=\"net\">frame's own Wi-Fi</span>"
+    : "Connected" + (ssid ? ` · <span class="net">${escapeHtml(ssid)}</span>` : "");
+  c.title = away ? "Connected through the frame's own Wi-Fi: it's away from its home network"
+    : ssid ? `Connected; the frame is on the ${ssid} network` : "Connected";
+}
 async function refreshStatus(reloadImage = false) {
-  try { status = await api("/api/status"); } catch { return; }
+  try { status = await api("/api/status"); } catch { showConnection(false); return; }
+  showConnection(true);
   if (config.slideshow_styles) showStyleSettings();
   const [w, h] = status.panel;
   const portrait = config.display_orientation === "portrait";
@@ -1134,12 +1165,13 @@ async function refreshStatus(reloadImage = false) {
   if (!status.screen_on) cap = "The screen is off. " + cap;
   $("#caption").innerHTML = cap;
   $("#wifi-row").hidden = status.wifi === "disabled";
-  $("#next").textContent = status.playing ? "Stop video" : "Next photo";
+  $("#next").textContent = status.playing ? "Stop video" : "Next";
   $("#video-settings").hidden = !status.videos_supported;
   $("#brand-screen").classList.toggle("off", !status.screen_on);
   $("#brand-screen span").textContent = status.screen_on ? "Screen on" : "Screen off";
+  $("#brand-screen").setAttribute("aria-pressed", String(!!status.screen_on));
+  $("#brand-screen").title = status.screen_on ? "Turn the screen off" : "Turn the screen on";
   $("#foot-version").textContent = `Pi Frame ${status.version}`;
-  $("#screen").textContent = status.screen_on ? "Turn screen off" : "Turn screen on";
   $("#prev").disabled = !status.can_go_back;
   const st = config.slideshow_styles || [config.slideshow_style || "classic"];
   $("#next-3d").hidden = !status.motions || config.transition !== "fade";
@@ -1167,8 +1199,11 @@ $("#next-set").onclick = async (e) => {
   e.target.disabled = false; refreshStatus(true);
 };
 $("#prev").onclick = async () => { await act(() => api("/api/previous", { method: "POST" })); refreshStatus(true); };
-$("#screen").onclick = async () => {
+$("#brand-screen").onclick = async (e) => {
+  const b = e.currentTarget;
+  b.disabled = true;
   await act(() => api("/api/screen", { json: { on: !status.screen_on } }));
+  b.disabled = false;
   refreshStatus();
 };
 

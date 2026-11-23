@@ -481,6 +481,8 @@ def create_app(frame: Frame) -> Flask:
                 ),
                 "videos_supported": frame.jobs is not None,
                 "wifi": frame.wifi.status.mode if frame.wifi else "disabled",
+                "ssid": (frame.wifi.status.ssid or "") if frame.wifi else "",
+                "away": frame.away,
                 "version": __version__,
             }
         )

@@ -186,7 +186,9 @@ photo count, history or backups.
 - **Screen schedule** (Display tab): on and off times, e.g. on at 07:00 and
   off at 22:30.
 - **Presence sensor**: on when someone's in the room, off when they've left.
-- **Screen button** on the web page, or the [physical button](screen-and-hardware.md#physical-buttons).
+- **Screen button** at the top of the web page (it shows whether the screen is on; tap it to switch), or the [physical button](screen-and-hardware.md#physical-buttons).
+
+Beside it, a dot shows whether the page can reach the frame, and which Wi-Fi network the frame is on (amber when it's away, on its own Wi-Fi; red if the page can't reach it).
 
 With a monitor that supports DDC/CI, the monitor itself can go into standby
 too, and dim at night. See [Monitor brightness](screen-and-hardware.md#monitor-brightness-and-standby).
