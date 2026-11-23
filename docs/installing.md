@@ -33,7 +33,7 @@ installed. Nothing needs typing on a computer: the frame sets itself up from
 your phone.
 
 1. **Download** `pi-frame-<version>.img.xz` from the repository's
-   [Releases](https://github.com/JimmySte/pi-frame/releases) page. Not
+   [Releases](https://github.com/Jimmy3D-xyz/pi-frame/releases) page. Not
    every release has a new image: the newest release's notes link to the
    latest one. Once set up, the frame updates to the newest version from
    the Maintenance tab.
@@ -272,8 +272,12 @@ read-only GitHub token, made once:
 
 1. On GitHub: your picture → **Settings** → **Developer settings** →
    **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
-2. Name it (e.g. "Pi Frame updates") and choose an expiry (up to a year).
-3. Repository access: **Only select repositories** → `JimmySte/pi-frame`.
+2. Name it (e.g. "Pi Frame updates"), set **Resource owner** to
+   **Jimmy3D-xyz** (the organization the repository belongs to), and choose
+   an expiry (up to a year). If the organization isn't offered, an owner
+   allows fine-grained tokens first: its **Settings** → **Personal access
+   tokens**.
+3. Repository access: **Only select repositories** → `Jimmy3D-xyz/pi-frame`.
 4. Permissions → Repository permissions → **Contents: Read-only**. Nothing else.
 5. **Generate token**, copy it, and paste it into the frame.
 

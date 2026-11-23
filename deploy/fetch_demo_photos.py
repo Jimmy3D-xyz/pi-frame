@@ -37,8 +37,8 @@ AIC = "https://api.artic.edu/api/v1"
 AIC_IIIF = "https://www.artic.edu/iiif/2"
 AIC_FIELDS = "id,title,artist_title,artist_display,date_display,image_id,is_public_domain,classification_title,thumbnail"
 NASA = "https://images-api.nasa.gov"
-UA = {"User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)",
-      "AIC-User-Agent": "Pi-Frame demo photo fetcher (https://github.com/JimmySte/pi-frame)"}
+UA = {"User-Agent": "Pi-Frame demo photo fetcher (https://github.com/Jimmy3D-xyz/pi-frame)",
+      "AIC-User-Agent": "Pi-Frame demo photo fetcher (https://github.com/Jimmy3D-xyz/pi-frame)"}
 LONG_EDGE = 1920
 ART_QUERIES = ["landscape", "seascape", "mountains", "river", "garden", "flowers", "harbor", "snow", "sunset", "autumn"]
 NASA_QUERIES = ["earth from space station", "aurora from space station", "milky way", "Saturn Cassini",

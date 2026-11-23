@@ -71,7 +71,7 @@ jobs:
               gh release upload "$tag" dist/pi-frame-*.img.xz dist/pi-frame-*.img.xz.sha256 --clobber
               gh release view "$tag" --json body -q .body > old.md
               { echo "**Ready-made image** (added $(date -u +%Y-%m-%d)): write \`pi-frame-$ver.img.xz\` to a microSD card"
-                echo "with Raspberry Pi Imager (Operating system → Use custom). See [Installing](https://github.com/JimmySte/pi-frame/blob/main/docs/installing.md)."
+                echo "with Raspberry Pi Imager (Operating system → Use custom). See [Installing](https://github.com/Jimmy3D-xyz/pi-frame/blob/main/docs/installing.md)."
                 echo; grep -v '^- New frame?' old.md; } > notes.md
               gh release edit "$tag" --notes-file notes.md
               exit 0
@@ -84,7 +84,7 @@ jobs:
           **Ready-made image**: write \`pi-frame-$ver.img.xz\` to a microSD card with Raspberry Pi Imager
           (Operating system → Use custom), put it in a Raspberry Pi 4, and switch it on with the monitor connected.
           The frame starts a Wi-Fi hotspot and shows a QR code; scan it and the welcome wizard does the rest.
-          See [Installing](https://github.com/JimmySte/pi-frame/blob/main/docs/installing.md).
+          See [Installing](https://github.com/Jimmy3D-xyz/pi-frame/blob/main/docs/installing.md).
 
           - \`pi-photoframe.zip\`: the update package (Maintenance → Software update)
           - \`pi-frame-kit.zip\`: the installer kit, for setting up a card you've written yourself

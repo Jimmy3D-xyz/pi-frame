@@ -2,7 +2,7 @@
 
 # Pi Frame
 
-[![Tests](https://github.com/JimmySte/pi-frame/actions/workflows/tests.yml/badge.svg)](https://github.com/JimmySte/pi-frame/actions/workflows/tests.yml)
+[![Tests](https://github.com/Jimmy3D-xyz/pi-frame/actions/workflows/tests.yml/badge.svg)](https://github.com/Jimmy3D-xyz/pi-frame/actions/workflows/tests.yml)
 
 A digital photo frame for a Raspberry Pi 4 and an HDMI monitor. Photos and
 videos from the Pi itself, your OneDrive, Google Drive, Dropbox or NAS, run
@@ -40,7 +40,7 @@ work with it unchanged.
 ## Install
 
 1. Download the **ready-made image** (`pi-frame-<version>.img.xz`) from
-   [Releases](https://github.com/JimmySte/pi-frame/releases) (the newest
+   [Releases](https://github.com/Jimmy3D-xyz/pi-frame/releases) (the newest
    release links to it, if it isn't attached itself).
 2. Write it to a microSD card with Raspberry Pi Imager (Operating system →
    **Use custom**).

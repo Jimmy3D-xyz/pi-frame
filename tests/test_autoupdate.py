@@ -16,7 +16,7 @@ from photoframe.updater import Updates
 from test_updater import package
 
 TOKEN = "github_pat_" + "A1b2" * 10
-REPO = "JimmySte/pi-frame"
+REPO = "Jimmy3D-xyz/pi-frame"
 
 
 class FakeGitHub:
@@ -223,3 +223,13 @@ def test_once_installed_it_isnt_offered_again(au, gh, tmp_path, monkeypatch):
     again = AutoUpdate(tmp_path, au.cfg, Updates(tmp_path), None, api=gh.url)
     st = again.status()
     assert st["available"] is None and st["latest"] == newer() and again.health() is None
+
+
+def test_frames_follow_the_repository_to_its_new_home(tmp_path):
+    import json
+    from photoframe.config import ConfigStore
+    cfg = ConfigStore(tmp_path)
+    cfg.update({"update_repo": "JimmySte/pi-frame"})
+    raw = json.loads((tmp_path / "config.json").read_text())
+    assert raw["config"]["update_repo"] == "JimmySte/pi-frame"
+    assert ConfigStore(tmp_path).get("update_repo") == "Jimmy3D-xyz/pi-frame"

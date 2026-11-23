@@ -112,7 +112,7 @@ DEFAULT_CONFIG: dict = {
     # updates from GitHub (needs a read-only token, kept outside the settings)
     "update_auto": "notify",  # off | notify | install
     "update_time": "03:30",
-    "update_repo": "JimmySte/pi-frame",
+    "update_repo": "Jimmy3D-xyz/pi-frame",
     # demo (shop) mode: sample photos and "about this frame" slides; also shown
     # automatically on a set-up frame with no photos yet
     "demo_mode": False,
@@ -208,6 +208,8 @@ class ConfigStore:
             return
         stored = raw.get("config", {})
         self.config.update({k: v for k, v in stored.items() if k in DEFAULT_CONFIG})
+        if self.config.get("update_repo") == "JimmySte/pi-frame":  # the repository moved to the Jimmy3D-xyz organization
+            self.config["update_repo"] = "Jimmy3D-xyz/pi-frame"
         if "slideshow_styles" not in stored:  # saved before styles could be combined
             self.config["slideshow_styles"] = [self.config.get("slideshow_style") or "classic"]
         if self.config.get("device_name") == "PhotoFrame":  # the old default name

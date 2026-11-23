@@ -98,7 +98,7 @@ class AutoUpdate:
 
     @property
     def repo(self) -> str:
-        return str(self.cfg.get("update_repo") or "JimmySte/pi-frame")
+        return str(self.cfg.get("update_repo") or "Jimmy3D-xyz/pi-frame")
 
     @property
     def mode(self) -> str:
