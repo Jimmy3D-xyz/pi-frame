@@ -17,6 +17,8 @@ from photoframe.frame import Frame
 from photoframe.storage import Storage
 from photoframe.web import create_app
 
+from adminhelp import unlock
+
 pytestmark = pytest.mark.skipif(shutil.which("rclone") is None, reason="rclone not installed")
 PANEL = (1920, 1080)
 
@@ -162,6 +164,8 @@ def test_synced_video_gets_stable_name(env):
 
 def test_web_api_browse_and_link(env):
     frame, od, root, client = env
+    assert client.get("/api/cloud").status_code == 403  # synced folders are an admin option
+    unlock(client, frame)
     photo(root / "Pictures" / "Wedding" / "a.jpg", (1, 1, 1))
     (root / "Pictures" / "Holidays").mkdir(parents=True)
     st = client.get("/api/cloud").get_json()
