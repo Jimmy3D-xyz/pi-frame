@@ -19,6 +19,7 @@ A Python (Flask) app, started with `python3 -m photoframe`.
 | `photoframe/__main__.py` | Start-up: settings, display, web server, background jobs |
 | `photoframe/frame.py` | The slideshow: what to show next, schedules, screen power |
 | `photoframe/web.py` | The website and HTTP API |
+| `photoframe/admin.py` | The admin login, and the checks that keep other websites out (see [Security](#security)) |
 | `photoframe/config.py` | Settings and their defaults (`DEFAULT_CONFIG`) |
 | `photoframe/display.py` | Screens: framebuffer, no-screen (headless), PNG file for testing |
 | `photoframe/kms.py` | The display-hardware screen: double buffering, 60 fps fades, zooms, slides and flip-book playback |
@@ -98,6 +99,7 @@ Set in `deploy/pi-photoframe.service` with `Environment=` lines:
 | `PHOTOFRAME_AO` | `alsa` | mpv audio output |
 | `PHOTOFRAME_MPV_ARGS` | | Extra mpv options |
 | `PHOTOFRAME_SCREEN_OFF_CMD`, `PHOTOFRAME_SCREEN_ON_CMD` | | Extra commands to switch the monitor off and on (e.g. HDMI-CEC) |
+| `PHOTOFRAME_ALLOWED_HOSTS` | | Extra names the web page answers to, comma-separated (see [Security](#security)) |
 
 After editing: `sudo systemctl daemon-reload && sudo systemctl restart pi-photoframe`.
 A re-install replaces the file, so keep a note of any changes.
@@ -146,10 +148,42 @@ errors or placeholder values. Pi Frame adds:
 | `POST /api/maintenance/reset` | Reset to a fresh frame (`{"confirm": "RESET", "remove_logins": false}`) |
 | `GET/POST /api/setup` | The welcome wizard (only on a frame that hasn't been set up) |
 | `POST /api/backup/restore` | Restore it (`{"from": "upload"}` or a kept backup's name); the frame restarts |
+| `GET /api/admin` | Whether the admin options are unlocked, and which passwords are set |
+| `POST /api/admin/unlock`, `POST /api/admin/lock` | Unlock with `{"password": …}` (sets the admin cookie), or lock |
+| `POST /api/admin/password` | Set the admin password (`{"password": …}`): needs the admin unlocked, except the first time |
+| `POST /api/admin/page-password` | Set the page password, or remove it with `""` |
 
 When the page has a password, the API needs it too (HTTP basic auth). Extra
 config fields beyond the firmware's are listed with their defaults in
 `DEFAULT_CONFIG` in `photoframe/config.py`.
+
+## Security
+
+`photoframe/admin.py` holds the checks; `web.py` applies them before every request.
+
+- **Only the frame's own names.** Requests addressed to any other host name
+  are refused (403), which stops DNS rebinding. Allowed: IP addresses,
+  `localhost`, the hostname and `<hostname>.local`, `*.ts.net` (Tailscale),
+  and anything in `PHOTOFRAME_ALLOWED_HOSTS`. While the setup hotspot is up,
+  other names are redirected to the setup page instead (the captive portal).
+- **No changes started by other websites.** POST, PUT, PATCH and DELETE are
+  refused when the browser says another site started them (`Origin` not
+  this host, or `Sec-Fetch-Site: cross-site`). Apps and scripts send
+  neither header, so the image server and Home Assistant are unaffected.
+- **Two levels.** The page password (optional, HTTP basic auth) covers the
+  whole page and API. The admin options (`ADMIN_PREFIXES`: updates, SSH,
+  reset, saved Wi-Fi and changing network, diagnostics, restart, reboot,
+  backups, synced folders, the page password) and the admin settings in
+  `/api/config` (`ADMIN_KEYS`: passwords, update and backup settings) also
+  need the admin unlocked: a random token in the `pf_admin` cookie
+  (HttpOnly, SameSite=Strict, no expiry date, so it ends with the browser),
+  kept in memory for 15 minutes after its last use. Without it they answer
+  403 with `"admin": "locked"` (or `"no-password"`). The image server's
+  `X-Config-Payload` can't change `ADMIN_KEYS`.
+- **Slow guessing.** After 3 wrong page or admin passwords from one address,
+  each further try waits 5 s, then 10 s, 20 s … up to 5 minutes.
+- **Synced folders** only browse accounts set up on the frame: rclone remote
+  names like `:local` are refused.
 
 ## The image server patch
 

@@ -23,6 +23,10 @@ It speaks the esp32-photoframe HTTP API. Repository: `Jimmy3D-xyz/pi-frame`
   Bump `photoframe/__init__.py`, run `python3 -m pytest tests -q -n 4 --dist loadfile`,
   commit, push.
 - Keep the docs in step with changes (README, `docs/`).
+- Security model (0.33.0): everyday page (optional page password) vs admin
+  options (admin password, 15-minute unlock cookie); other host names and
+  cross-site changes are refused. See `docs/developers.md#security`; new
+  sensitive endpoints or settings go in `ADMIN_PREFIXES` / `ADMIN_KEYS`.
 
 ## Things learned the hard way
 

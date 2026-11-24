@@ -14,7 +14,8 @@ scan the QR code the frame shows when it starts).
 - [Turning the screen on and off](#turning-the-screen-on-and-off)
 - [Portrait mounting](#portrait-mounting)
 - [Wi-Fi and the setup screens](#wi-fi-and-the-setup-screens)
-- [Page password](#page-password)
+- [Admin options and passwords](#admin-options-and-passwords)
+- [Away from home](#away-from-home)
 - [Home Assistant and the image server](#home-assistant-and-the-image-server)
 
 ## Photos and albums
@@ -242,13 +243,54 @@ rejoins your Wi-Fi by itself and the panel goes.
 Maintenance → Wi-Fi and network lists the saved networks, so you can
 forget one you used away from home.
 
-To change network from the web page: Photo source → Change Wi-Fi network.
+To change network from the web page: Photo source → Change Wi-Fi network
+(with the admin options unlocked).
 
-## Page password
+## Admin options and passwords
 
-Maintenance → Page password protects the web page, and is needed before
-software updates can be installed from it. It's separate from the SSH
-password you set in Raspberry Pi Imager.
+The page has two levels, so other people at home can use it without being
+able to change the important things.
+
+**Everyday use** (photos, albums, the slideshow, the screen, display
+settings) works for anyone who can open the page.
+
+**Admin options** are locked with the **admin password**, chosen in the
+welcome wizard: software updates, backups, Wi-Fi settings, synced folders,
+SSH, restarting, resetting the frame, and the passwords themselves. To use
+them, open Maintenance and enter the admin password at the top. They lock
+again after 15 minutes without being used, when you close the browser, or
+with **Lock now**. After a few wrong passwords the page makes you wait a
+little before trying again (longer each time).
+
+Frames set up before version 0.33.0 use their page password as the admin
+password to start with. Change either under Maintenance → Passwords. A frame
+with no password at all asks you to set an admin password at the top of
+Maintenance.
+
+**Page password** (optional, Maintenance → Passwords): your browser asks for
+it before showing the page at all (the username can be anything). Use one
+if people you don't want changing the photos can join your Wi-Fi. If you use
+the Home Assistant integration or the image server, enter it in their frame
+settings too. Pick a different one from the admin password if others will
+know it.
+
+Both are separate from the SSH password.
+
+Forgotten the admin password? See [Troubleshooting](troubleshooting.md).
+
+## Away from home
+
+Don't open the frame to the internet by forwarding a port on your router:
+the page isn't made for that (no HTTPS, so passwords could be read on the
+way). To reach it away from home, put the frame and your phone on
+[Tailscale](https://tailscale.com/), a free private network: the page then
+opens from anywhere, and nobody else can see it. The frame accepts its
+Tailscale name (`piframe.your-tailnet.ts.net`) as well as `piframe.local`
+and its IP address.
+
+The frame only answers to its own names. If you reach it some other way
+(a name of your own on your router, say), add that name to
+`PHOTOFRAME_ALLOWED_HOSTS` (see [For developers](developers.md#settings-for-the-service)).
 
 ## Home Assistant and the image server
 

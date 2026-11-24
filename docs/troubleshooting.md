@@ -88,10 +88,31 @@ A card that switches itself to read-only is usually failing. Back up while
 you still can and replace it.
 
 **I've forgotten the SSH password, or there's no SSH login.**
-The page password and the SSH password are separate. Under Maintenance →
+The admin password and the SSH password are separate. Under Maintenance →
 **SSH login** you can set a new password for the login, create a login if the
 Pi has none (e.g. it was skipped in the welcome wizard), and switch SSH on or
-off. This needs the page password.
+off. Unlock the admin options first.
+
+**I've forgotten the admin password.**
+With an SSH login, clear it from a computer, then set a new one at the top
+of Maintenance:
+
+```sh
+ssh name@piframe.local
+sudo systemctl stop pi-photoframe
+sudo python3 -c "import json; p='/var/lib/pi-photoframe/config.json'; d=json.load(open(p)); d['config']['admin_password']=''; json.dump(d, open(p, 'w'), indent=2)"
+sudo systemctl start pi-photoframe
+```
+
+Without an SSH login there's no way in from the page (that's the point of
+it): write the image to the card again and run the welcome wizard. Restore
+an Everything backup afterwards if you have one.
+
+**The page says "This frame only answers to its own address".**
+Open it as `http://piframe.local/` or by its IP address (Maintenance shows
+it). Other names are turned away so websites can't trick your browser into
+reaching the frame. A name of your own can be added: see
+[Away from home](using.md#away-from-home).
 
 **An automatic backup to the NAS fails with "didn't let the frame save there".**
 The NAS account can read but not write. Give it write permission on the

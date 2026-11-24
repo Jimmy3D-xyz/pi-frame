@@ -18,6 +18,8 @@ from photoframe.frame import Frame
 from photoframe.storage import Storage
 from photoframe.web import create_app
 
+from adminhelp import unlock
+
 REPO = Path(__file__).resolve().parents[1]
 AUTH = {"Authorization": "Basic " + base64.b64encode(b"alex:s3cret-pw").decode()}
 
@@ -84,10 +86,13 @@ def test_inspect_package(tmp_path):
 def test_updates_need_a_password(env):
     frame, client, data = env
     r = up(client, package(), headers={})
-    assert r.status_code == 403 and "password" in r.get_json()["message"]
-    assert client.get("/api/maintenance/update").get_json()["password_set"] is False
+    assert r.status_code == 403 and "admin password" in r.get_json()["message"]
+    assert client.get("/api/maintenance/update").get_json()["admin"] == "no-password"
     frame.cfg.update({"http_password": "s3cret-pw"})
     assert up(client, package(), headers={}).status_code == 401  # and the page itself is now protected
+    frame.cfg.update({"admin_password": "admin-pass-1"})
+    assert up(client, package()).status_code == 403  # the page password alone isn't enough
+    unlock(client, frame, AUTH)
     r = up(client, package("9.9.9"))
     assert r.status_code == 200 and r.get_json()["new"] == "9.9.9"
     st = client.get("/api/maintenance/update", headers=AUTH).get_json()
@@ -99,6 +104,7 @@ def test_updates_need_a_password(env):
 def test_bad_upload_is_rejected_and_not_kept(env):
     frame, client, data = env
     frame.cfg.update({"http_password": "s3cret-pw"})
+    unlock(client, frame, AUTH)
     r = up(client, package(extra={"pi-photoframe/../escape.sh": "x"}))
     assert r.status_code == 400 and "unsafe path" in r.get_json()["message"]
     assert not list((data / "update").glob("*.zip")) and not (data / "update" / "upload.tmp").exists()
@@ -107,6 +113,7 @@ def test_bad_upload_is_rejected_and_not_kept(env):
 def test_updater_not_installed_is_reported_and_package_kept(env, monkeypatch):
     frame, client, data = env
     frame.cfg.update({"http_password": "s3cret-pw"})
+    unlock(client, frame, AUTH)
     up(client, package("9.9.9"))
     assert client.post("/api/maintenance/update/install", headers=AUTH).status_code == 200
     assert (data / "update" / "pending.zip").exists()
@@ -124,6 +131,7 @@ def test_full_handoff_to_root_updater(env, tmp_path):
     it) -> status shown back through the web API."""
     frame, client, data = env
     frame.cfg.update({"http_password": "s3cret-pw"})
+    unlock(client, frame, AUTH)
     app_dir = tmp_path / "opt" / "pi-photoframe"
     (app_dir / "photoframe").mkdir(parents=True)
     (app_dir / "photoframe" / "__init__.py").write_text(f'__version__ = "{__version__}"\n')

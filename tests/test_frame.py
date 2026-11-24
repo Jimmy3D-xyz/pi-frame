@@ -126,7 +126,11 @@ def test_albums_upload_rotate_previous(app_env):
 
 def test_http_password(app_env):
     client, frame, _ = app_env
-    client.post("/api/config", json={"http_password": "s3cret"})
+    assert client.post("/api/config", json={"http_password": "s3cret"}).status_code == 403  # an admin setting
+    from adminhelp import unlock
+
+    unlock(client, frame)
+    assert client.post("/api/config", json={"http_password": "s3cret"}).status_code == 200
     assert client.get("/api/system-info").status_code == 401
     import base64
 

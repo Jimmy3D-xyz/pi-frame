@@ -10,6 +10,8 @@ from photoframe.frame import Frame
 from photoframe.storage import Storage
 from photoframe.web import create_app
 
+from adminhelp import unlock
+
 PANEL = (1920, 1080)
 
 
@@ -90,13 +92,14 @@ def test_activity_log_and_filter(env):
 def test_diagnostics_have_no_secrets(env):
     frame, client = env
     frame.cfg.update({"access_token": "TOKEN-12345", "openai_api_key": "sk-SECRET", "http_password": "hunter2",
-                      "device_name": "LCD frame"})
-    r = client.get("/api/maintenance/diagnostics", headers={
-        "Authorization": "Basic " + __import__("base64").b64encode(b"x:hunter2").decode()})
+                      "admin_password": "admin-secret-9", "device_name": "LCD frame"})
+    auth = {"Authorization": "Basic " + __import__("base64").b64encode(b"x:hunter2").decode()}
+    unlock(client, frame, auth)
+    r = client.get("/api/maintenance/diagnostics", headers=auth)
     assert r.status_code == 200 and "attachment" in r.headers["Content-Disposition"]
     text = r.get_data(as_text=True)
     assert "== summary" in text and "LCD frame" in text
-    for secret in ("TOKEN-12345", "sk-SECRET", "hunter2"):
+    for secret in ("TOKEN-12345", "sk-SECRET", "hunter2", "admin-secret-9"):
         assert secret not in text
 
 
@@ -104,6 +107,8 @@ def test_restart_and_network_check(env, monkeypatch):
     frame, client = env
     exited = []
     monkeypatch.setattr("photoframe.web.os._exit", lambda code: exited.append(code))
+    assert client.post("/api/maintenance/restart").status_code == 403  # an admin option
+    unlock(client, frame)
     assert client.post("/api/maintenance/restart").status_code == 200
     time.sleep(1.3)
     assert exited == [0]

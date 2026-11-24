@@ -14,6 +14,8 @@ from photoframe.cloud import managed_stem
 from photoframe.config import ConfigStore
 from photoframe.storage import Storage
 
+from adminhelp import unlock
+
 PANEL = (800, 480)
 
 
@@ -376,17 +378,22 @@ def web(frame_data, monkeypatch):
     return frame, client, d, restarted
 
 
-def test_web_needs_a_page_password(web):
+def test_backups_need_the_admin_login(web):
     frame, client, d, _ = web
-    frame.cfg.update({"http_password": ""})
-    assert client.get("/api/backup/download?kind=settings").status_code == 403
-    assert client.post("/api/backup/restore/start", json={"name": "x", "size": 5}).status_code == 403
-    st = client.get("/api/backup").get_json()
-    assert st["password_set"] is False
+    r = client.get("/api/backup/download?kind=settings", headers=AUTH)
+    assert r.status_code == 403 and r.get_json()["admin"] == "no-password"
+    frame.cfg.update({"admin_password": "admin-pass-1"})
+    # the page password alone doesn't open them
+    r = client.post("/api/backup/restore/start", headers=AUTH, json={"name": "x", "size": 5})
+    assert r.status_code == 403 and r.get_json()["admin"] == "locked"
+    unlock(client, frame, AUTH)
+    st = client.get("/api/backup", headers=AUTH).get_json()
+    assert st["password_set"] is True
 
 
 def test_web_download_status_and_restore(web, tmp_path):
     frame, client, d, restarted = web
+    unlock(client, frame, AUTH)
     st = client.get("/api/backup", headers=AUTH).get_json()
     assert st["password_set"] and st["estimate"]["full"]["photos"] == 3 and st["destinations"][0]["where"] == "frame"
     r = client.get("/api/backup/download?kind=full", headers=AUTH)
@@ -411,6 +418,7 @@ def test_web_download_status_and_restore(web, tmp_path):
 
 def test_web_backup_now_and_health(web):
     frame, client, d, _ = web
+    unlock(client, frame, AUTH)
     frame.cfg.update({"backup_auto": True, "backup_where": "frame", "backup_kind": "settings"})
     assert client.post("/api/backup/now", headers=AUTH).status_code == 200
     for _ in range(100):
@@ -429,6 +437,7 @@ def test_web_backup_now_and_health(web):
 
 def test_config_checks_backup_settings(web):
     frame, client, d, _ = web
+    unlock(client, frame, AUTH)
     for bad in ({"backup_time": "25:00"}, {"backup_keep": 0}, {"backup_where": "../x"}, {"backup_folder": "a/../b"},
                 {"backup_every": "hourly"}):
         assert client.post("/api/config", headers=AUTH, json=bad).status_code == 400, bad

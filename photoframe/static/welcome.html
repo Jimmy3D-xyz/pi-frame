@@ -99,18 +99,17 @@
       </div>
     </section>
 
-    <!-- 3. page password -->
+    <!-- 3. admin password -->
     <section data-step="password" hidden>
       <p class="stepno"></p>
-      <h1>Protect this page</h1>
-      <p class="muted">Anyone on your Wi-Fi can open the frame's page. A password keeps them out, and it's needed
-        for backups and software updates.</p>
+      <h1>Choose an admin password</h1>
+      <p class="muted">Anyone at home can use the frame's page for photos and the slideshow. The admin password
+        protects the rest: software updates, backups, Wi-Fi, synced folders, SSH and resetting the frame.</p>
       <div class="card">
-        <label class="field"><span>Page password</span>
+        <label class="field"><span>Admin password</span>
           <input type="password" id="pw" autocomplete="new-password" minlength="8"><small>At least 8 characters.</small></label>
         <label class="field"><span>Type it again</span><input type="password" id="pw2" autocomplete="new-password"></label>
         <label class="check"><input type="checkbox" id="pwshow"> Show passwords</label>
-        <button type="button" class="link" id="pw-skip">Skip for now</button>
       </div>
     </section>
 
@@ -155,7 +154,7 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let info = {}, steps = [], at = 0, skipPassword = false, skipWifi = false;
+let info = {}, steps = [], at = 0, skipWifi = false;
 
 // ---------- countries and time zones, guessed from the phone
 const CODES = "AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" ");
@@ -240,8 +239,8 @@ function valid(step) {
     if (!w.ssid) return fail("Enter the network name.");
     if (!$("#wpw-row").hidden && w.password.length < 8) return fail("Wi-Fi passwords are at least 8 characters.");
   }
-  if (step === "password" && !skipPassword) {
-    if ($("#pw").value.length < 8) return fail("Use at least 8 characters, or choose “Skip for now”.");
+  if (step === "password") {
+    if ($("#pw").value.length < 8) return fail("Use at least 8 characters.");
     if ($("#pw").value !== $("#pw2").value) return fail("The two passwords don't match.");
   }
   if (step === "ssh" && $("#ssh-on").checked) {
@@ -252,13 +251,11 @@ function valid(step) {
 }
 $("#wifi-skip").onclick = () => { skipWifi = true; show(at + 1); };
 $("#nets").addEventListener("change", () => { skipWifi = false; });
-$("#pw-skip").onclick = () => { skipPassword = true; $("#pw").value = $("#pw2").value = ""; show(at + 1); };
-$("#pw").oninput = () => { skipPassword = false; };
 $("#back").onclick = () => show(at - 1);
 
 function answers() {
   const a = { name: $("#name").value.trim(), country: $("#country").value, timezone: $("#timezone").value,
-              password: skipPassword ? "" : $("#pw").value };
+              password: $("#pw").value };
   if (steps.includes("wifi") && !skipWifi) a.wifi = chosenWifi();
   if (steps.includes("ssh") && $("#ssh-on").checked) a.ssh = { username: $("#ssh-user").value.trim(), password: $("#ssh-pw").value };
   return a;
@@ -269,7 +266,7 @@ function review() {
   const rows = [["Name", a.name], ["Country", country], ["Time zone", a.timezone.replace(/_/g, " ")]];
   if (a.wifi) rows.push(["Wi-Fi", a.wifi.ssid]);
   else if (info.ssid) rows.push(["Wi-Fi", `${info.ssid} (connected)`]);
-  rows.push(["Page password", a.password ? "Set" : "None"]);
+  rows.push(["Admin password", "Set"]);
   if (steps.includes("ssh")) rows.push(["SSH login", a.ssh ? a.ssh.username : "None (SSH off)"]);
   $("#summary").innerHTML = rows.map(([k, v]) => `<li><span>${esc(k)}</span><b>${esc(v)}</b></li>`).join("");
   $("#review-note").textContent = a.wifi && !info.online
@@ -301,7 +298,7 @@ function finished(a, body) {
   $("#wizard").hidden = true;
   $("#finished").hidden = false;
   const url = info.url || "http://piframe.local/";
-  const signIn = a.password ? `<p>It asks for the page password you just chose (the username can be anything).</p>` : "";
+  const signIn = `<p>Updates, backups and the other admin options are under Maintenance: unlock them with the admin password you just chose.</p>`;
   const ssh = a.ssh ? `<p>To log in from a computer: <code>ssh ${esc(a.ssh.username)}@${esc(info.hostname || "piframe")}.local</code></p>` : "";
   if (body.joining && info.online) {  // on a cable: the phone stays connected
     $("#fin-title").textContent = "All set";

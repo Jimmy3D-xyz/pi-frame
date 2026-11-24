@@ -67,7 +67,9 @@ It opens on a new frame's page until it's finished, and asks for:
   radio on just for the setup hotspot.
 - **Time zone**, filled in from your phone.
 - **Your Wi-Fi network** and its password (skipped on Ethernet).
-- **A page password** (recommended: backups and updates need one).
+- **An admin password**: unlocks software updates, backups, Wi-Fi settings,
+  synced folders, SSH and resetting the frame (Maintenance). Everyday use of
+  the page (photos, albums, the slideshow) doesn't need it.
 - **An SSH login** (optional): a username and password for working on the Pi
   from a computer (`ssh name@piframe.local`). Without one, SSH stays switched
   off. Skipped it? Maintenance → SSH login can create one later. A login is
@@ -195,8 +197,8 @@ similar messages.
 
 ## Backing up
 
-Maintenance → Backups. Backups are only made and restored once the page has
-a password, because they hold your sign-ins.
+Maintenance → Backups (unlock the admin options first). Backups hold your
+sign-ins, so only the admin can make and restore them.
 
 **Two kinds of backup:**
 
@@ -243,7 +245,7 @@ Backups made by hand with
 `tar czf frame-backup.tgz -C /var/lib pi-photoframe` (as these docs used to
 say) still restore, from the website or the kit.
 
-Keep backups somewhere private: they hold sign-in tokens and the page password.
+Keep backups somewhere private: they hold sign-in tokens and the passwords.
 
 ## Moving to a new SD card
 
@@ -307,8 +309,8 @@ up on the new version within 90 seconds; if anything goes wrong, the
 previous version is put back by itself. The screen shows an "Updating Pi
 Frame" screen with the steps while it works, then "Updated to version …".
 
-Because an update can install any code, it only works once the page has a
-password (Maintenance → Page password).
+Because an update can install any code, it's an admin option: unlock it
+with the admin password first.
 
 **Over SSH**: copy the zip to the Pi, unzip it, and run its installer:
 
@@ -320,11 +322,11 @@ unzip -o pi-photoframe.zip && cd pi-photoframe && sudo ./deploy/install.sh
 
 Maintenance → **Reset to a fresh frame** erases photos and videos, albums,
 settings, synced-folder sign-ins, saved Wi-Fi networks, backups kept on the
-frame, the GitHub token and the page password, then restarts. The frame then
+frame, the GitHub token and the passwords, then restarts. The frame then
 starts like a new card: straight to its setup hotspot and the welcome wizard.
 The installed version stays as it is.
 
-- It needs the page password, and typing RESET.
+- It needs the admin options unlocked, and typing RESET.
 - Tick **Also remove the SSH logins** to delete the logins too and switch
   SSH off, exactly like a new card (the wizard offers to make a login again).
   Left unticked, SSH keeps working.

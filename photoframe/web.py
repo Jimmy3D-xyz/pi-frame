@@ -30,6 +30,7 @@ from .updater import UpdateError, Updates
 from .cloud import CloudError, OneDrive
 from .backup import BackupError, Backups, backup_name
 from . import firstrun
+from . import admin as adm
 from .video import is_video
 
 log = logging.getLogger(__name__)
@@ -72,6 +73,16 @@ def create_app(frame: Frame) -> Flask:
     if getattr(frame, "backups", None) is None:
         frame.backups = Backups(frame.data_dir, cfg, cloud, frame)
     backups = frame.backups
+    sessions: adm.AdminSessions = app.config.setdefault("ADMIN_SESSIONS", adm.AdminSessions())
+
+    def admin_password() -> str:
+        return cfg.get("admin_password")
+
+    def admin_unlocked(touch: bool = True) -> bool:
+        return sessions.valid(request.cookies.get(adm.COOKIE), touch=touch)
+
+    def client() -> str:
+        return request.remote_addr or "?"
 
     def in_setup_mode() -> bool:
         return frame.wifi is not None and frame.wifi.status.mode in ("setup", "connecting")
@@ -84,19 +95,25 @@ def create_app(frame: Frame) -> Flask:
                 or request.path.startswith("/static/")
                 or (first_run() and request.path.startswith("/api/setup")))
 
+    # ---------- only answer to the frame's own names (stops DNS rebinding) ----------
+    @app.before_request
+    def _hosts():
+        if adm.host_allowed(request.host, app.config.get("ALLOWED_HOSTS")):
+            return None
+        if in_setup_mode():
+            # Phones probe sites like connectivitycheck.gstatic.com; sending
+            # them here makes the "sign in to network" page pop up.
+            frame.wifi.last_portal_hit = time.time()
+            return redirect(f"http://{HOTSPOT_IP}/setup", 302)
+        return Response("This frame only answers to its own address (for example http://"
+                        f"{socket.gethostname()}.local/ or its IP address).", 403, mimetype="text/plain")
+
     # ---------- captive portal while the setup hotspot is up ----------
     @app.before_request
     def _captive():
         if not in_setup_mode():
             return None
         frame.wifi.last_portal_hit = time.time()
-        host = (request.host or "").split(":")[0]
-        if is_setup_path():
-            return None
-        if host != HOTSPOT_IP:
-            # Phones probe sites like connectivitycheck.gstatic.com; sending
-            # them here makes the "sign in to network" page pop up.
-            return redirect(f"http://{HOTSPOT_IP}/setup", 302)
         return None
 
     # ---------- optional HTTP password (firmware: username ignored) ----------
@@ -108,11 +125,117 @@ def create_app(frame: Frame) -> Flask:
         if not pw:
             return None
         auth = request.authorization
-        if auth and auth.password and hmac.compare_digest(auth.password, pw):
-            return None
+        if auth and auth.password:
+            if (wait := sessions.throttle.wait(client())):
+                return Response(f"Too many wrong passwords. Try again in {wait} seconds.", 429,
+                                {"Retry-After": str(wait)}, mimetype="text/plain")
+            if hmac.compare_digest(auth.password.encode(), pw.encode()):
+                sessions.throttle.succeeded(client())
+                return None
+            sessions.throttle.failed(client())
         return Response(
             "Authentication required", 401, {"WWW-Authenticate": 'Basic realm="Pi Frame"'}
         )
+
+    # ---------- other websites can't make changes ----------
+    @app.before_request
+    def _same_site():
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return None
+        if adm.cross_site(request.headers.get("Origin"), request.headers.get("Sec-Fetch-Site"), request.host):
+            log.warning("refused a %s %s started by another website (%s)", request.method, request.path,
+                        request.headers.get("Origin") or "unknown")
+            return _err("Changes can only be made from the frame's own page.", 403)
+        return None
+
+    # ---------- the admin options ----------
+    @app.before_request
+    def _admin():
+        if in_setup_mode() and is_setup_path():
+            return None
+        if adm.is_admin_path(request.path) or (request.path == "/api/config" and request.method != "GET"
+                                                and adm.ADMIN_KEYS & set((request.get_json(silent=True) or {}))):
+            if admin_unlocked():
+                return None
+            if not admin_password():
+                return jsonify({"status": "error", "admin": "no-password",
+                                "message": "Set an admin password first (Maintenance → Admin)."}), 403
+            return jsonify({"status": "error", "admin": "locked",
+                            "message": "Unlock the admin options first (Maintenance → Unlock)."}), 403
+        return None
+
+    def _admin_state() -> dict:
+        token = request.cookies.get(adm.COOKIE)
+        unlocked = sessions.valid(token, touch=False)
+        return {"unlocked": unlocked, "seconds_left": sessions.left(token) if unlocked else 0,
+                "minutes": adm.IDLE_SECONDS // 60, "password_set": bool(admin_password()),
+                "page_password_set": bool(cfg.get("http_password"))}
+
+    def _unlocked_response(body: dict, token: str):
+        resp = jsonify(body)
+        resp.set_cookie(adm.COOKIE, token, httponly=True, samesite="Strict", path="/")
+        return resp
+
+    @app.get("/api/admin")
+    def admin_status():
+        return jsonify(_admin_state())
+
+    @app.post("/api/admin/unlock")
+    def admin_unlock():
+        if (wait := sessions.throttle.wait(client())):
+            return _err(f"Too many wrong passwords. Try again in {wait} seconds.", 429)
+        if not admin_password():
+            return _err("There's no admin password yet: set one first.", 409)
+        given = str((request.get_json(silent=True) or {}).get("password", ""))
+        if not adm.password_matches(given, admin_password()):
+            sessions.throttle.failed(client())
+            log.warning("wrong admin password from %s", client())
+            wait = sessions.throttle.wait(client())
+            return _err("That's not the admin password." + (f" Wait {wait} seconds before trying again." if wait else ""),
+                        403)
+        sessions.throttle.succeeded(client())
+        sessions.end(request.cookies.get(adm.COOKIE))
+        token = sessions.create()
+        log.info("admin options unlocked from %s", client())
+        return _unlocked_response({**_admin_state(), "unlocked": True, "seconds_left": adm.IDLE_SECONDS,
+                                   "message": "Unlocked"}, token)
+
+    @app.post("/api/admin/lock")
+    def admin_lock():
+        sessions.end(request.cookies.get(adm.COOKIE))
+        resp = jsonify({**_admin_state(), "unlocked": False, "seconds_left": 0, "message": "Locked"})
+        resp.delete_cookie(adm.COOKIE, path="/")
+        return resp
+
+    @app.post("/api/admin/password")
+    def admin_set_password():
+        """Set or change the admin password. Needs the admin options unlocked,
+        except the very first time (when there's no admin password yet)."""
+        first = not admin_password()
+        if not first and not admin_unlocked():
+            return jsonify({"status": "error", "admin": "locked",
+                            "message": "Unlock the admin options first (Maintenance → Unlock)."}), 403
+        new = str((request.get_json(silent=True) or {}).get("password", ""))
+        if not 8 <= len(new) <= 128:
+            return _err("The admin password needs at least 8 characters.")
+        cfg.update({"admin_password": new})
+        token = request.cookies.get(adm.COOKIE)
+        if first or not sessions.valid(token, touch=False):
+            token = sessions.create()
+        sessions.end_all(keep=token)  # anyone else unlocked has to unlock again
+        log.warning("admin password %s", "set" if first else "changed")
+        return _unlocked_response({**_admin_state(), "unlocked": True, "seconds_left": adm.IDLE_SECONDS,
+                                   "message": "Admin password set" if first else "Admin password changed"}, token)
+
+    @app.post("/api/admin/page-password")
+    def admin_page_password():
+        """Set (or, with an empty password, remove) the everyday page password."""
+        new = str((request.get_json(silent=True) or {}).get("password", ""))
+        if new and not 6 <= len(new) <= 128:
+            return _err("Use at least 6 characters.")
+        cfg.update({"http_password": new})
+        log.warning("page password %s", "set" if new else "removed")
+        return _ok("Page password set" if new else "Page password removed", **_admin_state())
 
     # ---------- UI ----------
     @app.get("/")
@@ -151,7 +274,7 @@ def create_app(frame: Frame) -> Flask:
             "name": cfg.get("device_name"), "has_login": bool(firstrun.login_users()),
             "wifi_mode": st.mode if st else "disabled", "ssid": st.ssid if st else "",
             "wifi_saved": bool(frame.wifi.saved_wifi()) if frame.wifi is not None and hasattr(frame.wifi, "saved_wifi") else False,
-            "password_set": bool(cfg.get("http_password")),
+            "password_set": bool(admin_password()),
         })
 
     @app.post("/api/setup")
@@ -173,7 +296,7 @@ def create_app(frame: Frame) -> Flask:
             if res.get("state") != "done":
                 return _err(res.get("message") or "Couldn't apply the settings")
         # the frame's own settings last: the page password takes effect with them
-        cfg.update({"device_name": a["name"], "timezone": a["timezone"], "http_password": a["password"]})
+        cfg.update({"device_name": a["name"], "timezone": a["timezone"], "admin_password": a["password"]})
         firstrun.finish(frame.data_dir)
         log.info("first-run setup done: %s, %s, %s%s", a["name"], a["country"], a["timezone"],
                  f", SSH login {a['ssh']['username']}" if a.get("ssh") else "")
@@ -314,6 +437,8 @@ def create_app(frame: Frame) -> Flask:
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return _err("expected a JSON object")
+        if "admin_password" in data:
+            return _err("Change the admin password under Maintenance → Admin.")
         try:
             changed = cfg.update(data)
         except ConfigError as e:
@@ -849,9 +974,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/maintenance/ssh")
     def ssh_change():
-        if not cfg.get("http_password"):
-            return _err("Set a page password first (Maintenance → Page password): an SSH login can do anything "
-                        "on the Pi, so it's only managed here when the page is protected.", 403)
         d = request.get_json(silent=True) or {}
         what = str(d.get("what", ""))
         req = {"action": "ssh", "what": what}
@@ -883,9 +1005,6 @@ def create_app(frame: Frame) -> Flask:
     def maintenance_reset():
         """Back to a fresh frame: the root helper erases photos, settings,
         sign-ins and saved Wi-Fi (and optionally the SSH logins), then restarts."""
-        if not cfg.get("http_password"):
-            return _err("Set a page password first (Maintenance → Page password): resetting is only allowed "
-                        "when the page is protected.", 403)
         d = request.get_json(silent=True) or {}
         if str(d.get("confirm", "")).strip().upper() != "RESET":
             return _err("Type RESET to confirm")
@@ -1030,12 +1149,6 @@ def create_app(frame: Frame) -> Flask:
         return _ok("Syncing")
 
     # ---------- backups ----------
-    def _backup_password():
-        if not cfg.get("http_password"):
-            return _err("Set a password for this page first (Maintenance → Page password). Backups hold your "
-                        "sign-ins, so they're only made and restored when the page is protected.", 403)
-        return None
-
     @app.get("/api/backup")
     def backup_status():
         try:
@@ -1043,12 +1156,10 @@ def create_app(frame: Frame) -> Flask:
         except Exception as e:  # noqa: BLE001
             log.warning("couldn't size up a backup: %s", e)
             est = None
-        return jsonify({**backups.status(), "estimate": est, "password_set": bool(cfg.get("http_password"))})
+        return jsonify({**backups.status(), "estimate": est, "password_set": bool(admin_password())})
 
     @app.get("/api/backup/download")
     def backup_download():
-        if (resp := _backup_password()) is not None:
-            return resp
         kind = request.args.get("kind", "settings")
         try:
             body = backups.stream(kind)
@@ -1059,8 +1170,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/backup/now")
     def backup_now():
-        if (resp := _backup_password()) is not None:
-            return resp
         if backups.running:
             return _err("A backup is already running", 409)
         threading.Thread(target=lambda: backups.back_up(auto=False), name="backup", daemon=True).start()
@@ -1068,8 +1177,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.get("/api/backup/file/<name>")
     def backup_file(name):
-        if (resp := _backup_password()) is not None:
-            return resp
         try:
             path = backups.local_path(name)
         except BackupError as e:
@@ -1086,8 +1193,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/backup/restore/start")
     def backup_restore_start():
-        if (resp := _backup_password()) is not None:
-            return resp
         d = request.get_json(silent=True) or {}
         try:
             return jsonify(backups.restore_start(str(d.get("name", "")), int(d.get("size", 0)),
@@ -1097,8 +1202,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.put("/api/backup/restore/upload")
     def backup_restore_upload():
-        if (resp := _backup_password()) is not None:
-            return resp
         try:
             offset = int(request.args.get("offset", "-1"))
             length = int(request.headers.get("Content-Length", "0"))
@@ -1116,8 +1219,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/backup/restore")
     def backup_restore():
-        if (resp := _backup_password()) is not None:
-            return resp
         src = str((request.get_json(silent=True) or {}).get("from", "upload"))
         try:
             info = backups.restore_begin(None if src == "upload" else backups.local_path(src))
@@ -1125,21 +1226,13 @@ def create_app(frame: Frame) -> Flask:
             return _err(str(e))
         return _ok("Restoring. The frame restarts when it's done.", backup=info)
 
-    # ---------- software update from the Maintenance tab ----------
-    def _need_password():
-        if not cfg.get("http_password"):
-            return _err("Set a password for this page first (Maintenance → Page password). "
-                        "Updates can install any code, so they're only allowed when the page is protected.", 403)
-        return None
-
+    # ---------- software update from the Maintenance tab (admin) ----------
     @app.get("/api/maintenance/update")
     def update_status():
-        return jsonify({**updates.status(), "password_set": bool(cfg.get("http_password"))})
+        return jsonify({**updates.status(), "password_set": bool(admin_password())})
 
     @app.post("/api/maintenance/update/upload")
     def update_upload():
-        if (resp := _need_password()) is not None:
-            return resp
         f = request.files.get("package")
         if f is None:
             return _err("choose the pi-photoframe zip file")
@@ -1157,8 +1250,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/maintenance/update/github/token")
     def github_token():
-        if (resp := _need_password()) is not None:
-            return resp
         try:
             return jsonify(autoupd.set_token(str((request.get_json(silent=True) or {}).get("token", ""))))
         except AutoUpdateError as e:
@@ -1178,8 +1269,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/maintenance/update/github/install")
     def github_install():
-        if (resp := _need_password()) is not None:
-            return resp
         if autoupd.busy:
             return _err("Already working on it", 409)
         try:
@@ -1190,8 +1279,6 @@ def create_app(frame: Frame) -> Flask:
 
     @app.post("/api/maintenance/update/install")
     def update_install():
-        if (resp := _need_password()) is not None:
-            return resp
         try:
             info = updates.install()
         except UpdateError as e:

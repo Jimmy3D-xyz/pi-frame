@@ -36,7 +36,8 @@ DEFAULT_CONFIG: dict = {
     "openai_api_key": "",
     "google_api_key": "",
     "deep_sleep_enabled": False,  # accepted for compatibility; an LCD frame never deep-sleeps
-    "http_password": "",
+    "http_password": "",  # the page password (optional): everyday use, and what the image server sends
+    "admin_password": "",  # unlocks updates, backups, SSH, reset, Wi-Fi, synced folders (Pi Frame only)
     # --- Pi / LCD extras ---
     "screen_schedule_enabled": False,
     "screen_on_time": "07:00",
@@ -146,7 +147,7 @@ DEFAULT_PROCESSING = {
     "backgroundColor": "blur",  # blur | black | white | any palette name
 }
 
-SECRET_KEYS = {"http_password"}  # never echoed back by GET /api/config
+SECRET_KEYS = {"http_password", "admin_password"}  # never echoed back by GET /api/config
 
 _ENUMS = {
     "display_orientation": {"landscape", "portrait"},
@@ -208,6 +209,9 @@ class ConfigStore:
             return
         stored = raw.get("config", {})
         self.config.update({k: v for k, v in stored.items() if k in DEFAULT_CONFIG})
+        if "admin_password" not in stored and self.config.get("http_password"):
+            # saved before the admin login: the page password unlocks the admin options too
+            self.config["admin_password"] = self.config["http_password"]
         if self.config.get("update_repo") == "JimmySte/pi-frame":  # the repository moved to the Jimmy3D-xyz organization
             self.config["update_repo"] = "Jimmy3D-xyz/pi-frame"
         if "slideshow_styles" not in stored:  # saved before styles could be combined
@@ -409,7 +413,8 @@ class ConfigStore:
         applied = False
         with self._lock:
             if isinstance(payload.get("config"), dict):
-                cfg = dict(payload["config"])
+                from .admin import ADMIN_KEYS  # passwords, updates and backups are the admin's alone
+                cfg = {k: v for k, v in payload["config"].items() if k not in ADMIN_KEYS}
                 try:
                     self.update(cfg, touch=False)
                 except ConfigError:

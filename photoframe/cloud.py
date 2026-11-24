@@ -508,7 +508,14 @@ class OneDrive:
                 log.info("NAS %s is now at %s", acct["host"], ip)
 
     # ---------------------------------------------------------------- browsing
+    def _known(self, remote: str) -> None:
+        """Only the accounts set up here: a made-up name like ':local' would
+        have rclone look at the Pi's own files, or reach other machines."""
+        if not remote or not self.remote_connected(remote):
+            raise CloudError("That account isn't connected to this frame.")
+
     def list_folders(self, folder: str = "", remote: str = REMOTE) -> list[dict]:
+        self._known(remote)
         self._refresh_nas(remote)
         out = self._rclone("lsjson", "--dirs-only", "--no-mimetype", "--no-modtime", self._remote(folder, remote),
                            timeout=60, remote=remote)
@@ -525,6 +532,7 @@ class OneDrive:
     def _list_files(self, folder: str, subfolders: bool, remote: str = REMOTE) -> list[dict]:
         args = ["lsjson", "--files-only", "--no-mimetype"]
         args += ["-R"] if subfolders else ["--max-depth", "1"]
+        self._known(remote)
         self._refresh_nas(remote)
         out = self._rclone(*args, self._remote(folder, remote), timeout=600, remote=remote)
         wanted = IMAGE_EXTS | VIDEO_EXTS

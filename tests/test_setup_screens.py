@@ -15,6 +15,8 @@ from photoframe.network import HOTSPOT_IP, WifiManager, WifiStatus
 from photoframe.storage import Storage
 from photoframe.web import create_app
 
+from adminhelp import unlock
+
 PANEL = (1920, 1080)
 _real_sleep = time.sleep
 
@@ -135,7 +137,8 @@ def test_captive_portal_and_connect(env):
     frame.wifi.status = WifiStatus(mode="online", ssid="Home")
     frame.on_wifi_change(frame.wifi.status)
     assert frame.notice is None
-    assert client.get("/generate_204", headers={"Host": "connectivitycheck.gstatic.com"}).status_code == 401
+    # not in setup any more: other names are turned away (DNS rebinding)
+    assert client.get("/generate_204", headers={"Host": "connectivitycheck.gstatic.com"}).status_code == 403
 
 
 FAKE_NMCLI = r'''#!/usr/bin/env python3
@@ -502,6 +505,8 @@ def test_saved_networks_can_be_forgotten(env):
     frame, client, tmp = env
     frame.wifi = FakeWifi()
     frame.wifi.status = WifiStatus(mode="online", ssid="Home")
+    assert client.get("/api/maintenance/wifi").status_code == 403  # an admin option
+    unlock(client, frame)
     assert [n["name"] for n in client.get("/api/maintenance/wifi").get_json()] == ["Home", "Grandma"]
     assert client.delete("/api/maintenance/wifi?name=Grandma").status_code == 200
     assert frame.wifi.forgotten == ["Grandma"]

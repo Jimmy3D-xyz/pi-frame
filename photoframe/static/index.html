@@ -314,6 +314,15 @@
   .mcard.fold > details[open] > summary .chev { transform: rotate(-135deg); margin-bottom: -.15rem; }
   .mcard.fold > details[open] > summary { margin-bottom: .8rem; }
   .mcard.fold > details > summary:focus-visible { outline: 2px solid var(--sage); outline-offset: 4px; border-radius: 4px; }
+  /* ---------- admin options: shown only while unlocked ---------- */
+  body:not(.admin) .admin-only { display: none !important; }
+  body.admin .admin-locked-note { display: none; }
+  .admin-bar { margin-bottom: 1rem; }
+  .admin-row { display: flex; align-items: center; gap: .6rem 1rem; flex-wrap: wrap; }
+  .admin-row[hidden] { display: none; }
+  .admin-row > p { margin: 0; flex: 1 1 16rem; }
+  .admin-bar form { display: flex; gap: .5rem; flex-wrap: wrap; flex: 1 1 18rem; }
+  .admin-bar input { flex: 1 1 10rem; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 </head>
@@ -733,15 +742,39 @@
         <p class="muted" style="margin:0" id="m-updated">Loading…</p>
         <button type="button" class="btn small" id="m-refresh">Refresh</button>
       </div>
+      <section class="mcard admin-bar" id="adm" aria-label="Admin options" hidden>
+        <div id="adm-none" class="admin-row" hidden>
+          <p><b>Set an admin password</b> to use software updates, backups, Wi-Fi settings, synced folders, SSH and
+            resetting the frame. Only you need to know it: everyday use of this page doesn't.</p>
+          <form id="adm-set" autocomplete="off">
+            <input type="password" id="adm-new" autocomplete="new-password" placeholder="Admin password (8+ characters)" aria-label="New admin password">
+            <input type="password" id="adm-new2" autocomplete="new-password" placeholder="Type it again" aria-label="Type the admin password again">
+            <button type="submit" class="btn small primary">Set</button>
+          </form>
+        </div>
+        <div id="adm-locked" class="admin-row" hidden>
+          <p>🔒 <b>Admin options are locked</b>: updates, backups, Wi-Fi, synced folders, SSH and the passwords.</p>
+          <form id="adm-unlock" autocomplete="off">
+            <input type="password" id="adm-pw" autocomplete="current-password" placeholder="Admin password" aria-label="Admin password">
+            <button type="submit" class="btn small primary">Unlock</button>
+          </form>
+        </div>
+        <div id="adm-open" class="admin-row" hidden>
+          <p>🔓 <b>Admin options unlocked.</b> <span class="muted" id="adm-left"></span></p>
+          <button type="button" class="btn small" id="adm-lock">Lock now</button>
+        </div>
+      </section>
       <ul class="summary" id="m-summary" aria-label="Health summary"></ul>
       <div class="mgrid">
         <section class="mcard fold"><details data-fold="net"><summary><h3>Wi-Fi and network</h3><span class="fold-sum" id="sum-net"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
           <dl class="kv" id="m-net"></dl>
           <div class="actions" style="margin-top:.8rem"><button type="button" class="btn small" id="m-netcheck-btn">Check the network now</button></div>
           <ul class="plain" id="m-netcheck" style="margin-top:.5rem"></ul>
+          <div class="admin-only">
           <h4 style="margin:1rem 0 .3rem">Saved Wi-Fi networks</h4>
           <p class="note" style="margin-top:0">The frame joins any of these it finds. Forget one you used away from home (a friend's, say).</p>
           <ul class="plain" id="m-saved"></ul>
+          </div>
           <h4>Automatic re-joins</h4>
           <ul class="plain" id="m-rejoins"></ul>
         </div></details></section>
@@ -776,9 +809,8 @@
           </div>
           <p class="note" id="res-note">Only resolutions your screen reports are listed, up to its native one. Swapped monitors? Press Re-check the screen first. The Pi restarts to switch resolution. If the screen stays blank afterwards, choose another resolution here from your phone.</p>
         </div></details></section>
-        <section class="mcard fold"><details data-fold="update"><summary><h3>Software update</h3><span class="fold-sum" id="sum-update"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+        <section class="mcard fold admin-only"><details data-fold="update"><summary><h3>Software update</h3><span class="fold-sum" id="sum-update"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
           <dl class="kv"><dt>Installed</dt><dd id="u-version">–</dd></dl>
-          <div id="u-nopass" class="note" hidden>Updates can install any code on the Pi, so they're only allowed once this page has a password. Set one under <b>Page password</b>.</div>
           <div id="g-box">
             <h4 style="margin-top:.6rem">From GitHub</h4>
             <div id="g-notoken">
@@ -835,8 +867,7 @@
             <pre id="u-log" style="white-space:pre-wrap;font-size:.75rem;max-height:16rem;overflow:auto;background:var(--mat);padding:.6rem;border-radius:6px"></pre></details>
           <p class="note">If an update fails, or the frame doesn't start properly afterwards, the previous version is put back automatically.</p>
         </div></details></section>
-        <section class="mcard fold"><details data-fold="backup"><summary><h3>Backups</h3><span class="fold-sum" id="sum-backup"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
-          <div id="b-nopass" class="note" hidden>Backups hold your sign-ins (OneDrive, NAS…), so they're only made and restored once this page has a password. Set one under <b>Page password</b>.</div>
+        <section class="mcard fold admin-only"><details data-fold="backup"><summary><h3>Backups</h3><span class="fold-sum" id="sum-backup"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
           <div id="b-main">
             <h4 style="margin-top:0">Download a backup</h4>
             <div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap">
@@ -890,20 +921,31 @@
             <p class="note">Restoring brings back the backup's settings, sign-ins and photos. Photos already on the frame are kept, and the current settings are saved on the frame first, in case you want them back.</p>
           </div>
         </div></details></section>
-        <section class="mcard fold"><details data-fold="password"><summary><h3>Page password</h3><span class="fold-sum" id="sum-password"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+        <section class="mcard fold admin-only"><details data-fold="password"><summary><h3>Passwords</h3><span class="fold-sum" id="sum-password"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+          <h4 style="margin:0 0 .3rem">Admin password</h4>
+          <p class="note" style="margin-top:0">Unlocks the admin options here. After 15 minutes without using them they lock again
+            (and when you close the browser).</p>
+          <form id="ap-form" class="field" style="margin:0" autocomplete="off">
+            <input type="password" id="ap-new" autocomplete="new-password" placeholder="New admin password" aria-label="New admin password" style="margin-bottom:.4rem">
+            <input type="password" id="ap-again" autocomplete="new-password" placeholder="Type it again" aria-label="Type the new admin password again">
+            <div class="actions" style="margin-top:.6rem"><button class="btn small primary">Change admin password</button></div>
+          </form>
+          <h4 style="margin:1.2rem 0 .3rem">Page password (optional)</h4>
           <p id="pw-state" style="margin:0 0 .7rem"></p>
           <form id="pw-form" class="field" style="margin:0">
-            <input type="password" id="pw-new" autocomplete="new-password" placeholder="New password" aria-label="New password" style="margin-bottom:.4rem">
-            <input type="password" id="pw-again" autocomplete="new-password" placeholder="Type it again" aria-label="Type the new password again">
+            <input type="password" id="pw-new" autocomplete="new-password" placeholder="New password" aria-label="New page password" style="margin-bottom:.4rem">
+            <input type="password" id="pw-again" autocomplete="new-password" placeholder="Type it again" aria-label="Type the new page password again">
             <div class="actions" style="margin-top:.6rem">
               <button class="btn small primary" id="pw-save">Set password</button>
               <button type="button" class="btn small danger" id="pw-remove" hidden>Remove password</button>
             </div>
           </form>
-          <p class="note">Your browser will ask for it (the username can be anything). If you use the ESP32 PhotoFrame integration in Home Assistant or the image server, enter the same password in their frame settings too.</p>
+          <p class="note">Your browser asks for it before showing this page (the username can be anything). Use a different
+            one from the admin password if other people will know it. If you use the ESP32 PhotoFrame integration in Home
+            Assistant or the image server, enter the page password in their frame settings too.</p>
         </div></details></section>
       </div>
-      <section class="mcard fold"><details data-fold="actions"><summary><h3>Actions</h3><span class="fold-sum" id="sum-actions"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+      <section class="mcard fold admin-only"><details data-fold="actions"><summary><h3>Actions</h3><span class="fold-sum" id="sum-actions"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
         <div class="actions">
           <a class="btn small" id="m-diag" href="/api/maintenance/diagnostics" style="text-decoration:none">Download diagnostics</a>
           <button type="button" class="btn small" id="m-restart">Restart the frame software</button>
@@ -911,9 +953,8 @@
         </div>
         <p class="note">The diagnostics file is plain text with this page's details and recent logs, handy for troubleshooting. Settings are included, but passwords, tokens and keys are removed.</p>
       </div></details></section>
-      <section class="mcard fold"><details data-fold="ssh"><summary><h3>SSH login</h3><span class="fold-sum" id="sum-ssh"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+      <section class="mcard fold admin-only"><details data-fold="ssh"><summary><h3>SSH login</h3><span class="fold-sum" id="sum-ssh"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
         <p class="note" style="margin-top:0">For working on the Pi from a computer (<code id="s-cmd">ssh name@piframe.local</code>). Not needed to use the frame.</p>
-        <div id="s-nopass" class="note" hidden>Set a page password first (above): an SSH login can do anything on the Pi, so it's only managed here when the page is protected.</div>
         <div id="s-main">
           <p id="s-line" style="margin:0 0 .7rem"></p>
           <form id="s-create" autocomplete="off" hidden>
@@ -935,12 +976,11 @@
           </div>
         </div>
       </div></details></section>
-      <section class="mcard fold"><details data-fold="reset"><summary><h3>Reset to a fresh frame</h3><span class="fold-sum" id="sum-reset"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+      <section class="mcard fold admin-only"><details data-fold="reset"><summary><h3>Reset to a fresh frame</h3><span class="fold-sum" id="sum-reset"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
         <p style="margin-top:0">Erases everything on this frame and starts it again as new, with the welcome wizard:
           photos and videos, albums, settings, synced-folder sign-ins, saved Wi-Fi networks, backups kept on the frame,
           and the page password. The software version stays as it is.</p>
         <p class="note" style="margin-top:0">Want to keep anything? <a href="#" id="r-backup">Download an Everything backup first</a>.</p>
-        <div id="r-nopass" class="note" hidden>Set a page password first (above): resetting is only allowed when the page is protected.</div>
         <form id="r-form" autocomplete="off">
           <label class="toggle" style="margin-bottom:.7rem"><input type="checkbox" id="r-logins"> Also remove the SSH logins and switch SSH off</label>
           <label class="field" style="margin-bottom:.7rem"><span>Type RESET to confirm</span>
@@ -952,7 +992,9 @@
     </div>
 
     <div class="tabpanel" id="tab-source" role="tabpanel" aria-labelledby="t-source" hidden>
-        <fieldset id="od">
+        <p class="admin-locked-note note" id="od-locked">Synced folders (OneDrive, Google Drive, Dropbox, NAS) are an admin option.
+          <button type="button" class="link-btn" data-go-admin>Unlock them under Maintenance</button>.</p>
+        <fieldset id="od" class="admin-only">
           <legend>Synced folders</legend>
           <p class="muted" style="margin-top:0">Link a folder from OneDrive, Google Drive, Dropbox or a NAS on your home network, and the frame
             keeps an album in step with it: add photos to the folder and they appear on the frame; take them out and they go.
@@ -1053,7 +1095,7 @@
         <fieldset>
           <legend>This frame</legend>
           <label class="field"><span>Name</span><input type="text" name="device_name"></label>
-          <p id="wifi-row" hidden style="margin:0 0 1.1rem"><a href="/setup" class="btn small" style="text-decoration:none;display:inline-block">Change Wi-Fi network</a></p>
+          <p id="wifi-row" class="admin-only" hidden style="margin:0 0 1.1rem"><a href="/setup" class="btn small" style="text-decoration:none;display:inline-block">Change Wi-Fi network</a></p>
           <label class="field"><span>Home Assistant address</span>
             <input type="url" name="ha_url" placeholder="http://homeassistant.local:8123">
             <small>Filled in by the ESP32 PhotoFrame integration when you add the frame there.</small>
@@ -1099,7 +1141,10 @@ const api = async (path, opts = {}) => {
   const r = await fetch(path, init);
   const ct = r.headers.get("content-type") || "";
   const body = ct.includes("json") ? await r.json() : null;
-  if (!r.ok) throw new Error((body && body.message) || `Request failed (${r.status})`);
+  if (!r.ok) {
+    if (body && body.admin) showAdmin({ ...admin, unlocked: false, password_set: body.admin !== "no-password" });
+    throw new Error((body && body.message) || `Request failed (${r.status})`);
+  }
   return body;
 };
 let toastTimer;
@@ -1209,8 +1254,8 @@ $("#brand-screen").onclick = async (e) => {
 
 /* ---------- tabs ---------- */
 document.querySelectorAll('[role="tab"]').forEach(tab => tab.onclick = () => {
-  if (tab.id === "t-maint") { loadMaint(); loadSaved(); loadUpdate(); loadResolution(); loadBackup(); }
-  if (tab.id === "t-source") loadOneDrive();
+  if (tab.id === "t-maint") { loadMaint(); loadResolution(); loadAdmin(); }
+  if (tab.id === "t-source") loadAdmin();
   if (tab.id === "t-display") { loadButtons(); loadMonitor(); loadFadeInfo(); loadPresence(); }
   document.querySelectorAll('[role="tab"]').forEach(t => {
     const on = t === tab; t.setAttribute("aria-selected", on);
@@ -1877,9 +1922,8 @@ function showUpdate(u) {
   foldSum("update", u.staged ? `Installed ${u.version} · ${u.staged.new} ready to install` :
     ["rolled-back", "failed", "not-installed"].includes(u.state) ? `Installed ${u.version} · last update didn't work` : `Installed ${u.version}`,
     ["rolled-back", "failed", "not-installed"].includes(u.state) ? "warn" : "");
-  $("#u-nopass").hidden = u.password_set;
   const busy = BUSY_STATES.includes(u.state);
-  $("#u-pick").hidden = !u.password_set || busy || !!u.staged;
+  $("#u-pick").hidden = busy || !!u.staged;
   const st = u.staged;
   $("#u-staged").hidden = !st || busy;
   if (st) {
@@ -1902,8 +1946,7 @@ function showUpdate(u) {
 }
 /* ---------- updates from GitHub ---------- */
 let gTimer = null;
-function showGithub(g, passwordSet) {
-  $("#g-box").hidden = !passwordSet;
+function showGithub(g) {
   $("#g-repo-name").textContent = g.repo;
   $("#g-notoken").hidden = g.token_set;
   $("#g-on").hidden = !g.token_set;
@@ -1927,22 +1970,22 @@ function showGithub(g, passwordSet) {
   $("#g-time-row").hidden = g.mode !== "install";
   $("#g-check").disabled = !!g.busy;
 }
-async function loadGithub(passwordSet) {
+async function loadGithub() {
   clearTimeout(gTimer);
   let g; try { g = await api("/api/maintenance/update/github"); } catch { return; }
-  showGithub(g, passwordSet);
-  if (g.busy) gTimer = setTimeout(() => loadGithub(passwordSet), 1500);
+  showGithub(g);
+  if (g.busy) gTimer = setTimeout(loadGithub, 1500);
 }
 $("#g-token-form").onsubmit = (e) => {
   e.preventDefault();
   act(async () => { const g = await api("/api/maintenance/update/github/token", { json: { token: $("#g-token").value } });
-    $("#g-token").value = ""; showGithub(g, true); }, "Token saved");
+    $("#g-token").value = ""; showGithub(g); }, "Token saved");
 };
 $("#g-check").onclick = () => act(async () => { showGithub(await api("/api/maintenance/update/github/check", { method: "POST" }), true); });
 $("#g-forget").onclick = () => { if (confirm("Remove the GitHub token? The frame stops checking for updates.")) act(async () => {
-  await api("/api/maintenance/update/github/token", { method: "DELETE" }); loadGithub(true); }, "Token removed"); };
-$("#g-mode").onchange = (e) => act(async () => { await api("/api/config", { json: { update_auto: e.target.value } }); loadGithub(true); }, "Saved");
-$("#g-time").onchange = (e) => { if (e.target.value) act(async () => { await api("/api/config", { json: { update_time: e.target.value } }); loadGithub(true); }, "Saved"); };
+  await api("/api/maintenance/update/github/token", { method: "DELETE" }); loadGithub(); }, "Token removed"); };
+$("#g-mode").onchange = (e) => act(async () => { await api("/api/config", { json: { update_auto: e.target.value } }); loadGithub(); }, "Saved");
+$("#g-time").onchange = (e) => { if (e.target.value) act(async () => { await api("/api/config", { json: { update_time: e.target.value } }); loadGithub(); }, "Saved"); };
 $("#g-install").onclick = () => {
   if (!confirm("Install the new version now? The frame restarts at the end, and the screen may go blank briefly.")) return;
   act(async () => {
@@ -1970,8 +2013,7 @@ async function loadUpdate() {
     updWatching = false;
     if (u.state === "done") { toast(u.message); setTimeout(() => location.reload(), 2500); }
   }
-  showPassword(u.password_set);
-  loadGithub(u.password_set);
+  loadGithub();
 }
 $("#u-file").onchange = (e) => {
   const f = e.target.files[0]; e.target.value = "";
@@ -2000,8 +2042,9 @@ $("#u-install").onclick = () => {
 $("#u-discard").onclick = () => act(async () => { await api("/api/maintenance/update", { method: "DELETE" }); loadUpdate(); });
 
 function showPassword(isSet) {
-  foldSum("password", isSet ? "Set" : "Not set: anyone on your Wi-Fi can change the frame", isSet ? "ok" : "warn");
-  $("#pw-state").textContent = isSet ? "This page is protected by a password." : "Anyone on your Wi-Fi can open this page and change the frame.";
+  foldSum("password", isSet ? "Admin password · page password" : "Admin password · no page password", "ok");
+  $("#pw-state").textContent = isSet ? "Everyday use of this page needs a password." :
+    "Anyone on your Wi-Fi can open this page to look at and change the photos and slideshow (not the admin options).";
   $("#pw-save").textContent = isSet ? "Change password" : "Set password";
   $("#pw-remove").hidden = !isSet;
 }
@@ -2011,27 +2054,68 @@ $("#pw-form").onsubmit = (e) => {
   if (a.length < 6) return toast("Use at least 6 characters", true);
   if (a !== b) return toast("The two passwords don't match", true);
   act(async () => {
-    await api("/api/config", { json: { http_password: a } });
+    await api("/api/admin/page-password", { json: { password: a } });
     $("#pw-new").value = $("#pw-again").value = "";
     toast("Password set. Your browser will now ask for it.");
     setTimeout(() => location.reload(), 1500);
   });
 };
 $("#pw-remove").onclick = () => {
-  if (!confirm("Remove the password? Anyone on your Wi-Fi will be able to change the frame, and web updates will be switched off.")) return;
-  act(async () => { await api("/api/config", { json: { http_password: "" } }); toast("Password removed"); loadUpdate(); });
+  if (!confirm("Remove the page password? Anyone on your Wi-Fi will be able to open this page (the admin options stay locked).")) return;
+  act(async () => { showAdmin(await api("/api/admin/page-password", { json: { password: "" } })); }, "Page password removed");
 };
+
+/* ---------- admin options ---------- */
+let admin = { unlocked: false, password_set: true, page_password_set: false }, admTimer = null;
+function showAdmin(a) {
+  const opened = a.unlocked && !admin.unlocked;
+  admin = { ...admin, ...a };
+  document.body.classList.toggle("admin", !!admin.unlocked);
+  $("#adm").hidden = false;
+  $("#adm-none").hidden = admin.password_set;
+  $("#adm-locked").hidden = !admin.password_set || admin.unlocked;
+  $("#adm-open").hidden = !admin.unlocked;
+  $("#adm-left").textContent = `It locks again after ${admin.minutes || 15} minutes without being used.`;
+  showPassword(admin.page_password_set);
+  clearInterval(admTimer);
+  if (admin.unlocked) admTimer = setInterval(() => loadAdmin(false), 30000);  // notice when it locks itself
+  return opened;
+}
+function loadAdminSections() { loadSaved(); loadUpdate(); loadBackup(); loadOneDrive(); }
+async function loadAdmin(sections = true) {
+  let a; try { a = await api("/api/admin"); } catch { return; }
+  showAdmin(a);
+  if (a.unlocked && sections) loadAdminSections();
+}
+$("#adm-unlock").onsubmit = (e) => {
+  e.preventDefault();
+  act(async () => {
+    const a = await api("/api/admin/unlock", { json: { password: $("#adm-pw").value } });
+    $("#adm-pw").value = ""; showAdmin(a); loadAdminSections();
+  }, "Unlocked");
+};
+$("#adm-lock").onclick = () => act(async () => { showAdmin(await api("/api/admin/lock", { method: "POST" })); }, "Locked");
+async function setAdminPassword(a, b, ok) {
+  if (a.length < 8) return toast("Use at least 8 characters", true);
+  if (a !== b) return toast("The two passwords don't match", true);
+  await act(async () => { const r = await api("/api/admin/password", { json: { password: a } }); showAdmin(r); toast(r.message); ok(); loadAdminSections(); });
+}
+$("#adm-set").onsubmit = (e) => { e.preventDefault();
+  setAdminPassword($("#adm-new").value, $("#adm-new2").value, () => { $("#adm-new").value = $("#adm-new2").value = ""; }); };
+$("#ap-form").onsubmit = (e) => { e.preventDefault();
+  setAdminPassword($("#ap-new").value, $("#ap-again").value, () => { $("#ap-new").value = $("#ap-again").value = ""; }); };
+document.querySelectorAll("[data-go-admin]").forEach(b => b.onclick = () => {
+  $("#t-maint").click();
+  setTimeout(() => { $("#adm").scrollIntoView({ behavior: "smooth", block: "start" }); const f = $("#adm-pw"); if (f && !$("#adm-locked").hidden) f.focus(); }, 300);
+});
 
 /* ---------- SSH login ---------- */
 let sshState = null;
-function showSsh(st, passwordSet) {
+function showSsh(st) {
   sshState = st;
   const login = st.logins[0];
   foldSum("ssh", login ? `${login} · SSH ${st.active ? "on" : st.enabled ? "not running" : "off"}` : "No login", st.enabled && !st.active ? "warn" : "");
-  $("#s-nopass").hidden = passwordSet;
-  $("#s-main").hidden = !passwordSet;
   $("#s-cmd").textContent = `ssh ${login || "name"}@${st.hostname}.local`;
-  if (!passwordSet) return;
   $("#s-create").hidden = !!login;
   $("#s-has").hidden = !login;
   const stuck = st.enabled && !st.active;  // switched on, but not running
@@ -2044,10 +2128,10 @@ function showSsh(st, passwordSet) {
     $("#s-toggle").textContent = st.active ? "Switch SSH off" : "Switch SSH on";
   }
 }
-async function loadSsh(passwordSet) {
-  try { showSsh(await api("/api/maintenance/ssh"), passwordSet); } catch {}
+async function loadSsh() {
+  try { showSsh(await api("/api/maintenance/ssh")); } catch {}
 }
-const sshDo = (body, msg) => act(async () => { const r = await api("/api/maintenance/ssh", { json: body }); toast(r.message); showSsh(r, true); });
+const sshDo = (body, msg) => act(async () => { const r = await api("/api/maintenance/ssh", { json: body }); toast(r.message); showSsh(r); });
 $("#s-create").onsubmit = (e) => { e.preventDefault(); sshDo({ what: "create", username: $("#s-user").value.trim(), password: $("#s-pw").value }); $("#s-pw").value = ""; };
 $("#s-pwform").onsubmit = (e) => { e.preventDefault(); sshDo({ what: "password", username: sshState.logins[0], password: $("#s-newpw").value }); $("#s-newpw").value = ""; };
 $("#s-toggle").onclick = () => {
@@ -2075,8 +2159,7 @@ $("#r-form").onsubmit = (e) => {
       To set it up again, join its Wi-Fi${r.hotspot ? ` (<b>${escapeHtml(r.hotspot)}</b>)` : ""} with the QR code on its screen.`;
   });
 };
-function showResetPassword(set) {
-  $("#r-nopass").hidden = set; $("#r-form").hidden = !set;
+function showReset() {
   foldSum("reset", "");
 }
 
@@ -2099,15 +2182,12 @@ function statusLine(icon, cls, text) {
 }
 function showBackup(b) {
   bk = b;
-  $("#b-nopass").hidden = b.password_set;
-  showResetPassword(b.password_set);
-  loadSsh(b.password_set);
-  $("#b-main").hidden = !b.password_set;
+  showReset();
+  loadSsh();
   const last = b.last;
   if (!b.auto) foldSum("backup", last && last.ok ? `Last backup ${fmtAgo(last.t)}` : "Not backing up automatically");
   else if (last && !last.ok) foldSum("backup", "The last backup didn't work", "warn");
   else foldSum("backup", b.last_ok_t ? `Last backup ${fmtAgo(b.last_ok_t)} · ${b.where_label}` : `Automatic, to ${b.where_label}`, "ok");
-  if (!b.password_set) return;
   // downloads, with sizes
   const est = b.estimate;
   if (est) {
@@ -2691,6 +2771,7 @@ async function loadPresence() {
 }
 // refresh while the tab is open
 setInterval(() => { if (!$("#tab-maint").hidden) loadMaint(); }, 10000);
+loadAdmin(false);
 
 try {
   $("#tz-list").innerHTML = Intl.supportedValuesOf("timeZone").map(z => `<option value="${z}">`).join("");

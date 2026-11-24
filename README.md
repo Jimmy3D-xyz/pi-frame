@@ -47,7 +47,7 @@ work with it unchanged.
 3. Put the card in the Pi, connect the monitor and switch on.
 4. Scan the QR codes on the screen with your phone: one joins the frame's
    setup Wi-Fi, the other opens a short welcome wizard (Wi-Fi, name, time
-   zone, password).
+   zone, admin password).
 
 There's also an installer kit for a card you've written yourself. Both, plus
 moving to a new card and updating, are in [Installing and updating](docs/installing.md).

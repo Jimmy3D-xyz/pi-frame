@@ -13,6 +13,8 @@ from photoframe.autoupdate import AutoUpdate, AutoUpdateError
 from photoframe.config import ConfigStore
 from photoframe.updater import Updates
 
+from adminhelp import unlock
+
 from test_updater import package
 
 TOKEN = "github_pat_" + "A1b2" * 10
@@ -203,6 +205,7 @@ def test_web_endpoints(tmp_path, gh, monkeypatch):
     assert client.post("/api/maintenance/update/github/token", json={"token": TOKEN}).status_code == 403
     cfg.update({"http_password": "pagepass1"})
     auth = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass1").decode()}
+    unlock(client, frame, auth)
     gh.release(newer())
     r = client.post("/api/maintenance/update/github/token", json={"token": TOKEN}, headers=auth)
     assert r.status_code == 200 and r.get_json()["available"]["version"] == newer()

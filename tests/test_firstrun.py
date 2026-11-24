@@ -16,6 +16,8 @@ from photoframe.network import HOTSPOT_IP, WifiStatus
 from photoframe.storage import Storage
 from photoframe.web import create_app
 
+from adminhelp import unlock
+
 PANEL = (800, 480)
 REPO = Path(__file__).resolve().parents[1]
 NO_USERS = "root:x:0:0:root:/root:/bin/bash\nphotoframe:x:999:999::/var/lib/pi-photoframe:/usr/sbin/nologin\n"
@@ -71,20 +73,23 @@ def test_wizard_sets_everything_then_joins_wifi(env):
     assert req["action"] == "first_run" and req["country"] == "AU" and req["timezone"] == "Australia/Melbourne"
     assert req["ssh"]["username"] == "alex" and req["ssh"]["hash"].startswith("$6$")
     assert "sshpass12" not in json.dumps(req)  # only the hash goes to the helper
-    assert frame.cfg.get("device_name") == "Living room" and frame.cfg.get("http_password") == "pagepass1"
+    # the wizard's password is the admin password; everyday use of the page stays open
+    assert frame.cfg.get("device_name") == "Living room" and frame.cfg.get("admin_password") == "pagepass1"
+    assert not frame.cfg.get("http_password")
     assert not firstrun.is_first_run(tmp)
-    # done: the normal page, with its password, and the wizard can't run again
+    # done: the normal page, and the wizard can't run again
     frame.wifi.status = WifiStatus(mode="online", ssid="Home")
-    assert client.get("/").status_code == 401
-    auth = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass1").decode()}
-    assert b"Welcome to your Pi Frame" not in client.get("/", headers=auth).data
-    assert client.post("/api/setup", json=ANSWERS, headers=auth).status_code == 409
+    assert b"Welcome to your Pi Frame" not in client.get("/").data
+    assert client.post("/api/setup", json=ANSWERS).status_code == 409
+    assert client.get("/api/backup").status_code == 403
+    assert client.post("/api/admin/unlock", json={"password": "pagepass1"}).status_code == 200
+    assert client.get("/api/backup").status_code == 200
 
 
 def test_wizard_answers_are_checked(env):
     frame, client, tmp, asked = env
     for bad, msg in [({"country": "Australia"}, "country"), ({"timezone": "Mars/Base"}, "time zone"),
-                     ({"name": ""}, "name"), ({"password": "short"}, "8 characters"),
+                     ({"name": ""}, "name"), ({"password": "short"}, "8 characters"), ({"password": ""}, "admin password"),
                      ({"ssh": {"username": "root", "password": "longenough"}}, "username"),
                      ({"ssh": {"username": "alex", "password": "x"}}, "SSH password"),
                      ({"wifi": {"ssid": "Home", "password": "short"}}, "Wi-Fi passwords")]:
@@ -101,7 +106,7 @@ def test_wizard_over_ethernet_needs_no_wifi_and_helper_problems_are_shown(env):
     app_helper["SETUP_HELPER"] = lambda d, req: {"state": "failed", "message": "Unknown time zone"}
     r = client.post("/api/setup", json=answers)
     assert r.status_code == 400 and "time zone" in r.get_json()["message"] and firstrun.is_first_run(tmp)
-    assert not frame.cfg.get("http_password")  # nothing half-applied: the page stays open to try again
+    assert not frame.cfg.get("admin_password")  # nothing half-applied: the page stays open to try again
     app_helper["SETUP_HELPER"] = lambda d, req: {"state": "done"}
     r = client.post("/api/setup", json=answers)
     assert r.status_code == 200 and "joining" not in r.get_json() and frame.wifi.connected is None
@@ -182,6 +187,9 @@ def test_reset_needs_password_and_confirmation(env):
     assert client.post("/api/maintenance/reset", json={"confirm": "RESET"}).status_code == 403
     frame.cfg.update({"http_password": "pagepass1"})
     auth = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass1").decode()}
+    # the page password isn't enough: it needs the admin options unlocked
+    assert client.post("/api/maintenance/reset", json={"confirm": "RESET"}, headers=auth).status_code == 403
+    unlock(client, frame, auth)
     assert client.post("/api/maintenance/reset", json={"confirm": "yes"}, headers=auth).status_code == 400
     r = client.post("/api/maintenance/reset", json={"confirm": "reset", "remove_logins": True}, headers=auth)
     assert r.status_code == 200 and frame.notice == "reset"
@@ -236,6 +244,7 @@ def test_ssh_section(env, monkeypatch):
     assert client.post("/api/maintenance/ssh", json={"what": "on"}).status_code == 403
     frame.cfg.update({"http_password": "pagepass1"})
     auth = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass1").decode()}
+    unlock(client, frame, auth)
     st = client.get("/api/maintenance/ssh", headers=auth).get_json()
     assert st["logins"] == [] and "active" in st
     r = client.post("/api/maintenance/ssh", headers=auth, json={"what": "create", "username": "root", "password": "longenough"})

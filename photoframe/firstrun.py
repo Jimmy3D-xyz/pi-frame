@@ -3,7 +3,7 @@
 The image has no Wi-Fi settings, no login and SSH switched off. It leaves a
 marker (`.first-run` in the data folder); while it's there the frame starts
 its setup hotspot straight away and its web page opens the welcome wizard:
-Wi-Fi, the frame's name, country, time zone, a page password and, if wanted,
+Wi-Fi, the frame's name, country, time zone, an admin password and, if wanted,
 an SSH login.
 
 The frame runs unprivileged, so the system settings (Wi-Fi country, time
@@ -88,8 +88,8 @@ def check(answers: dict, passwd: str = "/etc/passwd") -> dict:
         raise SetupError("Choose a time zone.")
     out["timezone"] = tz
     pw = str(answers.get("password") or "")
-    if pw and not 8 <= len(pw) <= 128:
-        raise SetupError("The page password needs at least 8 characters.")
+    if not 8 <= len(pw) <= 128:  # the admin password: updates, backups, SSH and reset need it
+        raise SetupError("The admin password needs at least 8 characters.")
     out["password"] = pw
     ssh = answers.get("ssh")
     if ssh:
