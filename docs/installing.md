@@ -318,14 +318,6 @@ happens when there's a new version:
 Only full releases are offered: the `pi-frame-test` builds are ignored. The
 download is checked against the checksum GitHub publishes for it.
 
-**Updating from your own private copy?** Then the frame needs a read-only
-GitHub token: Maintenance → Software update → **GitHub token (only for a
-private copy)** has the steps (a fine-grained token for that repository
-with **Contents: Read-only**). The frame keeps it privately (readable by the
-frame only, never shown again, left out of diagnostics) and says when it
-expires. A saved token that stops working is simply left out while the
-repository can be read without it.
-
 ### Updating by hand
 
 **From the website** (Maintenance → Software update → From a file): upload a new
@@ -349,7 +341,7 @@ unzip -o pi-photoframe.zip && cd pi-photoframe && sudo ./deploy/install.sh
 
 Maintenance → **Reset to a fresh frame** erases photos and videos, albums,
 settings, synced-folder sign-ins, saved Wi-Fi networks, backups kept on the
-frame, the GitHub token and the passwords, then restarts. The frame then
+frame and the passwords, then restarts. The frame then
 starts like a new card: straight to its setup hotspot and the welcome wizard.
 The installed version stays as it is.
 

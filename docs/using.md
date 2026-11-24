@@ -305,8 +305,7 @@ small panel appears on the screen: **Pi Frame needs attention · Open
 piframe.local → Maintenance**. It doesn't say what's wrong, so visitors see
 nothing private. It's for:
 
-- an automatic backup or a software update that keeps failing (including
-  the GitHub token running out),
+- an automatic backup or a software update that keeps failing,
 - a synced folder whose sign-in has run out,
 - the SD card filling up or showing errors, or the power supply being too
   weak right now,

@@ -1,11 +1,8 @@
 """Updates from GitHub: the frame checks the repository's releases itself.
 
-The repository is public, so no sign-in is needed. A read-only GitHub token
-(fine-grained, "Contents: read") is only for a private copy of the repository
-(Maintenance → GitHub token, optional). It's kept in the data folder, readable
-by the frame only, and never shown again or included in diagnostics. A saved
-token that stops working is simply left out, as long as the repository can be
-read without it.
+The repository is public, so no sign-in is needed. (Frames from before
+0.36.1 may have a GitHub token saved from when it was private: it's deleted
+when the frame starts.)
 
 Once a day the frame looks at the latest release (test builds, marked
 pre-release, are ignored). If it's newer:
@@ -43,7 +40,6 @@ CHECK_EVERY = 24 * 3600
 FIRST_CHECK_AFTER = 10 * 60  # after starting up
 MODES = ("off", "notify", "install")
 BUSY_STATES = ("queued", "unpacking", "backing-up", "installing", "checking", "rolling-back")
-TOKEN_RE = re.compile(r"^(github_pat_[A-Za-z0-9_]{20,255}|gh[pousr]_[A-Za-z0-9]{20,255})$")
 
 
 class AutoUpdateError(RuntimeError):
@@ -56,7 +52,7 @@ class AutoUpdate:
         self.updates = updates
         self.frame = frame
         self.api = api or API
-        self.token_path = data_dir / "github-token"
+        (data_dir / "github-token").unlink(missing_ok=True)  # from when the repository was private
         self.state_path = data_dir / "update" / "github.json"
         self.state: dict = {}
         try:
@@ -107,51 +103,11 @@ class AutoUpdate:
         m = self.cfg.get("update_auto")
         return m if m in MODES else "notify"
 
-    # ---------- the token
-    def token(self) -> str | None:
-        try:
-            t = self.token_path.read_text().strip()
-        except OSError:
-            return None
-        return t or None
-
-    def set_token(self, token: str) -> dict:
-        token = (token or "").strip()
-        if not TOKEN_RE.match(token):
-            raise AutoUpdateError("That doesn't look like a GitHub token (they start with github_pat_ or ghp_).")
-        r = self._get(f"/repos/{self.repo}", token=token)
-        if r.status_code in (401, 403):
-            raise AutoUpdateError("GitHub didn't accept that token. Check it hasn't expired, and that it can "
-                                  f"read {self.repo}.")
-        if r.status_code == 404:
-            raise AutoUpdateError(f"That token can't see {self.repo}. When creating it, choose this repository "
-                                  "under Repository access.")
-        if r.status_code != 200:
-            raise AutoUpdateError(f"GitHub answered {r.status_code}; try again in a minute.")
-        tmp = self.token_path.with_suffix(".tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as f:
-            f.write(token)
-        os.replace(tmp, self.token_path)
-        self.state.pop("error", None)
-        self._save()
-        log.info("GitHub token saved for %s", self.repo)
-        return self.check()
-
-    def forget_token(self) -> None:
-        self.token_path.unlink(missing_ok=True)
-        self.state.pop("available", None)
-        self.state.pop("error", None)
-        self._save()
-
     # ---------- GitHub
-    def _get(self, path: str, token: str | None = None, anonymous: bool = False, **kw) -> requests.Response:
+    def _get(self, path: str, **kw) -> requests.Response:
         headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
                    "User-Agent": f"Pi-Frame/{__version__}"}
         headers.update(kw.pop("headers", {}))
-        tok = None if anonymous else (token or self.token())
-        if tok:
-            headers["Authorization"] = f"Bearer {tok}"
         try:
             return requests.get(self.api + path, headers=headers, timeout=kw.pop("timeout", 20), **kw)
         except requests.RequestException as e:
@@ -162,34 +118,17 @@ class AutoUpdate:
         with self._lock:
             self.busy = "checking"
             try:
-                self._anonymous = not self.token()
-                r = self._get(f"/repos/{self.repo}/releases/latest", anonymous=self._anonymous)
-                if r.status_code == 401 and not self._anonymous:
-                    # the saved token stopped working: fine, if the repository is public
-                    self._anonymous = True
-                    r = self._get(f"/repos/{self.repo}/releases/latest", anonymous=True)
-                    if r.status_code in (200, 404) and self._repo_public():
-                        self.state["token_ignored"] = True
-                        log.info("the saved GitHub token no longer works; checking without it")
-                    else:
-                        raise AutoUpdateError("GitHub no longer accepts the token (it may have expired). "
-                                              "Add a new one.")
-                elif not self._anonymous:
-                    self.state.pop("token_ignored", None)
+                r = self._get(f"/repos/{self.repo}/releases/latest")
                 self.state["last_check"] = time.time()
-                if r.status_code == 404 and self._anonymous and not self._repo_public():
-                    raise AutoUpdateError(f"Couldn't find {self.repo} on GitHub. If it's a private copy, "
-                                          "add a GitHub token (Maintenance → Software update).")
-                if r.status_code == 404:
+                if r.status_code == 404 and not self._repo_found():
+                    raise AutoUpdateError(f"Couldn't find {self.repo} on GitHub.")
+                if r.status_code == 404:  # the repository has no releases yet
                     self.state.pop("available", None)
                     self.state["latest"] = None
                     self.state.pop("error", None)
                     return self.status()
                 if r.status_code == 403 and r.headers.get("X-RateLimit-Remaining") == "0":
                     raise AutoUpdateError("GitHub is limiting how often it can be asked; trying again later")
-                if r.status_code in (401, 403):
-                    raise AutoUpdateError("GitHub no longer accepts the token (it may have expired). "
-                                          "Add a new one, or remove it.")
                 if r.status_code != 200:
                     raise AutoUpdateError(f"GitHub answered {r.status_code}")
                 rel = r.json()
@@ -219,15 +158,14 @@ class AutoUpdate:
                 self._save()
         return self.status()
 
-    def _repo_public(self) -> bool:
+    def _repo_found(self) -> bool:
         try:
-            return self._get(f"/repos/{self.repo}", anonymous=True).status_code == 200
+            return self._get(f"/repos/{self.repo}").status_code == 200
         except AutoUpdateError:
             return False
 
     def _download(self, avail: dict) -> Path:
-        anonymous = getattr(self, "_anonymous", not self.token())
-        r = self._get(f"/repos/{self.repo}/releases/assets/{avail['asset_id']}", anonymous=anonymous,
+        r = self._get(f"/repos/{self.repo}/releases/assets/{avail['asset_id']}",
                       headers={"Accept": "application/octet-stream"}, stream=True, timeout=120)
         if r.status_code != 200:
             raise AutoUpdateError(f"couldn't download the update (GitHub answered {r.status_code})")
@@ -308,7 +246,6 @@ class AutoUpdate:
         avail = self.state.get("available")
         return {
             "mode": self.mode, "time": self.cfg.get("update_time") or "03:30", "repo": self.repo,
-            "token_set": bool(self.token()), "token_ignored": bool(self.state.get("token_ignored")),
             "last_check": self.state.get("last_check"),
             "latest": self.state.get("latest"), "available": avail, "error": self.state.get("error"),
             "busy": self.busy, "failed": avail is not None and avail["version"] in self.state.get("failed", []),

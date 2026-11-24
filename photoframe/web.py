@@ -1286,18 +1286,6 @@ def create_app(frame: Frame) -> Flask:
     def github_status():
         return jsonify(autoupd.status())
 
-    @app.post("/api/maintenance/update/github/token")
-    def github_token():
-        try:
-            return jsonify(autoupd.set_token(str((request.get_json(silent=True) or {}).get("token", ""))))
-        except AutoUpdateError as e:
-            return _err(str(e))
-
-    @app.delete("/api/maintenance/update/github/token")
-    def github_token_forget():
-        autoupd.forget_token()
-        return _ok("Token removed")
-
     @app.post("/api/maintenance/update/github/check")
     def github_check():
         try:

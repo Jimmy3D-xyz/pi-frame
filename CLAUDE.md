@@ -38,10 +38,10 @@ maintainer pushes to `main` and creates `v*` tags.
 - On-screen notice (0.35.0): `attention.py` watches the Maintenance summary
   (`WATCH` areas), shows after an hour; add new needs-a-person problems as
   summary lines in `health.summarise`.
-- Public repo (0.36.0): updates need no GitHub token (one is only used if
-  saved, for a private fork); the one-line installer is the `install.sh`
-  release asset (`kit/get.sh`), which fetches the newest kit and checks its
-  SHA-256.
+- Public repo (0.36.0): updates use the public GitHub API with no token
+  (token support removed in 0.36.1; an old `github-token` file is deleted at
+  start); the one-line installer is the `install.sh` release asset
+  (`kit/get.sh`), which fetches the newest kit and checks its SHA-256.
 
 ## Things learned the hard way
 

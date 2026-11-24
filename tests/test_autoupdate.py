@@ -17,7 +17,6 @@ from adminhelp import unlock
 
 from test_updater import package
 
-TOKEN = "github_pat_" + "A1b2" * 10
 REPO = "Jimmy3D-xyz/pi-frame"
 
 
@@ -25,8 +24,7 @@ class FakeGitHub:
     def __init__(self):
         self.releases = []  # newest first; GitHub's /latest skips pre-releases
         self.assets = {}
-        self.token_ok = True
-        self.public = False  # a public repository: readable without a token
+        self.public = True
         self.requests = []
         gh = self
 
@@ -36,12 +34,8 @@ class FakeGitHub:
 
             def do_GET(self):
                 gh.requests.append((self.path, self.headers.get("Authorization"), self.headers.get("Accept")))
-                auth = self.headers.get("Authorization")
-                if auth is None:
-                    if not gh.public:  # GitHub hides private repositories from strangers
-                        return self.send(404, {"message": "Not Found"})
-                elif auth != f"Bearer {TOKEN}" or not gh.token_ok:
-                    return self.send(401, {"message": "Bad credentials"})  # even on a public repository
+                if not gh.public:  # GitHub answers "not found" for a repository it can't show
+                    return self.send(404, {"message": "Not Found"})
                 if self.path == f"/repos/{REPO}":
                     return self.send(200, {"full_name": REPO, "private": not gh.public})
                 if self.path == f"/repos/{REPO}/releases/latest":
@@ -113,23 +107,28 @@ def newer(step=1):
     return ".".join(map(str, parts))
 
 
-def test_token_is_checked_and_kept_privately(au, gh, tmp_path):
-    with pytest.raises(AutoUpdateError, match="doesn't look like"):
-        au.set_token("hello")
-    gh.token_ok = False
-    with pytest.raises(AutoUpdateError, match="didn't accept"):
-        au.set_token(TOKEN)
-    assert not au.token()
-    gh.token_ok = True
-    st = au.set_token(TOKEN)
-    assert st["token_set"] and st["available"] is None and st["latest"] is None  # no releases yet
-    assert oct(au.token_path.stat().st_mode & 0o777) == "0o600"
-    assert TOKEN not in json.dumps(au.status())
-    assert not (tmp_path / "config.json").exists() or TOKEN not in (tmp_path / "config.json").read_text()
+def test_no_token_is_sent_and_an_old_one_is_deleted(gh, tmp_path):
+    (tmp_path / "github-token").write_text("github_pat_" + "A1b2" * 10)
+    a = AutoUpdate(tmp_path, ConfigStore(tmp_path), Updates(tmp_path), FakeFrame(), api=gh.url)
+    assert not (tmp_path / "github-token").exists()  # saved when the repository was private
+    gh.release(newer())
+    assert a.check()["available"]["version"] == newer()
+    assert all(auth is None for _, auth, _ in gh.requests)
+
+
+def test_no_releases_yet(au, gh):
+    st = au.check()
+    assert st["available"] is None and st["latest"] is None and st["error"] is None
+
+
+def test_a_missing_repository_is_reported(au, gh):
+    gh.public = False
+    with pytest.raises(AutoUpdateError, match="Couldn't find"):
+        au.check()
+    assert au.health()["level"] == "warn" and au.status()["error"]
 
 
 def test_finds_a_newer_release_and_ignores_test_builds(au, gh):
-    au.set_token(TOKEN)
     gh.release(__version__)
     assert au.check()["available"] is None and au.status()["latest"] == __version__
     gh.release(newer(2), prerelease=True)  # a test build: not offered
@@ -141,7 +140,6 @@ def test_finds_a_newer_release_and_ignores_test_builds(au, gh):
 
 
 def test_install_downloads_checks_and_hands_over(au, gh, tmp_path):
-    au.set_token(TOKEN)
     gh.release(newer())
     au.check()
     info = au.install()
@@ -153,7 +151,6 @@ def test_install_downloads_checks_and_hands_over(au, gh, tmp_path):
 
 
 def test_a_download_that_doesnt_match_the_checksum_is_refused(au, gh, tmp_path):
-    au.set_token(TOKEN)
     gh.release(newer())
     au.check()
     gh.assets[1] = package(newer()) + b"tampered"
@@ -163,7 +160,6 @@ def test_a_download_that_doesnt_match_the_checksum_is_refused(au, gh, tmp_path):
 
 
 def test_a_release_without_a_proper_package_is_refused(au, gh, tmp_path):
-    au.set_token(TOKEN)
     gh.release(newer(), blob=b"not a zip", digest=False)
     au.check()
     with pytest.raises(AutoUpdateError, match="isn't right"):
@@ -171,16 +167,7 @@ def test_a_release_without_a_proper_package_is_refused(au, gh, tmp_path):
     assert not (tmp_path / "update" / "pending.zip").exists()
 
 
-def test_expired_token_is_reported(au, gh):
-    au.set_token(TOKEN)
-    gh.token_ok = False
-    with pytest.raises(AutoUpdateError, match="expired"):
-        au.check()
-    assert au.health()["level"] == "warn" and au.status()["error"]
-
-
 def test_automatic_install_window_and_no_retry_after_a_failure(au, gh, tmp_path):
-    au.set_token(TOKEN)
     gh.release(newer())
     au.check()
     night = dt.datetime(2026, 11, 21, 3, 45)
@@ -207,23 +194,21 @@ def test_web_endpoints(tmp_path, gh, monkeypatch):
     cfg = ConfigStore(tmp_path)
     frame = Frame(cfg, Storage(tmp_path, (800, 480)), FileDisplay((800, 480), str(tmp_path / "f.png")), tmp_path)
     client = create_app(frame).test_client()
-    assert client.post("/api/maintenance/update/github/token", json={"token": TOKEN}).status_code == 403
+    assert client.post("/api/maintenance/update/github/check").status_code == 403  # an admin option
     cfg.update({"http_password": "pagepass1"})
     auth = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass1").decode()}
     unlock(client, frame, auth)
     gh.release(newer())
-    r = client.post("/api/maintenance/update/github/token", json={"token": TOKEN}, headers=auth)
+    r = client.post("/api/maintenance/update/github/check", headers=auth)
     assert r.status_code == 200 and r.get_json()["available"]["version"] == newer()
     m = client.get("/api/maintenance", headers=auth).get_json()
     assert any(x["area"] == "Updates" for x in m["summary"])
     r = client.post("/api/maintenance/update/github/install", headers=auth)
     assert r.status_code == 200 and (tmp_path / "update" / "pending.zip").exists()
-    assert client.delete("/api/maintenance/update/github/token", headers=auth).status_code == 200
-    assert not client.get("/api/maintenance/update/github", headers=auth).get_json()["token_set"]
+    assert client.post("/api/maintenance/update/github/token", json={"token": "x"}, headers=auth).status_code in (404, 405)
 
 
 def test_once_installed_it_isnt_offered_again(au, gh, tmp_path, monkeypatch):
-    au.set_token(TOKEN)
     gh.release(newer())
     assert au.check()["available"]["version"] == newer()
     # the frame restarts on the new version, with the note still saved
@@ -241,41 +226,3 @@ def test_frames_follow_the_repository_to_its_new_home(tmp_path):
     raw = json.loads((tmp_path / "config.json").read_text())
     assert raw["config"]["update_repo"] == "JimmySte/pi-frame"
     assert ConfigStore(tmp_path).get("update_repo") == "Jimmy3D-xyz/pi-frame"
-
-
-
-# ---------------------------------------------------------------- a public repository (0.36.0)
-def test_public_repository_needs_no_token(au, gh):
-    gh.public = True
-    gh.release(newer())
-    st = au.check()
-    assert st["available"]["version"] == newer() and not st["token_set"] and st["error"] is None
-    au.install()
-    assert au.frame_.began == [newer()]
-    assert all(auth is None for _, auth, _ in gh.requests)  # never sent a token
-    assert au.health() is None or au.health()["level"] == "ok"
-
-
-def test_a_stale_token_is_left_out_when_the_repository_is_public(au, gh):
-    au.set_token(TOKEN)
-    gh.public, gh.token_ok = True, False  # the token expired, then the repository went public
-    gh.release(newer())
-    st = au.check()
-    assert st["available"]["version"] == newer() and st["token_ignored"] and st["error"] is None
-    gh.requests.clear()
-    au.install()
-    assert all(auth is None for _, auth, _ in gh.requests)
-    # a working token again: used, and the note goes
-    gh.token_ok = True
-    assert not au.check()["token_ignored"]
-
-
-def test_a_private_copy_still_needs_a_token(au, gh):
-    gh.release(newer())
-    with pytest.raises(AutoUpdateError, match="add a GitHub token"):
-        au.check()
-    au.set_token(TOKEN)
-    assert au.check()["available"]["version"] == newer()
-    gh.token_ok = False
-    with pytest.raises(AutoUpdateError, match="no longer accepts the token"):
-        au.check()
