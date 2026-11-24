@@ -2,8 +2,7 @@
 
 <h1 align="center">Pi Frame</h1>
 
-<p align="center"><b>Turn a Raspberry Pi 4 and any HDMI monitor into a digital photo frame,<br>
-run from your phone.</b></p>
+<p align="center"><b>Turn a Raspberry Pi 4 and any HDMI monitor into a digital photo frame, run from your phone.</b></p>
 
 <p align="center">
   <a href="https://github.com/Jimmy3D-xyz/pi-frame/releases/latest"><img alt="Latest version" src="https://img.shields.io/github/v/release/Jimmy3D-xyz/pi-frame?label=version"></a>
