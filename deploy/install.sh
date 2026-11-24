@@ -189,6 +189,14 @@ install -m 644 "$APP_DIR/deploy/pi-frame-system.service" /etc/systemd/system/pi-
 install -m 644 "$APP_DIR/deploy/pi-frame-splash-refresh.service" /etc/systemd/system/pi-frame-splash-refresh.service
 install -d -o photoframe -g photoframe -m 755 "$DATA_DIR/system"
 
+echo "==> Security updates each night (Raspberry Pi OS security fixes only)"
+apt-get install -y -q --no-install-recommends unattended-upgrades \
+  || echo "    Warning: couldn't install unattended-upgrades; security updates won't install by themselves"
+install -m 644 "$APP_DIR/deploy/52pi-frame-unattended.conf" /etc/apt/apt.conf.d/52pi-frame-unattended
+install -m 755 "$APP_DIR/deploy/security_updates.py" /usr/local/sbin/pi-frame-security-updates
+install -m 644 "$APP_DIR/deploy/pi-frame-security.service" /etc/systemd/system/pi-frame-security.service
+install -m 644 "$APP_DIR/deploy/pi-frame-security.timer" /etc/systemd/system/pi-frame-security.timer
+
 echo "==> Keeping logs across reboots (for troubleshooting)"
 # Raspberry Pi OS keeps the system log in memory only, so a failed boot leaves
 # no record. Keep it on the card, capped small to spare the SD card.
@@ -218,6 +226,7 @@ systemctl enable pi-photoframe.service
 enable_now pi-photoframe-update.path
 enable_now pi-frame-system.path
 systemctl enable pi-frame-splash-refresh.service
+enable_now pi-frame-security.timer
 
 if [ "$IMAGE" = 1 ]; then
   echo "==> Ready-made image: first-run setup"

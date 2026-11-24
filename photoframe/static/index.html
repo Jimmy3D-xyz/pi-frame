@@ -321,6 +321,10 @@
   body:not(.admin) .admin-only { display: none !important; }
   body.admin .admin-locked-note { display: none; }
   .admin-bar { margin-bottom: 1rem; }
+  .attention-bar { display: flex; gap: .5rem 1rem; align-items: center; flex-wrap: wrap; margin: 0 0 1rem;
+    padding: .7rem .9rem; border-radius: 12px; background: color-mix(in srgb, #f0ba52 18%, transparent); }
+  .attention-bar[hidden] { display: none; }
+  .attention-bar > span { flex: 1 1 18rem; }
   .admin-row { display: flex; align-items: center; gap: .6rem 1rem; flex-wrap: wrap; }
   .admin-row[hidden] { display: none; }
   .admin-row > p { margin: 0; flex: 1 1 16rem; }
@@ -699,6 +703,7 @@
           <button type="button" class="btn small" id="adm-lock">Lock now</button>
         </div>
       </section>
+      <div class="note attention-bar" id="m-attention" hidden></div>
       <ul class="summary" id="m-summary" aria-label="Health summary"></ul>
       <div class="mgrid">
         <section class="mcard fold"><details data-fold="net"><summary><h3>Wi-Fi and network</h3><span class="fold-sum" id="sum-net"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
@@ -752,6 +757,10 @@
           <small class="note" style="display:block;margin:-.3rem 0 .8rem">Shows sample photos (public-domain paintings
             and NASA pictures) with collages and slides about the frame, like a TV in a shop, instead of your photos.
             A frame with no photos yet shows it by itself until you add some.</small>
+          <label class="toggle"><input type="checkbox" name="attention_on_screen"> Show a notice on the screen when the frame needs attention</label>
+          <small class="note" style="display:block;margin:-.3rem 0 .8rem">A small panel saying to look at Maintenance, when something has needed a person for an hour
+              (a failing backup or update, a synced folder that's signed out, the SD card filling up). It doesn't say
+              what's wrong, so visitors see nothing private.</small>
             <div class="actions" style="margin-top:.6rem"><button class="btn small primary">Save</button></div>
           </form>
         </div></details></section>
@@ -1764,7 +1773,7 @@ $("#f-frame").onsubmit = (e) => {
   act(async () => {
     await api("/api/config", { json: {
       device_name: f.device_name.value.trim() || "Pi Frame", timezone: f.timezone.value.trim(),
-      ha_url: f.ha_url.value.trim(), demo_mode: f.demo_mode.checked,
+      ha_url: f.ha_url.value.trim(), demo_mode: f.demo_mode.checked, attention_on_screen: f.attention_on_screen.checked,
     } });
     await loadConfig(); refreshStatus();
   }, "Saved");
@@ -1823,6 +1832,7 @@ async function loadMaint() {
   try { h = await api("/api/maintenance"); } catch (e) { $("#m-updated").textContent = `Couldn't load: ${e.message}`; return; }
   $("#m-updated").textContent = `Version ${h.version} · updated ${fmtClock(h.time)}`;
   foldSummaries(h);
+  showAttention(h.attention);
   $("#m-summary").innerHTML = h.summary.map(x =>
     `<li><span class="dot ${x.level}" aria-hidden="true"></span><b>${escapeHtml(x.area)}</b><span>${escapeHtml(x.text)}</span>
      <span class="visually-hidden">(${x.level === "ok" ? "OK" : x.level === "warn" ? "warning" : "problem"})</span></li>`).join("");
@@ -2102,6 +2112,25 @@ $("#pw-remove").onclick = () => {
   if (!confirm("Remove the page password? Anyone on your Wi-Fi will be able to open this page (the admin options stay locked).")) return;
   act(async () => { showAdmin(await api("/api/admin/page-password", { json: { password: "" } })); }, "Page password removed");
 };
+
+/* ---------- the on-screen notice ---------- */
+function showAttention(a) {
+  const el = $("#m-attention");
+  if (!a || !a.items || !a.items.length) { el.hidden = true; return; }
+  const areas = [...new Set(a.items.map(i => i.area))].join(", ");
+  el.hidden = false;
+  el.innerHTML = !a.enabled
+    ? `<span>⚠ Needs attention: ${escapeHtml(areas)} (see below).</span>`
+    : a.hidden
+    ? `<span>⚠ Needs attention: ${escapeHtml(areas)}. Hidden on the frame's screen until something new comes up.</span>
+       <button type="button" class="btn small admin-only" data-att="show">Show on the screen again</button>`
+    : `<span>⚠ The frame's screen says <b>Pi Frame needs attention</b>, because of: ${escapeHtml(areas)} (see below).
+       It goes away by itself once that's sorted.</span>
+       <button type="button" class="btn small admin-only" data-att="hide">Hide until something new</button>`;
+  el.querySelectorAll("[data-att]").forEach(b => b.onclick = () => act(async () => {
+    showAttention(await api(`/api/maintenance/attention/${b.dataset.att}`, { method: "POST" }));
+  }, b.dataset.att === "hide" ? "Hidden on the screen" : "Shown again"));
+}
 
 /* ---------- admin options ---------- */
 let admin = { unlocked: false, password_set: true, page_password_set: false }, admTimer = null;

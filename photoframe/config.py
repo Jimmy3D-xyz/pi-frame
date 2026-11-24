@@ -62,6 +62,7 @@ DEFAULT_CONFIG: dict = {
     "clip_seconds": 20,
     # jokes and facts panel
     "overlay_fun": "off",      # off | jokes | facts | both
+    "attention_on_screen": True,  # a small panel when the frame needs someone to look at Maintenance
     "fun_custom": [],          # the user's own lines
     # presence sensor (mmWave radar OT2 output) on a GPIO pin
     "presence_enabled": False,

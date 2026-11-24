@@ -32,6 +32,14 @@ It speaks the esp32-photoframe HTTP API. Repository: `Jimmy3D-xyz/pi-frame`
   Set-once things live in admin cards in Maintenance (This frame, Frame
   hardware, Screen resolution); everyday tabs hold what the household changes.
 
+- Security updates (0.35.0): Debian-Security only, nightly 03:40 by a root
+  timer; the frame restarts the Pi for core updates only while the screen is
+  off. Kernel/firmware from Raspberry Pi's archive are deliberately left out
+  (display stack is fragile, see below).
+- On-screen notice (0.35.0): `attention.py` watches the Maintenance summary
+  (`WATCH` areas), shows after an hour; add new needs-a-person problems as
+  summary lines in `health.summarise`.
+
 ## Things learned the hard way
 
 - **Display hardware (vc4 KMS) must never shrink a picture on the top layer.**

@@ -269,6 +269,9 @@ def summarise(h: dict) -> list[dict]:
     g = h.get("github_update")
     if g:
         add("Updates", g["level"], g["text"])
+    sec = h.get("security")
+    if sec:
+        add("Security updates", sec["level"], sec["text"])
 
     lib = h.get("library") or {}
     failed = [j for j in lib.get("jobs", []) if j["status"] == "failed"]

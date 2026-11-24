@@ -186,6 +186,10 @@ similar messages.
   `pi-photoframe-update.path` installs software updates, and
   `pi-frame-system.path` changes the screen resolution and remakes the boot
   screen.
+- **Security updates each night**: `unattended-upgrades`, limited to
+  Debian's security fixes (`/etc/apt/apt.conf.d/52pi-frame-unattended`), run
+  at 03:40 by `pi-frame-security.timer`. Apt's own daily run is switched off
+  so it happens only then. See [Security updates](using.md#security-updates).
 - **Boot settings** in `/boot/firmware`: the screen mode with 32-bit colour
   (with `--mode`), the Pi Frame boot screen, and the console moved off the
   screen. Each file is backed up first (`cmdline.txt.pre-photoframe`,

@@ -1,0 +1,11 @@
+[Unit]
+Description=Pi Frame: security updates each night
+
+[Timer]
+OnCalendar=*-*-* 03:40
+RandomizedDelaySec=10min
+# a Pi that was off at 03:40 checks soon after it starts
+Persistent=true
+
+[Install]
+WantedBy=timers.target

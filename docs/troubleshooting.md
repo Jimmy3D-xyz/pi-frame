@@ -127,6 +127,22 @@ The token has expired (or was deleted). Make a new one, as in
 [Automatic updates](installing.md#automatic-updates-from-github), and paste it
 under Maintenance → Software update → From GitHub.
 
+<a id="security-updates"></a>**Security updates aren't installing, or I want to run them now.**
+Maintenance shows the last result. To run them now and see what happens,
+over SSH:
+
+```sh
+sudo systemctl start pi-frame-security
+cat /var/lib/pi-photoframe/system/security-log.txt
+```
+
+"Couldn't reach the update servers" means the Pi had no internet at 03:40;
+it tries again the next night (and soon after starting, if it was off).
+
+**The screen says "Pi Frame needs attention".**
+Open the frame's page → Maintenance: the yellow note at the top says why.
+See [When the frame needs attention](using.md#when-the-frame-needs-attention).
+
 **SSH says the host key has changed.**
 Expected after reflashing a card: `ssh-keygen -R piframe.local`.
 

@@ -107,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     frame.presence.start()
     threading.Thread(target=frame.presence.run, args=(frame._stop,), name="presence", daemon=True).start()
     threading.Thread(target=frame.overlay.weather.run, args=(frame._stop,), name="weather", daemon=True).start()
+    threading.Thread(target=frame.attention.run, args=(frame._stop,), name="attention", daemon=True).start()
+    threading.Thread(target=frame.security.run, args=(frame, frame._stop), name="security-updates", daemon=True).start()
     if frame.wifi is not None:
         threading.Thread(target=frame.wifi.run, name="wifi", daemon=True).start()
     frame.notify_online()

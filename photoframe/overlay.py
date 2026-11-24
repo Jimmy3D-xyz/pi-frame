@@ -320,6 +320,40 @@ def _glass(img: Image.Image, box: tuple[int, int, int, int], radius: int) -> Non
     ImageDraw.Draw(img, "RGBA").rounded_rectangle([x0, y0, x1 - 1, y1 - 1], radius=radius, outline=(255, 255, 255, 40), width=1)
 
 
+def draw_attention(img: Image.Image, unit: int, small: int, top: bool = True) -> None:
+    """A small panel: a warning sign, "Pi Frame needs attention", and where to look.
+    Nothing about what's wrong, so visitors don't see anything private."""
+    import socket
+
+    w, h = img.size
+    d = ImageDraw.Draw(img)
+    size = max(14, int(small * 1.05))
+    head_f = _font("sans", size)
+    sub_f = _font("sans", max(11, int(size * 0.78)))
+    head = "Pi Frame needs attention"
+    sub = f"Open {socket.gethostname()}.local → Maintenance"
+    pad = int(size * 0.75)
+    icon = int(size * 1.6)
+    gap = int(size * 0.6)
+    tw = max(d.textlength(head, font=head_f), d.textlength(sub, font=sub_f))
+    pw = int(pad + icon + gap + tw + pad)
+    ph = int(pad * 2 + size * 1.35 + sub_f.size * 1.2)
+    x0 = (w - pw) // 2
+    margin = int(unit * 0.035)
+    y0 = margin if top else h - margin - ph
+    _glass(img, (x0, y0, x0 + pw, y0 + ph), int(pad * 0.9))
+    d = ImageDraw.Draw(img, "RGBA")
+    # warning triangle with "!"
+    ix, iy = x0 + pad, y0 + (ph - icon) // 2
+    d.polygon([(ix + icon / 2, iy), (ix + icon, iy + icon * 0.9), (ix, iy + icon * 0.9)], fill=SUN)
+    bang_f = _font("sans", int(icon * 0.58))
+    bw = d.textlength("!", font=bang_f)
+    d.text((ix + (icon - bw) / 2, iy + icon * 0.24), "!", font=bang_f, fill=(40, 34, 20))
+    tx = ix + icon + gap
+    d.text((tx, y0 + pad - size * 0.1), head, font=head_f, fill=INK)
+    d.text((tx, y0 + pad + size * 1.3), sub, font=sub_f, fill=SOFT)
+
+
 def _fmt_time(now: datetime, h24: bool) -> tuple[str, str]:
     if h24:
         return now.strftime("%H:%M"), ""
@@ -380,11 +414,15 @@ class Overlay:
         self.places = Places(data_dir, on_found=on_change)
         self.fun = Fun(cfg)
         self.offline = False  # away from its Wi-Fi: no weather (it'd be out of date)
+        self.attention = None  # the on-screen notice (attention.Attention), set by the frame
 
     def enabled(self) -> bool:
         c = self.cfg.snapshot()
         return (any(c.get(k) for k in ("overlay_clock", "overlay_date", "overlay_weather", "overlay_photo_info"))
-                or c.get("overlay_fun", "off") != "off")
+                or c.get("overlay_fun", "off") != "off" or self.needs_attention())
+
+    def needs_attention(self) -> bool:
+        return self.attention is not None and self.attention.showing()
 
     def caption(self, details: dict, now: datetime | None = None) -> list[str]:
         c = self.cfg.snapshot()
@@ -541,4 +579,8 @@ class Overlay:
             for i, line in enumerate(lines):
                 d.text((cx0 + cpad, cy0 + cpad - small * 0.1 + i * small * 1.45), line,
                        font=cap_f, fill=SUN if i == 1 else INK)
+
+        # ---- the frame needs someone to look at it: centred on the free edge
+        if self.needs_attention():
+            draw_attention(img, unit, small, top=bottom)
         return img

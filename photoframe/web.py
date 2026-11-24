@@ -494,6 +494,8 @@ def create_app(frame: Frame) -> Flask:
             threading.Thread(target=lambda: (frame.overlay.weather.refresh(), frame.refresh_overlay()), daemon=True).start()
         elif any(k.startswith("overlay_") for k in changed):
             threading.Thread(target=frame.refresh_overlay, daemon=True).start()
+        if "attention_on_screen" in changed:
+            frame.attention._changed()
         if {"display_orientation", "display_rotation_deg"} & changed.keys() or (
             "rotation_mode" in changed or "image_url" in changed
         ):
@@ -926,8 +928,24 @@ def create_app(frame: Frame) -> Flask:
                                                              "files", "connected")} for l in cs["links"]]}
         h["backup"] = backups.health()
         h["github_update"] = autoupd.health()
+        h["security"] = frame.security.health()
+        h["security_status"] = frame.security.summary()
+        h["attention"] = frame.attention.state()
         h["summary"] = health.summarise(h)
         return h
+
+    # the on-screen notice works from the same summary as the top of the Maintenance tab
+    frame.attention.source = lambda: health.summarise(_maintenance())
+
+    @app.post("/api/maintenance/attention/hide")
+    def attention_hide():
+        frame.attention.hide()
+        return _ok("Hidden until something new comes up", **frame.attention.state())
+
+    @app.post("/api/maintenance/attention/show")
+    def attention_show():
+        frame.attention.show_again()
+        return _ok("Shown again", **frame.attention.state())
 
     @app.get("/api/maintenance")
     def maintenance():

@@ -19,6 +19,9 @@ A Python (Flask) app, started with `python3 -m photoframe`.
 | `photoframe/__main__.py` | Start-up: settings, display, web server, background jobs |
 | `photoframe/frame.py` | The slideshow: what to show next, schedules, screen power |
 | `photoframe/web.py` | The website and HTTP API |
+| `photoframe/attention.py` | The on-screen notice when something needs a person (from the Maintenance summary) |
+| `photoframe/secupdates.py` | Security updates as the frame sees them; restarts the Pi for them while the screen is off |
+| `deploy/security_updates.py`, `pi-frame-security.timer`, `52pi-frame-unattended.conf` | The nightly root job: Debian security fixes via unattended-upgrade, status in `system/security.json` |
 | `photoframe/admin.py` | The admin login, and the checks that keep other websites out (see [Security](#security)) |
 | `photoframe/config.py` | Settings and their defaults (`DEFAULT_CONFIG`) |
 | `photoframe/display.py` | Screens: framebuffer, no-screen (headless), PNG file for testing |
@@ -148,6 +151,7 @@ errors or placeholder values. Pi Frame adds:
 | `POST /api/maintenance/reset` | Reset to a fresh frame (`{"confirm": "RESET", "remove_logins": false}`) |
 | `GET/POST /api/setup` | The welcome wizard (only on a frame that hasn't been set up) |
 | `POST /api/backup/restore` | Restore it (`{"from": "upload"}` or a kept backup's name); the frame restarts |
+| `POST /api/maintenance/attention/hide`, `/show` | Hide the on-screen notice until something new, or show it again (admin) |
 | `GET /api/admin` | Whether the admin options are unlocked, and which passwords are set |
 | `POST /api/admin/unlock`, `POST /api/admin/lock` | Unlock with `{"password": …}` (sets the admin cookie), or lock |
 | `POST /api/admin/password` | Set the admin password (`{"password": …}`): needs the admin unlocked, except the first time |

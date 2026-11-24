@@ -97,6 +97,14 @@ class Frame:
         self.overlay = Overlay(cfg, data_dir, on_change=self.refresh_overlay)
         self.buttons = None  # physical buttons, set by __main__ (needs the GPIO pins)
         self.monitor = Monitor(cfg, on_change=self.refresh_overlay)
+        from .attention import Attention
+        from .secupdates import SecurityUpdates
+
+        # the on-screen notice when something needs a person (see attention.py)
+        self.attention = Attention(cfg, data_dir, on_change=lambda: threading.Thread(
+            target=self.refresh_overlay, name="attention-redraw", daemon=True).start())
+        self.overlay.attention = self.attention
+        self.security = SecurityUpdates(data_dir)  # Raspberry Pi OS security updates (secupdates.py)
         from .presence import Presence
 
         self.presence = Presence(self)

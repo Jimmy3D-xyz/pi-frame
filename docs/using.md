@@ -16,6 +16,8 @@ scan the QR code the frame shows when it starts).
 - [Wi-Fi and the setup screens](#wi-fi-and-the-setup-screens)
 - [Admin options and passwords](#admin-options-and-passwords)
 - [Away from home](#away-from-home)
+- [When the frame needs attention](#when-the-frame-needs-attention)
+- [Security updates](#security-updates)
 - [Home Assistant and the image server](#home-assistant-and-the-image-server)
 
 ## Photos and albums
@@ -295,6 +297,48 @@ and its IP address.
 The frame only answers to its own names. If you reach it some other way
 (a name of your own on your router, say), add that name to
 `PHOTOFRAME_ALLOWED_HOSTS` (see [For developers](developers.md#settings-for-the-service)).
+
+## When the frame needs attention
+
+If something has needed a person for an hour and won't sort itself out, a
+small panel appears on the screen: **Pi Frame needs attention · Open
+piframe.local → Maintenance**. It doesn't say what's wrong, so visitors see
+nothing private. It's for:
+
+- an automatic backup or a software update that keeps failing (including
+  the GitHub token running out),
+- a synced folder whose sign-in has run out,
+- the SD card filling up or showing errors, or the power supply being too
+  weak right now,
+- security updates not installing for a few days, or a restart for them
+  waiting for days.
+
+Wi-Fi problems aren't on this list: the frame has its own screens for those.
+
+The top of Maintenance says why the panel is showing. The panel goes away by
+itself once the problem is fixed. To hide it before then, unlock the admin
+options and choose **Hide until something new** (a different problem shows
+it again). To never show it, untick **Show a notice on the screen…** under
+Maintenance → This frame.
+
+## Security updates
+
+Each night at about 03:40 the frame installs Raspberry Pi OS's **security**
+updates: fixes for the parts that open photos and videos, SSH, encryption
+and the rest of the system. Only Debian's security fixes are installed;
+feature updates, and the kernel and firmware from Raspberry Pi's own
+archive, are left alone so the frame doesn't change under you.
+
+When something was installed, Pi Frame restarts (a few seconds, in the
+night). When an update needs the whole Pi to restart (a core part like the
+system library or OpenSSL), the frame does that while the screen is
+scheduled off; with no screen schedule, between about 03:50 and 04:30.
+
+Maintenance shows when updates last installed. If they keep failing (for
+example, no internet for days) or a restart has waited for days, the
+on-screen notice appears. See
+[Troubleshooting](troubleshooting.md#security-updates) to run them now or
+read their log.
 
 ## Home Assistant and the image server
 
