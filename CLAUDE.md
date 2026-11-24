@@ -26,7 +26,11 @@ It speaks the esp32-photoframe HTTP API. Repository: `Jimmy3D-xyz/pi-frame`
 - Security model (0.33.0): everyday page (optional page password) vs admin
   options (admin password, 15-minute unlock cookie); other host names and
   cross-site changes are refused. See `docs/developers.md#security`; new
-  sensitive endpoints or settings go in `ADMIN_PREFIXES` / `ADMIN_KEYS`.
+  sensitive endpoints or settings go in `ADMIN_PREFIXES` / `ADMIN_KEYS`, and
+  set-once settings in `SETUP_KEYS`.
+- Page layout (0.34.0): Photos, Slideshow, Screen, Photo source, Maintenance.
+  Set-once things live in admin cards in Maintenance (This frame, Frame
+  hardware, Screen resolution); everyday tabs hold what the household changes.
 
 ## Things learned the hard way
 

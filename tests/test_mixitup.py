@@ -14,6 +14,8 @@ from photoframe.frame import Frame
 from photoframe.storage import Storage
 from photoframe.web import create_app
 
+from adminhelp import unlock
+
 ROOT = Path(__file__).resolve().parents[1]
 PANEL = (1920, 1200)
 
@@ -202,6 +204,8 @@ def test_web_resolution_request(frame, tmp_path, monkeypatch):
     c = create_app(frame).test_client()
     r = c.get("/api/display/modes").get_json()
     assert r["modes"] == ["1920x1200", "2560x1440"] and r["native"] == "1920x1200"
+    assert c.post("/api/display/mode", json={"mode": "1920x1200"}).status_code == 403  # an admin option
+    unlock(c, frame)
     assert c.post("/api/display/mode", json={"mode": "1024x768"}).status_code == 400
     assert c.post("/api/display/mode", json={"mode": "2560x1440"}).status_code == 200
     assert json.loads((frame.data_dir / "system" / "request.json").read_text())["mode"] == "2560x1440"
@@ -245,6 +249,7 @@ def test_recheck_the_screen(tmp_path, monkeypatch, frame):
     assert written == ["detect", "detect"]  # both HDMI ports asked to re-check
     assert "1920 × 1200 native" in json.loads((data / "system" / "status.json").read_text())["message"]
     c = create_app(frame).test_client()
+    unlock(c, frame)
     assert c.post("/api/display/detect").status_code == 200
     assert json.loads((frame.data_dir / "system" / "request.json").read_text())["action"] == "detect"
 

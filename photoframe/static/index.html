@@ -314,6 +314,9 @@
   .mcard.fold > details[open] > summary .chev { transform: rotate(-135deg); margin-bottom: -.15rem; }
   .mcard.fold > details[open] > summary { margin-bottom: .8rem; }
   .mcard.fold > details > summary:focus-visible { outline: 2px solid var(--sage); outline-offset: 4px; border-radius: 4px; }
+  .hwcard fieldset { margin: 1.4rem 0 0; }
+  #f-display { margin-bottom: 1.8rem; }
+  .hwcard legend, #f-frame legend { font-size: 1rem; }
   /* ---------- admin options: shown only while unlocked ---------- */
   body:not(.admin) .admin-only { display: none !important; }
   body.admin .admin-locked-note { display: none; }
@@ -361,8 +364,8 @@
   <section class="panel">
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected="true" aria-controls="tab-photos" id="t-photos">Photos</button>
-      <button role="tab" aria-selected="false" aria-controls="tab-schedule" id="t-schedule">Schedule</button>
-      <button role="tab" aria-selected="false" aria-controls="tab-display" id="t-display">Display</button>
+      <button role="tab" aria-selected="false" aria-controls="tab-schedule" id="t-schedule">Slideshow</button>
+      <button role="tab" aria-selected="false" aria-controls="tab-display" id="t-display">Screen</button>
       <button role="tab" aria-selected="false" aria-controls="tab-source" id="t-source">Photo source</button>
       <button role="tab" aria-selected="false" aria-controls="tab-maint" id="t-maint">Maintenance</button>
     </div>
@@ -513,29 +516,96 @@
           </div>
         </fieldset>
         <fieldset>
+          <legend>How photos look and change</legend>
+          <div class="field"><span>Photo size</span>
+            <div class="seg">
+              <label><input type="radio" name="scaleMode" value="fit"><span>Show the whole photo</span></label>
+              <label><input type="radio" name="scaleMode" value="cover"><span>Fill the screen</span></label>
+            </div>
+          </div>
+          <label class="field"><span>Around the photo</span>
+            <select name="backgroundColor">
+              <option value="blur">Soft blurred copy of the photo</option>
+              <option value="black">Black</option>
+              <option value="white">White</option>
+            </select>
+          </label>
+          <label class="field"><span>Transitions</span>
+            <select name="changes">
+              <option value="all">Fades, zooms, slides and 3D turns</option>
+              <option value="moves">Fades, zooms and slides</option>
+              <option value="fade">Fades only</option>
+              <option value="none">Instant</option>
+            </select>
+          </label>
+          <p class="note" style="margin-top:0">Zooms take a photo out of its collage and back (Story and Spotlight), slides lay new photos into a Living collage, and 3D turns (a card flip, tipping away, a turning cube) come between some photos. They're drawn in the background while the photo before is showing.</p>
+          <label class="field"><span>Speed</span>
+            <select name="transition_ms">
+              <option value="800">Quick (fades 0.8 seconds)</option>
+              <option value="1500">Normal (1.5 seconds)</option>
+              <option value="2500">Slow (2.5 seconds)</option>
+              <option value="4000">Very slow (4 seconds)</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset id="video-settings">
+          <legend>Videos</legend>
+          <label class="toggle"><input type="checkbox" name="video_enabled"> Include videos in the slideshow</label>
+          <label class="field"><span>How long a video plays</span>
+            <select name="video_max_seconds">
+              <option value="0">The whole video</option>
+              <option value="30">Up to 30 seconds</option>
+              <option value="60">Up to 1 minute</option>
+              <option value="120">Up to 2 minutes</option>
+              <option value="300">Up to 5 minutes</option>
+            </select>
+            <small>After a video, the frame moves on to the next photo. Changes on the schedule never cut a video short.</small>
+          </label>
+          <label class="toggle"><input type="checkbox" name="video_sound"> Play sound</label>
+          <div class="field"><span>Volume</span>
+            <div class="range-row"><input type="range" name="video_volume" min="0" max="100" step="5" aria-label="Volume"><output id="vol-out"></output></div>
+          </div>
+          <label class="toggle"><input type="checkbox" name="video_normalize"> Even out the volume between videos (recommended)</label>
+          <label class="field"><span>Volume boost</span>
+            <select name="video_boost_db">
+              <option value="0">No boost</option>
+              <option value="6">Boost (about twice as loud)</option>
+              <option value="12">Strong boost (up to four times as loud)</option>
+            </select>
+            <small>For quiet videos. Loud moments are held back automatically so they don't distort.</small>
+          </label>
+        </fieldset>
+        <p class="error" id="schedule-error" hidden></p>
+        <button class="btn primary">Save slideshow settings</button>
+      </form>
+    </div>
+
+    <div class="tabpanel" id="tab-display" role="tabpanel" aria-labelledby="t-display" hidden>
+      <form id="f-display">
+        <fieldset>
           <legend>Screen on and off</legend>
           <label class="toggle"><input type="checkbox" name="screen_schedule_enabled"> Turn the screen off overnight</label>
           <div class="row">
             <label class="field"><span>Screen on at</span><input type="time" name="screen_on_time"></label>
             <label class="field"><span>Screen off at</span><input type="time" name="screen_off_time"></label>
           </div>
-          <label class="field"><span>Time zone</span>
-            <input type="text" name="timezone" list="tz-list" placeholder="Use the Pi's time zone">
-            <small>For example Australia/Melbourne.</small>
-          </label>
-          <datalist id="tz-list"></datalist>
+          <p class="note" style="margin-top:0">In the frame's time zone (Maintenance → This frame).</p>
         </fieldset>
-        <p class="error" id="schedule-error" hidden></p>
-        <button class="btn primary">Save schedule</button>
+        <fieldset>
+          <legend>Starting up</legend>
+          <label class="field"><span>Welcome screen</span>
+            <select name="welcome_seconds">
+              <option value="0">Don't show it</option>
+              <option value="15">Show for 15 seconds</option>
+              <option value="30">Show for 30 seconds</option>
+              <option value="60">Show for 1 minute</option>
+              <option value="120">Show for 2 minutes</option>
+            </select>
+            <small>After the frame starts, it shows a QR code for this page before the photos.</small>
+          </label>
+        </fieldset>
+        <button class="btn primary">Save screen settings</button>
       </form>
-    </div>
-
-    <div class="tabpanel" id="tab-display" role="tabpanel" aria-labelledby="t-display" hidden>
-      <fieldset id="hwfade">
-        <legend>Fades</legend>
-        <label class="toggle"><input type="checkbox" data-ovl="display_hw_fade"> Smooth fades using the display hardware (60 fps)</label>
-        <p class="note" id="fade-info" style="margin:0">Changing this restarts the frame.</p>
-      </fieldset>
       <fieldset id="mon">
         <legend>Monitor brightness</legend>
         <p class="note" id="mon-status" style="margin-top:0">Checking the monitor…</p>
@@ -600,141 +670,6 @@
         </div>
         <p class="note" style="margin:0">Photo details come from the photo itself (most phones record them). Photos added before this update don't have them; add them again to get their details.</p>
       </fieldset>
-      <fieldset id="btns">
-        <legend>Physical buttons</legend>
-        <p class="muted" style="margin-top:0">Previous, Next and Screen buttons wired to the Pi. Changes apply straight away.</p>
-        <label class="toggle"><input type="checkbox" data-btn="buttons_enabled"> Use physical buttons</label>
-        <p id="btn-off-note" class="note" style="margin:-.4rem 0 .6rem">Off until you tick this, in case another add-on board already uses those pins.</p>
-        <details style="margin:.2rem 0 1rem"><summary class="link-btn" style="display:inline;cursor:pointer">How to wire them</summary>
-          <img src="/static/wiring.png" alt="Wiring diagram: Screen button to pin 5 (GPIO 3), Previous to pin 11 (GPIO 17), Next to pin 13 (GPIO 27), all three sharing a ground wire to pin 9"
-               style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px;margin-top:.6rem;background:#fff"></details>
-        <div id="btn-opts">
-          <div class="row">
-            <label class="field"><span>Previous</span><select data-btn="button_previous_pin"></select></label>
-            <label class="field"><span>Next</span><select data-btn="button_next_pin"></select></label>
-            <label class="field"><span>Screen / power</span><select data-btn="button_screen_pin"></select></label>
-          </div>
-          <label class="toggle"><input type="checkbox" data-btn="button_hold_shutdown"> Hold the screen button to shut the Pi down safely</label>
-          <label class="field" id="btn-hold-row" style="max-width:14rem"><span>Hold for</span>
-            <select data-btn="button_hold_seconds"><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="8">8 seconds</option></select></label>
-          <p id="btn-status" class="note" role="status" aria-live="polite" style="margin:0"></p>
-        </div>
-      </fieldset>
-      <fieldset id="pres">
-        <legend>Presence sensor</legend>
-        <p class="muted" style="margin-top:0">A radar sensor (like the Waveshare 24 GHz mmWave) turns the screen on when someone's in the room, and off a while after they've left. It senses people even when they're sitting still.</p>
-        <label class="toggle"><input type="checkbox" data-ovl="presence_enabled"> Use a presence sensor</label>
-        <details style="margin:.2rem 0 .8rem"><summary class="link-btn" style="display:inline;cursor:pointer">How to wire it</summary>
-          <p class="note" style="margin:.5rem 0 0">Three wires: <b>VCC → pin 17 (3.3 V)</b>, <b>GND → pin 14</b>, <b>OT2 → pin 15 (GPIO 22)</b>.
-            Use the 3.3 V pin only: these sensors can be damaged by 5 V. The sensor works through thin plastic or wood, so it can hide inside the frame, facing the room.</p></details>
-        <div id="pres-opts">
-          <div class="row">
-            <label class="field"><span>Sensor's OT2 wire on</span><select data-ovl="presence_pin" data-num id="pres-pin"></select></label>
-            <label class="field"><span>Turn the screen off after nobody's been seen for</span>
-              <select data-ovl="presence_timeout_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
-          </div>
-          <label class="toggle"><input type="checkbox" data-ovl="presence_schedule_only"> Only wake the screen within the screen schedule's on-hours</label>
-          <p id="pres-status" class="note" role="status" aria-live="polite" style="margin:.4rem 0 0"></p>
-        </div>
-      </fieldset>
-      <form id="f-display">
-        <fieldset>
-          <legend>Screen</legend>
-          <div class="field"><span>Orientation</span>
-            <div class="seg">
-              <label><input type="radio" name="display_orientation" value="landscape"><span>Landscape</span></label>
-              <label><input type="radio" name="display_orientation" value="portrait"><span>Portrait</span></label>
-            </div>
-          </div>
-          <label class="field"><span>Flip the picture</span>
-            <select name="display_rotation_deg">
-              <option value="0">Don't flip</option>
-              <option value="180">Upside down (180°)</option>
-              <option value="90">Quarter turn clockwise</option>
-              <option value="270">Quarter turn anticlockwise</option>
-            </select>
-            <small>Use this if the picture appears upside down after mounting the screen.</small>
-          </label>
-        </fieldset>
-        <fieldset>
-          <legend>Photos</legend>
-          <div class="field"><span>Photo size</span>
-            <div class="seg">
-              <label><input type="radio" name="scaleMode" value="fit"><span>Show the whole photo</span></label>
-              <label><input type="radio" name="scaleMode" value="cover"><span>Fill the screen</span></label>
-            </div>
-          </div>
-          <label class="field"><span>Around the photo</span>
-            <select name="backgroundColor">
-              <option value="blur">Soft blurred copy of the photo</option>
-              <option value="black">Black</option>
-              <option value="white">White</option>
-            </select>
-          </label>
-          <label class="field"><span>Changing pictures</span>
-            <select name="changes">
-              <option value="all">Fades, zooms, slides and 3D turns</option>
-              <option value="moves">Fades, zooms and slides</option>
-              <option value="fade">Fades only</option>
-              <option value="none">Instant</option>
-            </select>
-          </label>
-          <p class="note" style="margin-top:0">Zooms take a photo out of its collage and back (Story and Spotlight), slides lay new photos into a Living collage, and 3D turns (a card flip, tipping away, a turning cube) come between some photos. They're drawn in the background while the photo before is showing.</p>
-          <label class="field"><span>Speed</span>
-            <select name="transition_ms">
-              <option value="800">Quick (fades 0.8 seconds)</option>
-              <option value="1500">Normal (1.5 seconds)</option>
-              <option value="2500">Slow (2.5 seconds)</option>
-              <option value="4000">Very slow (4 seconds)</option>
-            </select>
-          </label>
-        </fieldset>
-        <fieldset id="video-settings">
-          <legend>Videos</legend>
-          <label class="toggle"><input type="checkbox" name="video_enabled"> Include videos in the slideshow</label>
-          <label class="field"><span>How long a video plays</span>
-            <select name="video_max_seconds">
-              <option value="0">The whole video</option>
-              <option value="30">Up to 30 seconds</option>
-              <option value="60">Up to 1 minute</option>
-              <option value="120">Up to 2 minutes</option>
-              <option value="300">Up to 5 minutes</option>
-            </select>
-            <small>After a video, the frame moves on to the next photo. Changes on the schedule never cut a video short.</small>
-          </label>
-          <label class="toggle"><input type="checkbox" name="video_sound"> Play sound</label>
-          <div class="field"><span>Volume</span>
-            <div class="range-row"><input type="range" name="video_volume" min="0" max="100" step="5" aria-label="Volume"><output id="vol-out"></output></div>
-          </div>
-          <label class="toggle"><input type="checkbox" name="video_normalize"> Even out the volume between videos (recommended)</label>
-          <label class="field"><span>Volume boost</span>
-            <select name="video_boost_db">
-              <option value="0">No boost</option>
-              <option value="6">Boost (about twice as loud)</option>
-              <option value="12">Strong boost (up to four times as loud)</option>
-            </select>
-            <small>For quiet videos. Loud moments are held back automatically so they don't distort.</small>
-          </label>
-        </fieldset>
-        <fieldset>
-          <legend>Starting up</legend>
-          <label class="field"><span>Welcome screen</span>
-            <select name="welcome_seconds">
-              <option value="0">Don't show it</option>
-              <option value="15">Show for 15 seconds</option>
-              <option value="30">Show for 30 seconds</option>
-              <option value="60">Show for 1 minute</option>
-              <option value="120">Show for 2 minutes</option>
-            </select>
-            <small>After the frame starts, it shows a QR code for this page before the photos.</small>
-          </label>
-          <label class="toggle"><input type="checkbox" name="demo_mode"> Demo mode</label>
-          <small class="note" style="display:block;margin:-.3rem 0 .8rem">Shows sample photos (public-domain paintings
-            and NASA pictures) with collages and slides about the frame, like a TV in a shop, instead of your photos.
-            A frame with no photos yet shows it by itself until you add some.</small>
-        </fieldset>
-        <button class="btn primary">Save display settings</button>
-      </form>
     </div>
 
     <div class="tabpanel" id="tab-maint" role="tabpanel" aria-labelledby="t-maint" hidden>
@@ -774,6 +709,7 @@
           <h4 style="margin:1rem 0 .3rem">Saved Wi-Fi networks</h4>
           <p class="note" style="margin-top:0">The frame joins any of these it finds. Forget one you used away from home (a friend's, say).</p>
           <ul class="plain" id="m-saved"></ul>
+          <p id="wifi-row" hidden style="margin:.6rem 0 0"><a href="/setup" class="btn small" style="text-decoration:none;display:inline-block">Change Wi-Fi network</a></p>
           </div>
           <h4>Automatic re-joins</h4>
           <ul class="plain" id="m-rejoins"></ul>
@@ -800,7 +736,91 @@
         <ol class="events" id="m-events"></ol>
       </div></details></section>
       <div class="mgrid">
-        <section class="mcard fold"><details data-fold="resolution"><summary><h3>Screen resolution</h3><span class="fold-sum" id="sum-resolution"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+        <section class="mcard fold admin-only"><details data-fold="frame"><summary><h3>This frame</h3><span class="fold-sum" id="sum-frame"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+          <form id="f-frame">
+          <label class="field"><span>Name</span><input type="text" name="device_name"></label>
+          <label class="field"><span>Time zone</span>
+            <input type="text" name="timezone" list="tz-list" placeholder="Use the Pi's time zone">
+            <small>For example Australia/Melbourne.</small>
+          </label>
+          <datalist id="tz-list"></datalist>
+          <label class="field"><span>Home Assistant address</span>
+            <input type="url" name="ha_url" placeholder="http://homeassistant.local:8123">
+            <small>Filled in by the ESP32 PhotoFrame integration when you add the frame there.</small>
+          </label>
+          <label class="toggle"><input type="checkbox" name="demo_mode"> Demo mode</label>
+          <small class="note" style="display:block;margin:-.3rem 0 .8rem">Shows sample photos (public-domain paintings
+            and NASA pictures) with collages and slides about the frame, like a TV in a shop, instead of your photos.
+            A frame with no photos yet shows it by itself until you add some.</small>
+            <div class="actions" style="margin-top:.6rem"><button class="btn small primary">Save</button></div>
+          </form>
+        </div></details></section>
+        <section class="mcard fold admin-only hwcard"><details data-fold="hardware"><summary><h3>Frame hardware</h3><span class="fold-sum" id="sum-hardware"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
+          <form id="f-hw">
+        <fieldset>
+          <legend>Screen direction</legend>
+          <div class="field"><span>Orientation</span>
+            <div class="seg">
+              <label><input type="radio" name="display_orientation" value="landscape"><span>Landscape</span></label>
+              <label><input type="radio" name="display_orientation" value="portrait"><span>Portrait</span></label>
+            </div>
+          </div>
+          <label class="field"><span>Flip the picture</span>
+            <select name="display_rotation_deg">
+              <option value="0">Don't flip</option>
+              <option value="180">Upside down (180°)</option>
+              <option value="90">Quarter turn clockwise</option>
+              <option value="270">Quarter turn anticlockwise</option>
+            </select>
+            <small>Use this if the picture appears upside down after mounting the screen.</small>
+          </label>
+        </fieldset>
+            <button class="btn small primary">Save screen direction</button>
+          </form>
+      <fieldset id="hwfade">
+        <legend>Fades</legend>
+        <label class="toggle"><input type="checkbox" data-ovl="display_hw_fade"> Smooth fades using the display hardware (60 fps)</label>
+        <p class="note" id="fade-info" style="margin:0">Changing this restarts the frame.</p>
+      </fieldset>
+      <fieldset id="btns">
+        <legend>Physical buttons</legend>
+        <p class="muted" style="margin-top:0">Previous, Next and Screen buttons wired to the Pi. Changes apply straight away.</p>
+        <label class="toggle"><input type="checkbox" data-btn="buttons_enabled"> Use physical buttons</label>
+        <p id="btn-off-note" class="note" style="margin:-.4rem 0 .6rem">Off until you tick this, in case another add-on board already uses those pins.</p>
+        <details style="margin:.2rem 0 1rem"><summary class="link-btn" style="display:inline;cursor:pointer">How to wire them</summary>
+          <img src="/static/wiring.png" alt="Wiring diagram: Screen button to pin 5 (GPIO 3), Previous to pin 11 (GPIO 17), Next to pin 13 (GPIO 27), all three sharing a ground wire to pin 9"
+               style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px;margin-top:.6rem;background:#fff"></details>
+        <div id="btn-opts">
+          <div class="row">
+            <label class="field"><span>Previous</span><select data-btn="button_previous_pin"></select></label>
+            <label class="field"><span>Next</span><select data-btn="button_next_pin"></select></label>
+            <label class="field"><span>Screen / power</span><select data-btn="button_screen_pin"></select></label>
+          </div>
+          <label class="toggle"><input type="checkbox" data-btn="button_hold_shutdown"> Hold the screen button to shut the Pi down safely</label>
+          <label class="field" id="btn-hold-row" style="max-width:14rem"><span>Hold for</span>
+            <select data-btn="button_hold_seconds"><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="8">8 seconds</option></select></label>
+          <p id="btn-status" class="note" role="status" aria-live="polite" style="margin:0"></p>
+        </div>
+      </fieldset>
+      <fieldset id="pres">
+        <legend>Presence sensor</legend>
+        <p class="muted" style="margin-top:0">A radar sensor (like the Waveshare 24 GHz mmWave) turns the screen on when someone's in the room, and off a while after they've left. It senses people even when they're sitting still.</p>
+        <label class="toggle"><input type="checkbox" data-ovl="presence_enabled"> Use a presence sensor</label>
+        <details style="margin:.2rem 0 .8rem"><summary class="link-btn" style="display:inline;cursor:pointer">How to wire it</summary>
+          <p class="note" style="margin:.5rem 0 0">Three wires: <b>VCC → pin 17 (3.3 V)</b>, <b>GND → pin 14</b>, <b>OT2 → pin 15 (GPIO 22)</b>.
+            Use the 3.3 V pin only: these sensors can be damaged by 5 V. The sensor works through thin plastic or wood, so it can hide inside the frame, facing the room.</p></details>
+        <div id="pres-opts">
+          <div class="row">
+            <label class="field"><span>Sensor's OT2 wire on</span><select data-ovl="presence_pin" data-num id="pres-pin"></select></label>
+            <label class="field"><span>Turn the screen off after nobody's been seen for</span>
+              <select data-ovl="presence_timeout_minutes" data-num><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
+          </div>
+          <label class="toggle"><input type="checkbox" data-ovl="presence_schedule_only"> Only wake the screen within the screen schedule's on-hours</label>
+          <p id="pres-status" class="note" role="status" aria-live="polite" style="margin:.4rem 0 0"></p>
+        </div>
+      </fieldset>
+        </div></details></section>
+        <section class="mcard fold admin-only"><details data-fold="resolution"><summary><h3>Screen resolution</h3><span class="fold-sum" id="sum-resolution"></span><span class="chev" aria-hidden="true"></span></summary><div class="fold-body">
           <dl class="kv"><dt>Showing</dt><dd id="res-now">–</dd></dl>
           <label class="field" style="margin-top:.6rem"><span>Change to</span><select id="res-pick"></select></label>
           <div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap">
@@ -1084,22 +1104,16 @@
               <label><input type="radio" name="rotation_mode" value="url"><span>Image server</span></label>
             </div>
           </div>
+          <p class="admin-locked-note note">The image server's address and access token are admin options (<button type="button" class="link-btn" data-go-admin>unlock</button>).</p>
+          <div class="admin-only">
           <label class="field"><span>Image URL</span>
             <input type="url" name="image_url" placeholder="http://homeassistant.local:9607/image">
             <small>Usually filled in for you when you add this frame in the image server.</small>
           </label>
           <label class="field"><span>Access token</span><input type="password" name="access_token" autocomplete="off"></label>
+          </div>
           <label class="toggle"><input type="checkbox" name="save_downloaded_images"> Keep a copy of each server photo in a "Downloads" album</label>
           <p class="error" id="fetch-error" hidden></p>
-        </fieldset>
-        <fieldset>
-          <legend>This frame</legend>
-          <label class="field"><span>Name</span><input type="text" name="device_name"></label>
-          <p id="wifi-row" class="admin-only" hidden style="margin:0 0 1.1rem"><a href="/setup" class="btn small" style="text-decoration:none;display:inline-block">Change Wi-Fi network</a></p>
-          <label class="field"><span>Home Assistant address</span>
-            <input type="url" name="ha_url" placeholder="http://homeassistant.local:8123">
-            <small>Filled in by the ESP32 PhotoFrame integration when you add the frame there.</small>
-          </label>
         </fieldset>
         <button class="btn primary">Save</button>
       </form>
@@ -1256,7 +1270,7 @@ $("#brand-screen").onclick = async (e) => {
 document.querySelectorAll('[role="tab"]').forEach(tab => tab.onclick = () => {
   if (tab.id === "t-maint") { loadMaint(); loadResolution(); loadAdmin(); }
   if (tab.id === "t-source") loadAdmin();
-  if (tab.id === "t-display") { loadButtons(); loadMonitor(); loadFadeInfo(); loadPresence(); }
+  if (tab.id === "t-display") loadMonitor();
   document.querySelectorAll('[role="tab"]').forEach(t => {
     const on = t === tab; t.setAttribute("aria-selected", on);
     $("#" + t.getAttribute("aria-controls")).hidden = !on;
@@ -1688,9 +1702,14 @@ document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => render
 
 async function loadConfig() {
   [config, processing] = await Promise.all([api("/api/config"), api("/api/settings/processing")]);
-  setForm($("#f-schedule"), config);
+  setForm($("#f-schedule"), { ...config, ...processing, changes: config.transition === "fade" ? (config.transition_effects || "all") : "none" });
   renderRules(config.rotate_cron || []);
-  setForm($("#f-display"), { ...config, ...processing, changes: config.transition === "fade" ? (config.transition_effects || "all") : "none" });
+  setForm($("#f-display"), config);
+  setForm($("#f-frame"), config);
+  setForm($("#f-hw"), config);
+  foldSum("frame", [config.device_name, config.demo_mode ? "demo mode on" : ""].filter(Boolean).join(" · "), config.demo_mode ? "warn" : "");
+  foldSum("hardware", [config.display_orientation === "portrait" ? "Portrait" : "Landscape",
+    config.buttons_enabled ? "buttons" : "", config.presence_enabled ? "presence sensor" : ""].filter(Boolean).join(" · "));
   $("#vol-out").textContent = `${config.video_volume}%`;
   showOverlaySettings();
   showButtonSettings();
@@ -1710,51 +1729,70 @@ $("#f-schedule").onsubmit = async (e) => {
     auto_rotate: f.auto_rotate.checked,
     rotate_cron: [...$("#rules").querySelectorAll("input")].map(i => i.value.trim()).filter(Boolean),
     sd_rotation_mode: f.sd_rotation_mode.value,
-    screen_schedule_enabled: f.screen_schedule_enabled.checked,
-    screen_on_time: f.screen_on_time.value,
-    screen_off_time: f.screen_off_time.value,
-    timezone: f.timezone.value.trim(),
+    transition: f.changes.value === "none" ? "none" : "fade",
+    ...(f.changes.value === "none" ? {} : { transition_effects: f.changes.value }),
+    transition_ms: Number(f.transition_ms.value),
+    video_enabled: f.video_enabled.checked,
+    video_sound: f.video_sound.checked,
+    video_volume: Number(f.video_volume.value),
+    video_boost_db: Number(f.video_boost_db.value),
+    video_normalize: f.video_normalize.checked,
+    video_max_seconds: Number(f.video_max_seconds.value),
   };
-  try { await api("/api/config", { json: body }); errEl.hidden = true; toast("Schedule saved"); loadConfig(); refreshStatus(); }
+  try {
+    await api("/api/settings/processing", { json: { scaleMode: f.scaleMode.value, backgroundColor: f.backgroundColor.value } });
+    await api("/api/config", { json: body }); errEl.hidden = true; toast("Slideshow settings saved"); loadConfig(); refreshStatus();
+  }
   catch (err) { errEl.textContent = err.message; errEl.hidden = false; }
 };
 $("#f-display").onsubmit = (e) => {
   e.preventDefault();
   const f = e.target;
   act(async () => {
-    await api("/api/settings/processing", { json: { scaleMode: f.scaleMode.value, backgroundColor: f.backgroundColor.value } });
     await api("/api/config", { json: {
-      display_orientation: f.display_orientation.value,
-      display_rotation_deg: Number(f.display_rotation_deg.value),
-      transition: f.changes.value === "none" ? "none" : "fade",
-      ...(f.changes.value === "none" ? {} : { transition_effects: f.changes.value }),
-      transition_ms: Number(f.transition_ms.value),
+      screen_schedule_enabled: f.screen_schedule_enabled.checked,
+      screen_on_time: f.screen_on_time.value,
+      screen_off_time: f.screen_off_time.value,
       welcome_seconds: Number(f.welcome_seconds.value),
-      demo_mode: f.demo_mode.checked,
-      video_enabled: f.video_enabled.checked,
-      video_sound: f.video_sound.checked,
-      video_volume: Number(f.video_volume.value),
-      video_boost_db: Number(f.video_boost_db.value),
-      video_normalize: f.video_normalize.checked,
-      video_max_seconds: Number(f.video_max_seconds.value),
     } });
     await loadConfig(); refreshStatus();
-  }, "Display settings saved");
+  }, "Screen settings saved");
+};
+$("#f-frame").onsubmit = (e) => {
+  e.preventDefault();
+  const f = e.target;
+  act(async () => {
+    await api("/api/config", { json: {
+      device_name: f.device_name.value.trim() || "Pi Frame", timezone: f.timezone.value.trim(),
+      ha_url: f.ha_url.value.trim(), demo_mode: f.demo_mode.checked,
+    } });
+    await loadConfig(); refreshStatus();
+  }, "Saved");
+};
+$("#f-hw").onsubmit = (e) => {
+  e.preventDefault();
+  const f = e.target;
+  act(async () => {
+    await api("/api/config", { json: {
+      display_orientation: f.display_orientation.value, display_rotation_deg: Number(f.display_rotation_deg.value),
+    } });
+    await loadConfig(); refreshStatus(true);
+  }, "Saved");
 };
 $("#f-source").onsubmit = (e) => {
   e.preventDefault();
   const f = e.target;
   act(async () => {
     await api("/api/config", { json: {
-      rotation_mode: f.rotation_mode.value, image_url: f.image_url.value.trim(),
-      access_token: f.access_token.value, save_downloaded_images: f.save_downloaded_images.checked,
-      device_name: f.device_name.value.trim() || "Pi Frame", ha_url: f.ha_url.value.trim(),
+      rotation_mode: f.rotation_mode.value, save_downloaded_images: f.save_downloaded_images.checked,
+      // the server's address and token are admin settings (a saved token comes back as ******** and is left alone)
+      ...(admin.unlocked ? { image_url: f.image_url.value.trim(), access_token: f.access_token.value } : {}),
     } });
     await loadConfig(); setTimeout(() => refreshStatus(true), 1500);
   }, "Saved");
 };
 
-$("#f-display").video_volume.oninput = (e) => $("#vol-out").textContent = `${e.target.value}%`;
+$("#f-schedule").video_volume.oninput = (e) => $("#vol-out").textContent = `${e.target.value}%`;
 /* ---------- maintenance ---------- */
 const fmtBytes = (n) => n == null ? "–" : n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(0)} MB` : `${Math.round(n / 1e3)} kB`;
 function fmtDuration(s) {
@@ -2081,7 +2119,7 @@ function showAdmin(a) {
   if (admin.unlocked) admTimer = setInterval(() => loadAdmin(false), 30000);  // notice when it locks itself
   return opened;
 }
-function loadAdminSections() { loadSaved(); loadUpdate(); loadBackup(); loadOneDrive(); }
+function loadAdminSections() { loadSaved(); loadUpdate(); loadBackup(); loadOneDrive(); loadButtons(); loadPresence(); loadFadeInfo(); }
 async function loadAdmin(sections = true) {
   let a; try { a = await api("/api/admin"); } catch { return; }
   showAdmin(a);
@@ -2558,7 +2596,7 @@ async function loadButtons() {
     ? `Last press: <b>${escapeHtml(b.last.button)}</b> → ${escapeHtml(b.last.action)}, ${fmtAgo(b.last.t)}. Press a button to test it.`
     : "Ready. Press a button to test it.";
   $("#btn-status").innerHTML = msg;
-  if (!$("#tab-display").hidden && config.buttons_enabled) btnTimer = setTimeout(loadButtons, 2000);
+  if (!$("#tab-maint").hidden && admin.unlocked && config.buttons_enabled) btnTimer = setTimeout(loadButtons, 2000);
 }
 document.querySelectorAll("[data-btn]").forEach(el => el.onchange = async () => {
   const v = el.type === "checkbox" ? el.checked : Number(el.value);
@@ -2767,7 +2805,7 @@ async function loadPresence() {
     : !p.active ? "Starting the sensor…"
     : p.present ? `<span class="dot ok" aria-hidden="true"></span> <b>Someone's here</b>. Walk out of range to test it.`
     : `<span class="dot" aria-hidden="true"></span> Nobody seen for ${mins(p.quiet_seconds || 0)}` + (p.off_by_presence ? ", so the screen is off." : ".");
-  if (!$("#tab-display").hidden) presTimer = setTimeout(loadPresence, 2000);
+  if (!$("#tab-maint").hidden && admin.unlocked) presTimer = setTimeout(loadPresence, 2000);
 }
 // refresh while the tab is open
 setInterval(() => { if (!$("#tab-maint").hidden) loadMaint(); }, 10000);

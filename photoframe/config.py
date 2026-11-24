@@ -252,8 +252,13 @@ class ConfigStore:
             return copy.deepcopy(self.config)
 
     def public(self) -> dict:
+        """The settings as the API shows them: passwords left out, other stored
+        secrets (tokens, API keys) shown as ******** when set."""
+        from .admin import MASK, MASKED_KEYS
+
         with self._lock:
-            return {k: v for k, v in self.config.items() if k not in SECRET_KEYS}
+            return {k: (MASK if v else "") if k in MASKED_KEYS else v
+                    for k, v in self.config.items() if k not in SECRET_KEYS}
 
     # ---------- updates ----------
     def _validate(self, updates: dict) -> dict:

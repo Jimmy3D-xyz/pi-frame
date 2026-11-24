@@ -258,3 +258,53 @@ def test_folder_browsing_only_uses_connected_accounts(tmp_path, monkeypatch):
     assert not ran
     od._set_remote("onedrive", {"type": "onedrive"})
     assert od.list_folders("", "onedrive") == [] and ran
+
+
+# ---------------------------------------------------------------- setting-up settings and stored secrets
+BROWSER = {"Origin": "http://localhost", "Sec-Fetch-Site": "same-origin"}
+
+
+def test_setup_settings_need_the_admin_on_the_web_page(env):
+    frame, _, clock = env
+    frame.cfg.update({"admin_password": ADMIN})
+    client, _ = make(env)
+    for body in ({"display_orientation": "portrait"}, {"device_name": "Hall"}, {"timezone": "UTC"},
+                 {"buttons_enabled": True}, {"presence_pin": 23}, {"image_url": "http://x/"}, {"demo_mode": True},
+                 {"display_hw_fade": False}):
+        r = client.post("/api/config", json=body, headers=BROWSER)
+        assert r.status_code == 403 and r.get_json()["admin"] == "locked", body
+    # everyday settings from the page are fine
+    assert client.post("/api/config", json={"transition_ms": 800, "overlay_clock": False}, headers=BROWSER).status_code == 200
+    # Home Assistant and the image server (no browser headers) keep the firmware API
+    assert client.post("/api/config", json={"device_name": "Hall", "display_orientation": "portrait"}).status_code == 200
+    assert frame.cfg.get("device_name") == "Hall"
+    # but never the admin's own settings
+    assert client.post("/api/config", json={"update_repo": "evil/repo"}).status_code == 403
+    client.post("/api/admin/unlock", json={"password": ADMIN})
+    assert client.post("/api/config", json={"device_name": "Lounge"}, headers=BROWSER).status_code == 200
+
+
+def test_stored_secrets_are_never_shown(env):
+    frame, _, clock = env
+    frame.cfg.update({"access_token": "tok-123", "http_header_value": "Bearer abc", "openai_api_key": "sk-1",
+                      "google_api_key": ""})
+    client, _ = make(env)
+    body = client.get("/api/config").get_json()
+    assert body["access_token"] == adm.MASK and body["http_header_value"] == adm.MASK and body["openai_api_key"] == adm.MASK
+    assert body["google_api_key"] == ""
+    assert "tok-123" not in json.dumps(body) and "sk-1" not in json.dumps(body)
+    # sending the mask back (a form saved without touching the field) changes nothing
+    assert client.post("/api/config", json={"access_token": adm.MASK, "image_url": "http://s/img"}).status_code == 200
+    assert frame.cfg.get("access_token") == "tok-123" and frame.cfg.get("image_url") == "http://s/img"
+    client.post("/api/config", json={"access_token": "new-tok"})
+    assert frame.cfg.get("access_token") == "new-tok"
+    client.post("/api/config", json={"access_token": ""})
+    assert frame.cfg.get("access_token") == ""
+
+
+def test_screen_resolution_is_an_admin_option(env):
+    frame, _, clock = env
+    client, _ = make(env)
+    assert client.post("/api/display/mode", json={"mode": "1920x1080"}).status_code == 403
+    assert client.post("/api/display/detect").status_code == 403
+    assert client.get("/api/display/modes").status_code != 403  # looking is fine

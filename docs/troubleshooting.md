@@ -49,14 +49,14 @@ Try its IP address instead of its name, and check the username has access
 to the shared folder.
 
 **Physical buttons do nothing.**
-Tick "Use physical buttons" under Display → Physical buttons. The page shows
+Tick "Use physical buttons" under Maintenance → Frame hardware → Physical buttons. The page shows
 the last button pressed: if nothing appears, check the wiring against the
 [diagram](screen-and-hardware.md#physical-buttons) (each button between its
 pin and a ground pin).
 
 **Monitor brightness doesn't change.**
 Switch on DDC/CI in the monitor's own menu, then press **Check again** under
-Display → Monitor brightness.
+Screen → Monitor brightness.
 
 **Videos stutter.**
 Look in Recent activity for "decoded in hardware". Videos bigger than 1080p
@@ -64,7 +64,7 @@ are re-made at 1080p in the background, after which they play smoothly.
 
 **Fades are slow (around 14 fps).**
 The display hardware isn't being used. Recent activity says why; check
-Display → Fades is on, and that `python3-kms++` is installed. Run
+Maintenance → Frame hardware → Fades is on, and that `python3-kms++` is installed. Run
 `deploy/kms_fade_test.py` to test the Pi step by step.
 
 **Text appears on the screen during boot or over the photos.**

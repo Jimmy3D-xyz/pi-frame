@@ -13,7 +13,7 @@
 
 ## Screen resolution
 
-Maintenance → Screen resolution lists the resolutions the screen reports,
+Maintenance → Screen resolution (an admin option) lists the resolutions the screen reports,
 up to its native one. (Bigger modes some monitors accept and shrink, like
 4K on a 1440p screen, are left out: twice the work for the Pi, nothing
 gained.) Pick one and press **Apply and restart**.
@@ -41,7 +41,7 @@ and taken back afterwards.
 
 This needs `python3-kms++` (the installer adds it). If the display hardware
 isn't available, the frame falls back to drawing fades with the processor
-(around 14 fps at 1440p) and says why in Recent activity. Display → Fades
+(around 14 fps at 1440p) and says why in Recent activity. Maintenance → Frame hardware → Fades
 can switch hardware fades off. `deploy/kms_fade_test.py` checks a Pi step
 by step and reports the frame rate:
 
@@ -115,7 +115,7 @@ plugged in, the frame notices within a few seconds and restarts itself to use it
 
 ## Monitor brightness and standby
 
-Display → Monitor brightness. Most desktop monitors accept settings over
+Screen → Monitor brightness. Most desktop monitors accept settings over
 the HDMI cable (DDC/CI). The frame uses this for:
 
 - the monitor's real backlight brightness,
@@ -136,7 +136,7 @@ set in the service file: see the commented examples in
 
 ## Presence sensor
 
-Display → Presence sensor. A 24 GHz mmWave radar module (Waveshare HMMD,
+Maintenance → Frame hardware → Presence sensor (unlock the admin options first). A 24 GHz mmWave radar module (Waveshare HMMD,
 which is the S3KM1110, or HLK-LD2420) turns the screen on when someone is in
 the room and off once nobody has been seen for a while (5 minutes by
 default). Radar senses people even when they sit still and works through
@@ -160,7 +160,7 @@ screens keep the screen on. The settings page shows "Someone's here" /
 
 ## Physical buttons
 
-Display → Physical buttons (tick **Use physical buttons** first). Three push buttons on
+Maintenance → Frame hardware → Physical buttons (unlock the admin options, then tick **Use physical buttons** first). Three push buttons on
 the Pi's GPIO header:
 
 | Button | Pin (default) | Tap | Hold |

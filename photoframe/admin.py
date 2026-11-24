@@ -35,12 +35,36 @@ ADMIN_KEYS = frozenset({
     "backup_auto", "backup_where", "backup_folder", "backup_kind", "backup_every", "backup_time", "backup_keep",
 })
 
+# Settings that belong to setting the frame up. The web page only changes them
+# with the admin options unlocked; apps (Home Assistant, the image server) use
+# the firmware API as before, so requests that don't come from a browser can.
+SETUP_KEYS = frozenset({
+    "device_name", "timezone", "ha_url", "demo_mode",
+    "image_url", "access_token", "http_header_key", "http_header_value",
+    "display_orientation", "display_rotation_deg", "display_hw_fade",
+    "buttons_enabled", "button_previous_pin", "button_next_pin", "button_screen_pin",
+    "button_hold_shutdown", "button_hold_seconds",
+    "presence_enabled", "presence_pin", "presence_timeout_minutes", "presence_schedule_only",
+})
+
+# Stored secrets the settings API never shows: it answers MASK when one is set,
+# and a MASK sent back leaves it as it is.
+MASKED_KEYS = frozenset({"access_token", "http_header_value", "openai_api_key", "google_api_key"})
+MASK = "********"
+
+
+def from_browser(headers) -> bool:
+    """Browsers say where a request came from; apps and scripts don't."""
+    return bool(headers.get("Origin") or headers.get("Sec-Fetch-Site") or headers.get("Sec-Fetch-Mode"))
+
+
 # Paths that need the admin unlocked (any method).
 ADMIN_PREFIXES = (
     "/api/maintenance/update", "/api/maintenance/ssh", "/api/maintenance/reset", "/api/maintenance/wifi",
     "/api/maintenance/diagnostics", "/api/maintenance/restart", "/api/maintenance/reboot",
     "/api/backup", "/api/cloud", "/api/admin/page-password",
     "/api/wifi/connect",  # changing network (free while the setup hotspot is up)
+    "/api/display/mode", "/api/display/detect",  # screen resolution (restarts the Pi)
 )
 
 

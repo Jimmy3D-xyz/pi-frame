@@ -154,7 +154,7 @@ def create_app(frame: Frame) -> Flask:
         if in_setup_mode() and is_setup_path():
             return None
         if adm.is_admin_path(request.path) or (request.path == "/api/config" and request.method != "GET"
-                                                and adm.ADMIN_KEYS & set((request.get_json(silent=True) or {}))):
+                                                and _admin_settings(request.get_json(silent=True))):
             if admin_unlocked():
                 return None
             if not admin_password():
@@ -163,6 +163,13 @@ def create_app(frame: Frame) -> Flask:
             return jsonify({"status": "error", "admin": "locked",
                             "message": "Unlock the admin options first (Maintenance → Unlock)."}), 403
         return None
+
+    def _admin_settings(body) -> bool:
+        """Does this settings change need the admin? Passwords, updates and
+        backups always do; setting-up settings do when the change comes from a
+        browser (the web page), so Home Assistant and the image server work as before."""
+        keys = set(body) if isinstance(body, dict) else set()
+        return bool(keys & adm.ADMIN_KEYS or (keys & adm.SETUP_KEYS and adm.from_browser(request.headers)))
 
     def _admin_state() -> dict:
         token = request.cookies.get(adm.COOKIE)
@@ -439,6 +446,7 @@ def create_app(frame: Frame) -> Flask:
             return _err("expected a JSON object")
         if "admin_password" in data:
             return _err("Change the admin password under Maintenance → Admin.")
+        data = {k: v for k, v in data.items() if not (k in adm.MASKED_KEYS and v == adm.MASK)}  # unchanged secrets
         try:
             changed = cfg.update(data)
         except ConfigError as e:
@@ -1038,7 +1046,8 @@ def create_app(frame: Frame) -> Flask:
         h = _maintenance()
         parts = [f"Pi Frame diagnostics (pi-photoframe {__version__}), {time.strftime('%Y-%m-%d %H:%M:%S %Z')}", "",
                  "== summary"] + [f"[{x['level']}] {x['area']}: {x['text']}" for x in h["summary"]]
-        safe_cfg = {k: v for k, v in cfg.public().items() if "key" not in k and "token" not in k}
+        safe_cfg = {k: v for k, v in cfg.public().items() if "key" not in k and "token" not in k
+                    and k not in adm.MASKED_KEYS}
         parts += ["", "== status", _json.dumps(h, indent=2, default=str), "", "== settings (secrets removed)",
                   _json.dumps(safe_cfg, indent=2), "", "== recent activity"]
         parts += [f"{time.strftime('%H:%M:%S', time.localtime(e['t']))} {e['level']:7s} {e['area']}: {e['msg']}"

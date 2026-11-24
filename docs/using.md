@@ -28,7 +28,7 @@ are in the slideshow.
 To keep an album in step with a cloud folder or a NAS, see
 [Synced folders](synced-folders.md).
 
-**Fit or fill** (Display tab): fit shows the whole photo with a soft blurred
+**Fit or fill** (Slideshow tab): fit shows the whole photo with a soft blurred
 backdrop (or black or white) around it; fill crops it to fill the screen.
 
 ## Videos
@@ -54,7 +54,7 @@ Each video is checked when it arrives:
 scaled up to fill bigger screens. Videos copied onto the card by hand aren't
 converted, so use compatible files for those.
 
-When a video comes up, it plays once (or for the time limit under Display →
+When a video comes up, it plays once (or for the time limit under Slideshow →
 Videos), then the slideshow moves on. Scheduled changes never cut a video
 short; the Next button does. Tap a video in the Photos tab to play it now.
 
@@ -67,11 +67,11 @@ moments distorting.
 
 ## The slideshow
 
-**Schedule tab**: when the photo changes, using the same rules as the ESP32
+**Slideshow tab → Changing photos**: when the photo changes, using the same rules as the ESP32
 firmware (`minute hour day-of-week`, e.g. every 30 minutes), in random order
 or in turn.
 
-**Slideshow styles** (Schedule tab): tick one, or several to take turns.
+**Slideshow styles** (Slideshow tab): tick one, or several to take turns.
 Tap a style's name (not its tick box) to open its settings.
 
 - **Classic**: one photo at a time. When a photo's shape doesn't suit the
@@ -117,7 +117,7 @@ a landscape screen, photos that suit the empty spaces go around it.
 1 minute) from a random point in a random video, then back to whatever was
 showing.
 
-**Changing pictures** (Display tab):
+**Transitions** (Slideshow tab):
 
 - **Fades, zooms, slides and 3D turns** (the default): in Story and
   Spotlight a photo grows out of its collage space to fill the screen, and in
@@ -133,7 +133,7 @@ these run at 60 fps on the display hardware (see
 
 ## On-screen info
 
-Display → On-screen info adds small frosted-glass panels in the corner you
+Screen → On-screen info adds small frosted-glass panels in the corner you
 choose, in small, medium or large:
 
 - **Time and date**, 12- or 24-hour.
@@ -162,7 +162,7 @@ on-screen info, and slides change every 10–20 seconds.
 
 - A set-up frame with **no photos yet** shows it by itself, and switches to
   your photos as soon as the first one arrives.
-- **Display → Starting up → Demo mode** shows it any time, even with photos
+- **Maintenance → This frame → Demo mode** (an admin option) shows it any time, even with photos
   on the frame (for showing the frame off). Switch it off again to go back.
 
 The samples are 8 public-domain paintings from the
@@ -184,7 +184,7 @@ photo count, history or backups.
 
 ## Turning the screen on and off
 
-- **Screen schedule** (Display tab): on and off times, e.g. on at 07:00 and
+- **Screen schedule** (Screen tab): on and off times, e.g. on at 07:00 and
   off at 22:30.
 - **Presence sensor**: on when someone's in the room, off when they've left.
 - **Screen button** at the top of the web page (it shows whether the screen is on; tap it to switch), or the [physical button](screen-and-hardware.md#physical-buttons).
@@ -196,14 +196,14 @@ too, and dim at night. See [Monitor brightness](screen-and-hardware.md#monitor-b
 
 ## Portrait mounting
 
-Choose Portrait under Display. The layout assumes the screen was turned
+Choose Portrait under Maintenance → Frame hardware (an admin option). The layout assumes the screen was turned
 anticlockwise from landscape; if photos appear upside down, choose "Upside
 down (180°)". The boot screen turns to match.
 
 ## Wi-Fi and the setup screens
 
 **Welcome**: each time the frame starts, it shows a QR code for its web
-page for 30 seconds (Display → Starting up; 1–2 minutes, or off), with its
+page for 30 seconds (Screen → Starting up; 1–2 minutes, or off), with its
 IP address and network once Wi-Fi connects. The Next button skips it.
 
 **No photos**: with nothing to show, the frame shows a QR code for its web
@@ -243,20 +243,24 @@ rejoins your Wi-Fi by itself and the panel goes.
 Maintenance → Wi-Fi and network lists the saved networks, so you can
 forget one you used away from home.
 
-To change network from the web page: Photo source → Change Wi-Fi network
-(with the admin options unlocked).
+To change network from the web page: Maintenance → Wi-Fi and network →
+Change Wi-Fi network (with the admin options unlocked).
 
 ## Admin options and passwords
 
 The page has two levels, so other people at home can use it without being
 able to change the important things.
 
-**Everyday use** (photos, albums, the slideshow, the screen, display
-settings) works for anyone who can open the page.
+**Everyday use** works for anyone who can open the page: the Photos,
+Slideshow and Screen tabs, choosing where photos come from, and reading the
+health information in Maintenance.
 
 **Admin options** are locked with the **admin password**, chosen in the
 welcome wizard: software updates, backups, Wi-Fi settings, synced folders,
-SSH, restarting, resetting the frame, and the passwords themselves. To use
+the image server's address and token, SSH, restarting, resetting the frame,
+the passwords, and setting the frame up (Maintenance → This frame: name,
+time zone, Home Assistant address, demo mode; Frame hardware: orientation,
+hardware fades, buttons, presence sensor; Screen resolution). To use
 them, open Maintenance and enter the admin password at the top. They lock
 again after 15 minutes without being used, when you close the browser, or
 with **Lock now**. After a few wrong passwords the page makes you wait a

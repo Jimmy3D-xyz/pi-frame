@@ -173,7 +173,7 @@ config fields beyond the firmware's are listed with their defaults in
 - **Two levels.** The page password (optional, HTTP basic auth) covers the
   whole page and API. The admin options (`ADMIN_PREFIXES`: updates, SSH,
   reset, saved Wi-Fi and changing network, diagnostics, restart, reboot,
-  backups, synced folders, the page password) and the admin settings in
+  screen resolution changes, backups, synced folders, the page password) and the admin settings in
   `/api/config` (`ADMIN_KEYS`: passwords, update and backup settings) also
   need the admin unlocked: a random token in the `pf_admin` cookie
   (HttpOnly, SameSite=Strict, no expiry date, so it ends with the browser),
@@ -182,6 +182,16 @@ config fields beyond the firmware's are listed with their defaults in
   `X-Config-Payload` can't change `ADMIN_KEYS`.
 - **Slow guessing.** After 3 wrong page or admin passwords from one address,
   each further try waits 5 s, then 10 s, 20 s … up to 5 minutes.
+- **Setting-up settings** (`SETUP_KEYS`: name, time zone, Home Assistant
+  address, image server address and token, orientation, hardware fades,
+  buttons, presence sensor, demo mode) need the admin unlocked when the change
+  comes from a browser (it sends `Origin` or `Sec-Fetch-*`). Home Assistant
+  and the image server set them through the firmware API as before. This
+  keeps the household from changing them by accident; the security-critical
+  settings are the `ADMIN_KEYS` above.
+- **Stored secrets** (`MASKED_KEYS`: the image server token, header value,
+  API keys) show as `********` in `GET /api/config`; sending `********` back
+  leaves them unchanged.
 - **Synced folders** only browse accounts set up on the frame: rclone remote
   names like `:local` are refused.
 
