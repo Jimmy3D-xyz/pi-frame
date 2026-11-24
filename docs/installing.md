@@ -87,13 +87,19 @@ the frame's name on the network is `piframe`.
 
 Releases normally carry just the update package and the kit. The image
 takes about 10 minutes to build (on GitHub's Arm machines, so nothing needs
-emulating), so it's built by hand from the Actions tab (workflow "Image")
-only when needed: after a change to the first start, a new Raspberry Pi OS,
-or now and then. It's added to that version's release, and later releases
-link to it (see [Releasing](developers.md#releasing)). Without the release
-box ticked, it's a test release called `pi-frame-test`.
+emulating), so the maintainer builds it from the Actions tab (workflow
+"Image") only when needed: after a change to the first start, a new
+Raspberry Pi OS, or now and then. It's added to that version's release, and
+later releases link to it (see [Releasing](developers.md#releasing)).
+Without the release box ticked, it's a test release called `pi-frame-test`.
 
-To build one yourself, on a Linux machine with `qemu-user-static` (not
+Only the maintainer can publish releases or images here: GitHub only lets
+people with write access to the repository run its workflows or create
+version tags. Anyone can build an image **for their own use**, though. It
+stays on their computer (or in their own fork), and frames never install it,
+since they only update from this repository's releases.
+
+To build one on your own computer: a Linux machine with `qemu-user-static` (not
 needed on Arm), `xz-utils`, `fdisk`, `e2fsprogs` and `zerofree`:
 
 ```sh
@@ -171,7 +177,8 @@ run `ssh-keygen -R piframe.local` and connect again.
 
 ## Building the kit
 
-From a copy of this repository:
+For your own use (only the maintainer publishes releases), from a copy of
+this repository:
 
 ```sh
 kit/build-kit.sh            # writes dist/pi-photoframe.zip, dist/pi-frame-kit.zip (+ .sha256) and dist/install.sh

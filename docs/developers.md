@@ -229,6 +229,13 @@ check `docker build` succeeds first.
 
 ## Releasing
 
+Only the maintainer can do this: running the Release and Image workflows
+and creating `v*` tags needs write access to the repository, and version tags
+are protected from being moved or deleted. Frames only install releases
+published here. Builds you make yourself (`kit/build-kit.sh`,
+`deploy/build-image.sh`, or the workflows in your own fork) are yours to
+use, but frames never pick them up.
+
 1. Bump `__version__` in `photoframe/__init__.py`: the last number for a
    small fix (0.26.1), the middle one for new features (0.27.0).
 2. Run the tests, commit and push.
