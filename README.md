@@ -8,6 +8,9 @@ A digital photo frame for a Raspberry Pi 4 and an HDMI monitor. Photos and
 videos from the Pi itself, your OneDrive, Google Drive, Dropbox or NAS, run
 from a web page on your phone.
 
+**New here? Start with [Getting started](docs/getting-started.md)**: from a
+Pi in a box to your photos on the wall in about half an hour.
+
 Pi Frame also works as a member of the
 [esp32-photoframe](https://github.com/aitjcize/esp32-photoframe) family: it
 speaks the same HTTP API, so the
@@ -39,25 +42,18 @@ work with it unchanged.
 
 ## Install
 
-1. Download the **ready-made image** (`pi-frame-<version>.img.xz`) from
-   [Releases](https://github.com/Jimmy3D-xyz/pi-frame/releases) (the newest
-   release links to it, if it isn't attached itself).
-2. Write it to a microSD card with Raspberry Pi Imager (Operating system →
-   **Use custom**).
-3. Put the card in the Pi, connect the monitor and switch on.
-4. Scan the QR codes on the screen with your phone: one joins the frame's
-   setup Wi-Fi, the other opens a short welcome wizard (Wi-Fi, name, time
-   zone, admin password).
+- **Easiest:** write the ready-made image (from
+  [Releases](https://github.com/Jimmy3D-xyz/pi-frame/releases)) to a card,
+  switch on, and set it up from your phone.
+- **Already running Raspberry Pi OS Lite (64-bit)?** Over SSH:
 
-Already have a Pi running Raspberry Pi OS Lite (64-bit) on your Wi-Fi? Log in
-over SSH and run:
+  ```sh
+  curl -fsSL https://github.com/Jimmy3D-xyz/pi-frame/releases/latest/download/install.sh | sudo bash
+  ```
 
-```sh
-curl -fsSL https://github.com/Jimmy3D-xyz/pi-frame/releases/latest/download/install.sh | sudo bash
-```
-
-There's also an installer kit to copy onto a card. All of these, plus moving
-to a new card and updating, are in [Installing and updating](docs/installing.md).
+Step by step: [Getting started](docs/getting-started.md). Every option,
+including the installer kit, moving to a new card and updating:
+[Installing and updating](docs/installing.md).
 
 ## Licence
 
@@ -67,6 +63,7 @@ MIT: see [LICENSE](LICENSE). Found a security problem? See [SECURITY.md](SECURIT
 
 | | |
 | --- | --- |
+| [Getting started](docs/getting-started.md) | The short version: what to buy, installing, the first ten minutes, and setting it to look after itself |
 | [Installing and updating](docs/installing.md) | The ready-made image and welcome wizard, the installer kit, backups and restoring, moving to a new card, updates |
 | [Using the frame](docs/using.md) | Photos and videos, slideshow styles, on-screen info, live view, Wi-Fi setup |
 | [Synced folders](docs/synced-folders.md) | OneDrive, Google Drive, Dropbox and NAS |
