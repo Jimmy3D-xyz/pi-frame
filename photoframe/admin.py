@@ -33,7 +33,7 @@ IDLE_SECONDS = 15 * 60  # locks again after this long without being used
 # server's X-Config-Payload may never change.
 ADMIN_KEYS = frozenset({
     "http_password", "admin_password",
-    "update_auto", "update_time", "update_repo",
+    "update_auto", "update_time", "update_repo", "update_channel",
     "backup_auto", "backup_where", "backup_folder", "backup_kind", "backup_every", "backup_time", "backup_keep",
 })
 

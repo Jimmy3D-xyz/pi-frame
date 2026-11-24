@@ -855,7 +855,10 @@
                 <label class="field" style="margin-bottom:.7rem"><span>New versions</span><select id="g-mode">
                   <option value="notify">Tell me here</option><option value="install">Install automatically</option><option value="off">Don't check</option></select></label>
                 <label class="field" id="g-time-row" style="margin-bottom:.7rem"><span>At</span><input type="time" id="g-time"></label>
+                <label class="field" style="margin-bottom:.7rem"><span>Channel</span><select id="g-channel">
+                  <option value="stable">Stable</option><option value="test">Test (try new versions early)</option></select></label>
               </div>
+              <p class="muted" id="g-channel-note" style="font-size:.85rem;margin:0 0 .6rem" hidden>This frame also takes test versions. They may have rough edges; switch back to Stable to get only finished versions (the frame stays on its test version until the next finished one comes out).</p>
               <div class="actions" style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:center">
                 <button type="button" class="btn small" id="g-check">Check now</button>
               </div>
@@ -1982,7 +1985,7 @@ function showGithub(g) {
   if (g.busy === "checking") line = '<span class="spin" aria-hidden="true"></span> Checking GitHub…';
   else if (g.busy === "downloading") line = '<span class="spin" aria-hidden="true"></span> Downloading the update…';
   else if (g.error) line = `<span style="color:var(--warn)">✗ ${escapeHtml(g.error)}</span>`;
-  else if (g.available) line = `<b>Version ${escapeHtml(g.available.version)} is available.</b>` +
+  else if (g.available) line = `<b>Version ${escapeHtml(g.available.version)}${g.available.test ? " (test version)" : ""} is available.</b>` +
     (g.failed ? " It didn't install automatically last time, so it's waiting for you."
       : g.mode === "install" ? ` It installs at ${escapeHtml(g.time)}, or now:` : "");
   else if (g.last_check) line = `✓ Up to date${g.latest ? ` (latest release: ${escapeHtml(g.latest)})` : " (no releases yet)"}.`;
@@ -1994,6 +1997,8 @@ function showGithub(g) {
   if (g.available) $("#g-notes").textContent = g.available.notes || "";
   if (document.activeElement !== $("#g-mode")) $("#g-mode").value = g.mode;
   if (document.activeElement !== $("#g-time")) $("#g-time").value = g.time;
+  if (document.activeElement !== $("#g-channel")) $("#g-channel").value = g.channel || "stable";
+  $("#g-channel-note").hidden = g.channel !== "test";
   $("#g-time-row").hidden = g.mode !== "install";
   $("#g-check").disabled = !!g.busy;
 }
@@ -2005,6 +2010,10 @@ async function loadGithub() {
 }
 $("#g-check").onclick = () => act(async () => { showGithub(await api("/api/maintenance/update/github/check", { method: "POST" }), true); });
 $("#g-mode").onchange = (e) => act(async () => { await api("/api/config", { json: { update_auto: e.target.value } }); loadGithub(); }, "Saved");
+$("#g-channel").onchange = (e) => act(async () => {
+  await api("/api/config", { json: { update_channel: e.target.value } });
+  showGithub(await api("/api/maintenance/update/github/check", { method: "POST" }));
+}, "Saved");
 $("#g-time").onchange = (e) => { if (e.target.value) act(async () => { await api("/api/config", { json: { update_time: e.target.value } }); loadGithub(); }, "Saved"); };
 $("#g-install").onclick = () => {
   if (!confirm("Install the new version now? The frame restarts at the end, and the screen may go blank briefly.")) return;

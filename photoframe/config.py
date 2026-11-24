@@ -113,6 +113,7 @@ DEFAULT_CONFIG: dict = {
     "backup_keep": 4,
     # updates from GitHub (needs a read-only token, kept outside the settings)
     "update_auto": "notify",  # off | notify | install
+    "update_channel": "stable",  # stable | test (test also takes pre-releases such as 0.37.0-beta.1)
     "update_time": "03:30",
     "update_repo": "Jimmy3D-xyz/pi-frame",
     # demo (shop) mode: sample photos and "about this frame" slides; also shown
@@ -164,6 +165,7 @@ _ENUMS = {
     "backup_kind": {"full", "settings"},
     "backup_every": {"daily", "weekly", "monthly"},
     "update_auto": {"off", "notify", "install"},
+    "update_channel": {"stable", "test"},
 }
 
 

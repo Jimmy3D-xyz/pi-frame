@@ -38,6 +38,10 @@ maintainer pushes to `main` and creates `v*` tags.
 - On-screen notice (0.35.0): `attention.py` watches the Maintenance summary
   (`WATCH` areas), shows after an hour; add new needs-a-person problems as
   summary lines in `health.summarise`.
+- Test channel (0.37.0): a version number with `-beta.N` (0.37.0-beta.1) is
+  released as a pre-release by release.yml; only frames with
+  `update_channel` = test take it. To try a change on the maintainer's frame first:
+  bump to the next `-beta.N`, push, they run Release; then the plain number.
 - Public repo (0.36.0): updates use the public GitHub API with no token
   (token support removed in 0.36.1; an old `github-token` file is deleted at
   start); the one-line installer is the `install.sh` release asset

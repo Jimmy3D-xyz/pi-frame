@@ -36,7 +36,17 @@ jobs:
           img=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
                 -q '[.[] | select(.prerelease | not) | select(any(.assets[]; .name | endswith(".img.xz")))][0].tag_name // empty' \
                 || true)
+          # a test version (0.37.0-beta.1) is published as a pre-release: only frames on
+          # the Test channel take it, and "latest" (frames on Stable, the installer) skips it
+          flags=""; title="Pi Frame $ver"
+          case "$ver" in
+            *-beta*) flags="--prerelease"; title="Pi Frame $ver (test)" ;;
+          esac
           {
+            if [ -n "$flags" ]; then
+              echo "**Test release.** Only frames set to the **Test** channel (Maintenance → Software update) install it by themselves."
+              echo
+            fi
             echo "**Update**: upload \`pi-photoframe.zip\` on the frame's Maintenance tab → Software update."
             echo
             echo "- New frame on a card you've written yourself? Over SSH: \`curl -fsSL https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.sh | sudo bash\`"
@@ -47,5 +57,5 @@ jobs:
             echo
             echo "Built from $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%d)."
           } > notes.md
-          gh release create "$tag" --target "$GITHUB_SHA" --title "Pi Frame $ver" \
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$title" $flags \
             --notes-file notes.md dist/pi-photoframe.zip dist/pi-frame-kit.zip dist/pi-frame-kit.zip.sha256 dist/install.sh

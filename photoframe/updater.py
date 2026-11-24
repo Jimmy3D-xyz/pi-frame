@@ -27,8 +27,28 @@ class UpdateError(ValueError):
     pass
 
 
+VERSION_RE = re.compile(r"^(\d+(?:\.\d+){1,3})(?:-beta\.?(\d+))?$")
+
+
+def is_version(v: str) -> bool:
+    """A Pi Frame version: 0.37.0, or a test version like 0.37.0-beta.2."""
+    return bool(VERSION_RE.match(str(v)))
+
+
+def is_beta(v: str) -> bool:
+    m = VERSION_RE.match(str(v))
+    return bool(m and m.group(2))
+
+
 def _version_key(v: str) -> tuple:
-    return tuple(int(p) if p.isdigit() else p for p in re.split(r"[.\-+]", v))
+    """Sort key: 0.36.1 < 0.37.0-beta.1 < 0.37.0-beta.2 < 0.37.0 < 0.37.1.
+    Anything else sorts before every real version."""
+    m = VERSION_RE.match(str(v))
+    if not m:
+        return (-1,)
+    nums = [int(x) for x in m.group(1).split(".")] + [0] * (4 - len(m.group(1).split(".")))
+    beta = m.group(2)
+    return (*nums, 0 if beta else 1, int(beta or 0))
 
 
 def inspect_package(path: Path) -> dict:

@@ -247,6 +247,17 @@ use, but frames never pick them up.
 Frames with automatic updates install the latest full release (not
 pre-releases such as `pi-frame-test`), so publishing a release is what ships a version to them.
 
+**Test versions.** To try a change on your own frame before everyone gets
+it, give it a test number: `0.37.0-beta.1`, then `0.37.0-beta.2` and so on,
+and release it in the same way. The Release workflow sees `-beta` in the
+number and publishes it as a pre-release, marked "(test)". Only frames set to
+the **Test** channel (Maintenance → Software update → Channel) install it;
+frames on Stable, the one-line installer and the image all skip it. When
+it's ready, set the plain number (`0.37.0`) and release that: every frame
+gets it, and frames on Test move on to it too, since a finished version
+counts as newer than its test versions. Build images from finished versions
+only.
+
 **The ready-made image** is only built when it's needed, as it takes about
 10 minutes: workflow **Image** → Run workflow, with **Add it to this
 version's release** ticked (it adds the image to the version's release, or

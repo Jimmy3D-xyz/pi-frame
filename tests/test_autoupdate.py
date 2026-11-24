@@ -41,6 +41,8 @@ class FakeGitHub:
                 if self.path == f"/repos/{REPO}/releases/latest":
                     rel = next((r for r in gh.releases if not r.get("prerelease")), None)
                     return self.send(200, rel) if rel else self.send(404, {"message": "Not Found"})
+                if self.path.split("?")[0] == f"/repos/{REPO}/releases":  # every release, newest first
+                    return self.send(200, gh.releases)
                 if self.path.startswith(f"/repos/{REPO}/releases/assets/"):
                     blob = gh.assets.get(int(self.path.rsplit("/", 1)[1]))
                     if blob is None or self.headers.get("Accept") != "application/octet-stream":
@@ -226,3 +228,46 @@ def test_frames_follow_the_repository_to_its_new_home(tmp_path):
     raw = json.loads((tmp_path / "config.json").read_text())
     assert raw["config"]["update_repo"] == "JimmySte/pi-frame"
     assert ConfigStore(tmp_path).get("update_repo") == "Jimmy3D-xyz/pi-frame"
+
+
+def next_minor():
+    parts = [int(x) for x in __version__.split(".")]
+    return f"{parts[0]}.{parts[1] + 1}.0"
+
+
+def test_version_order():
+    from photoframe.updater import _version_key, is_beta, is_version
+    order = ["0.36.1", "0.37.0-beta.1", "0.37.0-beta.2", "0.37.0-beta.10", "0.37.0", "0.37.1", "1.0.0"]
+    assert sorted(reversed(order), key=_version_key) == order
+    assert is_version("0.37.0-beta.1") and is_beta("0.37.0-beta.1") and not is_beta("0.37.0")
+    assert not is_version("0.37.0-rc1") and not is_version("latest")
+
+
+def test_stable_channel_skips_test_versions(au, gh):
+    gh.release(__version__)
+    gh.release(f"{next_minor()}-beta.1", prerelease=True)
+    st = au.check()
+    assert st["channel"] == "stable" and st["available"] is None
+    # even if one were published without the pre-release tick, the number gives it away
+    gh.release(f"{next_minor()}-beta.2")
+    assert au.check()["available"] is None
+
+
+def test_test_channel_takes_the_newest_version_of_either_kind(au, gh):
+    au.cfg.update({"update_channel": "test"})
+    gh.release(__version__)
+    beta = f"{next_minor()}-beta.1"
+    gh.release(beta, prerelease=True)
+    st = au.check()
+    assert st["channel"] == "test"
+    assert st["available"]["version"] == beta and st["available"]["test"] is True
+    gh.release(next_minor())  # the finished version beats its test versions
+    st = au.check()
+    assert st["available"]["version"] == next_minor() and st["available"]["test"] is False
+
+
+def test_test_channel_ignores_releases_without_a_package(au, gh):
+    au.cfg.update({"update_channel": "test"})
+    gh.release(f"{next_minor()}-beta.1", prerelease=True)
+    gh.releases[0]["assets"] = [a for a in gh.releases[0]["assets"] if a["name"] != "pi-photoframe.zip"]
+    assert au.check()["available"] is None

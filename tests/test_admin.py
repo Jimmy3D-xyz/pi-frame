@@ -148,7 +148,7 @@ def test_settings_that_belong_to_the_admin(env):
     frame, _, clock = env
     frame.cfg.update({"admin_password": ADMIN})
     client, _ = make(env)
-    for body in ({"http_password": "x" * 8}, {"update_repo": "someone/else"}, {"update_auto": "install"},
+    for body in ({"http_password": "x" * 8}, {"update_repo": "someone/else"}, {"update_auto": "install"}, {"update_channel": "test"},
                  {"backup_where": "nas"}, {"device_name": "Hall", "update_time": "01:00"}):
         r = client.post("/api/config", json=body)
         assert r.status_code == 403 and r.get_json()["admin"] == "locked", body

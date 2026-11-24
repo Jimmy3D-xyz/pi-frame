@@ -322,7 +322,12 @@ happens when there's a new version:
   if the new one doesn't start properly the old one is put back. A version
   that failed this way isn't tried again by itself.
 
-Only full releases are offered: the `pi-frame-test` builds are ignored. The
+**Channel**: **Stable** (the default) gets finished versions only. **Test**
+also gets test versions (numbers like `0.37.0-beta.1`), which the
+maintainer publishes to try changes out before everyone gets them: they may
+have rough edges, so leave this on Stable unless you want to help try them.
+Switching back to Stable keeps the test version until the next finished one
+comes out. The `pi-frame-test` image builds are never offered. The
 download is checked against the checksum GitHub publishes for it.
 
 ### Updating by hand

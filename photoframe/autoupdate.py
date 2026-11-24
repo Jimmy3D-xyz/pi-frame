@@ -21,7 +21,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 import tempfile
 import threading
 import time
@@ -30,7 +29,7 @@ from pathlib import Path
 import requests
 
 from . import __version__
-from .updater import UpdateError, _version_key
+from .updater import UpdateError, _version_key, is_beta, is_version
 
 log = logging.getLogger(__name__)
 
@@ -103,6 +102,11 @@ class AutoUpdate:
         m = self.cfg.get("update_auto")
         return m if m in MODES else "notify"
 
+    @property
+    def channel(self) -> str:
+        """stable: full releases only. test: pre-releases too (the maintainer's test frames)."""
+        return "test" if self.cfg.get("update_channel") == "test" else "stable"
+
     # ---------- GitHub
     def _get(self, path: str, **kw) -> requests.Response:
         headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
@@ -118,7 +122,10 @@ class AutoUpdate:
         with self._lock:
             self.busy = "checking"
             try:
-                r = self._get(f"/repos/{self.repo}/releases/latest")
+                if self.channel == "test":
+                    r = self._get(f"/repos/{self.repo}/releases", params={"per_page": 30})
+                else:
+                    r = self._get(f"/repos/{self.repo}/releases/latest")
                 self.state["last_check"] = time.time()
                 if r.status_code == 404 and not self._repo_found():
                     raise AutoUpdateError(f"Couldn't find {self.repo} on GitHub.")
@@ -132,15 +139,26 @@ class AutoUpdate:
                 if r.status_code != 200:
                     raise AutoUpdateError(f"GitHub answered {r.status_code}")
                 rel = r.json()
+                if self.channel == "test":
+                    # the newest version of all, test releases included
+                    rels = [x for x in rel if not x.get("draft") and is_version(str(x.get("tag_name", "")).lstrip("v"))
+                            and any(a.get("name") == ASSET for a in x.get("assets", []))]
+                    if not rels:
+                        self.state.pop("available", None)
+                        self.state["latest"] = None
+                        self.state.pop("error", None)
+                        return self.status()
+                    rel = max(rels, key=lambda x: _version_key(str(x["tag_name"]).lstrip("v")))
                 version = str(rel.get("tag_name", "")).lstrip("v")
                 asset = next((a for a in rel.get("assets", []) if a.get("name") == ASSET), None)
                 self.state["latest"] = version
                 self.state.pop("error", None)
-                if not re.fullmatch(r"\d+(\.\d+){1,3}", version) or asset is None:
+                if not is_version(version) or asset is None or (is_beta(version) and self.channel != "test"):
                     self.state.pop("available", None)
                 elif _version_key(version) > _version_key(__version__):
                     self.state["available"] = {
                         "version": version, "name": rel.get("name") or f"Pi Frame {version}",
+                        "test": bool(rel.get("prerelease")) or is_beta(version),
                         "notes": (rel.get("body") or "")[:4000], "url": rel.get("html_url"),
                         "published": rel.get("published_at"), "asset_id": asset["id"],
                         "size": asset.get("size"), "digest": asset.get("digest"),
@@ -246,6 +264,7 @@ class AutoUpdate:
         avail = self.state.get("available")
         return {
             "mode": self.mode, "time": self.cfg.get("update_time") or "03:30", "repo": self.repo,
+            "channel": self.channel,
             "last_check": self.state.get("last_check"),
             "latest": self.state.get("latest"), "available": avail, "error": self.state.get("error"),
             "busy": self.busy, "failed": avail is not None and avail["version"] in self.state.get("failed", []),
