@@ -1,12 +1,32 @@
 <p align="center"><img src="photoframe/static/logo.svg" width="112" alt="Pi Frame logo"></p>
 
-# Pi Frame
+<h1 align="center">Pi Frame</h1>
 
-[![Tests](https://github.com/Jimmy3D-xyz/pi-frame/actions/workflows/tests.yml/badge.svg)](https://github.com/Jimmy3D-xyz/pi-frame/actions/workflows/tests.yml)
+<p align="center"><b>Turn a Raspberry Pi 4 and any HDMI monitor into a digital photo frame,<br>
+run from your phone.</b></p>
 
-A digital photo frame for a Raspberry Pi 4 and an HDMI monitor. Photos and
-videos from the Pi itself, your OneDrive, Google Drive, Dropbox or NAS, run
-from a web page on your phone.
+<p align="center">
+  <a href="https://github.com/Jimmy3D-xyz/pi-frame/releases/latest"><img alt="Latest version" src="https://img.shields.io/github/v/release/Jimmy3D-xyz/pi-frame?label=version"></a>
+  <a href="https://github.com/Jimmy3D-xyz/pi-frame/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/Jimmy3D-xyz/pi-frame/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/Jimmy3D-xyz/pi-frame?label=licence"></a>
+  <img alt="Raspberry Pi 4" src="https://img.shields.io/badge/Raspberry%20Pi-4-C51A4A?logo=raspberrypi&logoColor=white">
+  <img alt="Raspberry Pi OS Trixie, 64-bit" src="https://img.shields.io/badge/Raspberry%20Pi%20OS-Trixie%2064--bit-C51A4A">
+  <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white">
+</p>
+
+<p align="center">
+  <a href="docs/getting-started.md"><b>Getting started</b></a> ·
+  <a href="#install">Install</a> ·
+  <a href="docs/using.md">Using the frame</a> ·
+  <a href="docs/troubleshooting.md">Troubleshooting</a> ·
+  <a href="https://github.com/Jimmy3D-xyz/pi-frame/releases">Releases</a>
+</p>
+
+Photos and videos from the Pi itself, your OneDrive, Google Drive, Dropbox or
+NAS, shown with smooth fades, zooms, collages and 3D turns. Everything is set
+from a web page on your phone: no keyboard, no app. It looks after itself
+too, with a screen schedule, safe automatic updates, nightly security
+updates and backups.
 
 **New here? Start with [Getting started](docs/getting-started.md)**: from a
 Pi in a box to your photos on the wall in about half an hour.
