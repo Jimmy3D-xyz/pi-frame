@@ -123,9 +123,11 @@ Google Drive connections made before version 0.24 can only read. Disconnect
 it under Photo source → Synced folders and sign in again; synced albums are kept.
 
 **"Couldn't check for updates: GitHub no longer accepts the token".**
-The token has expired (or was deleted). Make a new one, as in
+Only happens when updating from a private copy of the repository: the token
+has expired (or was deleted). Make a new one, as in
 [Automatic updates](installing.md#automatic-updates-from-github), and paste it
-under Maintenance → Software update → From GitHub.
+under Maintenance → Software update → GitHub token. For the public
+repository, just remove the token: it isn't needed.
 
 <a id="security-updates"></a>**Security updates aren't installing, or I want to run them now.**
 Maintenance shows the last result. To run them now and see what happens,

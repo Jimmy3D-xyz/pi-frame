@@ -6,6 +6,7 @@
 - [Install with the ready-made image](#install-with-the-ready-made-image) (easiest)
 - [The welcome wizard](#the-welcome-wizard)
 - [Building the image](#building-the-image)
+- [Install with one command](#install-with-one-command)
 - [Install with the kit](#install-with-the-kit)
 - [Building the kit](#building-the-kit)
 - [Installing by hand](#installing-by-hand)
@@ -103,6 +104,35 @@ It downloads the latest Raspberry Pi OS Lite (64-bit), checks its checksum,
 installs Pi Frame inside it (`install.sh --image`), checks the result,
 shrinks it and compresses it.
 
+## Install with one command
+
+For a card you've written yourself with Raspberry Pi OS Lite (64-bit), when
+the Pi is already on your Wi-Fi.
+
+1. **Write the card.** In Raspberry Pi Imager choose *Raspberry Pi 4* and
+   *Raspberry Pi OS Lite (64-bit)*. In the settings, set the hostname to
+   `piframe`, a username and password you'll remember (this is the SSH
+   password), your Wi-Fi, and switch on SSH with password login.
+2. **Start the Pi** with the monitor connected, and give it 2–3 minutes (the
+   first start sets itself up and may restart).
+3. **Run the installer.** From Terminal (Mac) or PowerShell (Windows):
+
+   ```sh
+   ssh yourname@piframe.local
+   curl -fsSL https://github.com/Jimmy3D-xyz/pi-frame/releases/latest/download/install.sh | sudo bash
+   ```
+
+   To set the screen resolution at the same time, end the second line with
+   `| sudo bash -s -- --mode 2560x1440` instead.
+
+   It downloads the newest release from GitHub, checks it against the
+   release's checksum, installs Pi Frame, and restarts. It takes 10–15
+   minutes. Everything is logged to `/var/log/pi-frame-kit.log`.
+4. Open `http://piframe.local/` on your phone and set the admin password at
+   the top of Maintenance. To bring back an old frame's photos and settings,
+   restore a backup there (Maintenance → Backups), or use the kit below,
+   which restores one while installing.
+
 ## Install with the kit
 
 For a card you've written yourself with Raspberry Pi OS Lite, e.g. to keep
@@ -144,7 +174,7 @@ run `ssh-keygen -R piframe.local` and connect again.
 From a copy of this repository:
 
 ```sh
-kit/build-kit.sh            # writes dist/pi-photoframe.zip and dist/pi-frame-kit.zip
+kit/build-kit.sh            # writes dist/pi-photoframe.zip, dist/pi-frame-kit.zip (+ .sha256) and dist/install.sh
 ```
 
 `pi-photoframe.zip` is the app package on its own: it's also what the
@@ -273,25 +303,10 @@ card starts with.
 
 ### Automatic updates from GitHub
 
-The frame can check this repository's releases itself (Maintenance →
-Software update → From GitHub). The repository is private, so it needs a
-read-only GitHub token, made once:
-
-1. On GitHub: your picture → **Settings** → **Developer settings** →
-   **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
-2. Name it (e.g. "Pi Frame updates"), set **Resource owner** to
-   **Jimmy3D-xyz** (the organization the repository belongs to), and choose
-   an expiry (up to a year). If the organization isn't offered, an owner
-   allows fine-grained tokens first: its **Settings** → **Personal access
-   tokens**.
-3. Repository access: **Only select repositories** → `Jimmy3D-xyz/pi-frame`.
-4. Permissions → Repository permissions → **Contents: Read-only**. Nothing else.
-5. **Generate token**, copy it, and paste it into the frame.
-
-The frame checks it works, keeps it privately (readable by the frame only,
-never shown again, left out of diagnostics; backups include it, like the
-other sign-ins) and then looks for a new release once a day. Choose what
-happens when there is one:
+The frame checks this repository's releases itself, once a day
+(Maintenance → Software update → From GitHub). Nothing needs setting up: the
+repository is public, so no GitHub account or token is needed. Choose what
+happens when there's a new version:
 
 - **Tell me here** (the default): the Maintenance tab says "Version … is
   available", with what's new and an **Install now** button.
@@ -301,8 +316,15 @@ happens when there is one:
   that failed this way isn't tried again by itself.
 
 Only full releases are offered: the `pi-frame-test` builds are ignored. The
-download is checked against the checksum GitHub publishes for it. When the
-token expires, the health summary says so: make a new one and paste it in.
+download is checked against the checksum GitHub publishes for it.
+
+**Updating from your own private copy?** Then the frame needs a read-only
+GitHub token: Maintenance → Software update → **GitHub token (only for a
+private copy)** has the steps (a fine-grained token for that repository
+with **Contents: Read-only**). The frame keeps it privately (readable by the
+frame only, never shown again, left out of diagnostics) and says when it
+expires. A saved token that stops working is simply left out while the
+repository can be read without it.
 
 ### Updating by hand
 

@@ -49,8 +49,19 @@ work with it unchanged.
    setup Wi-Fi, the other opens a short welcome wizard (Wi-Fi, name, time
    zone, admin password).
 
-There's also an installer kit for a card you've written yourself. Both, plus
-moving to a new card and updating, are in [Installing and updating](docs/installing.md).
+Already have a Pi running Raspberry Pi OS Lite (64-bit) on your Wi-Fi? Log in
+over SSH and run:
+
+```sh
+curl -fsSL https://github.com/Jimmy3D-xyz/pi-frame/releases/latest/download/install.sh | sudo bash
+```
+
+There's also an installer kit to copy onto a card. All of these, plus moving
+to a new card and updating, are in [Installing and updating](docs/installing.md).
+
+## Licence
+
+MIT: see [LICENSE](LICENSE). Found a security problem? See [SECURITY.md](SECURITY.md).
 
 ## Guides
 

@@ -93,4 +93,5 @@ jobs:
           EOF
           sed -i 's/^          //' notes.md
           gh release create "$tag" --target "$GITHUB_SHA" --title "$title" --notes-file notes.md $flags \
-            dist/pi-frame-*.img.xz dist/pi-frame-*.img.xz.sha256 dist/pi-photoframe.zip dist/pi-frame-kit.zip
+            dist/pi-frame-*.img.xz dist/pi-frame-*.img.xz.sha256 dist/pi-photoframe.zip dist/pi-frame-kit.zip \
+            dist/pi-frame-kit.zip.sha256 dist/install.sh

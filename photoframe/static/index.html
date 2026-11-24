@@ -842,23 +842,7 @@
           <dl class="kv"><dt>Installed</dt><dd id="u-version">–</dd></dl>
           <div id="g-box">
             <h4 style="margin-top:.6rem">From GitHub</h4>
-            <div id="g-notoken">
-              <p class="note" style="margin-top:0">The frame can check the Pi Frame repository for new versions by itself. The repository is
-                private, so it needs a read-only key (a GitHub <i>token</i>):</p>
-              <ol class="note" style="padding-left:1.2rem;margin:.3rem 0 .7rem">
-                <li>On GitHub: your picture → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> →
-                  <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
-                <li>Name it e.g. “Pi Frame updates”, set <b>Resource owner</b> to <b>Jimmy3D-xyz</b>, and choose an expiry (up to a year; the frame tells you when it stops working).</li>
-                <li>Repository access: <b>Only select repositories</b> → <b id="g-repo-name">Jimmy3D-xyz/pi-frame</b>.</li>
-                <li>Permissions → Repository permissions → <b>Contents: Read-only</b>. Nothing else.</li>
-                <li><b>Generate token</b>, copy it, and paste it here.</li>
-              </ol>
-              <form id="g-token-form" autocomplete="off" style="display:flex;gap:.5rem;flex-wrap:wrap">
-                <input type="password" id="g-token" placeholder="github_pat_…" spellcheck="false" autocapitalize="off" style="flex:1 1 14rem">
-                <button type="submit" class="btn small primary">Save</button>
-              </form>
-            </div>
-            <div id="g-on" hidden>
+            <div id="g-on">
               <p id="g-line" style="margin:0 0 .6rem"></p>
               <div id="g-avail" hidden>
                 <div class="actions" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem">
@@ -874,8 +858,30 @@
               </div>
               <div class="actions" style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:center">
                 <button type="button" class="btn small" id="g-check">Check now</button>
-                <button type="button" class="link-btn" id="g-forget">Remove the token</button>
               </div>
+              <p class="note" id="g-ignored" hidden>The saved GitHub token no longer works. It isn't needed (the repository
+                is public), so you can remove it below.</p>
+              <details id="g-tokenbox" style="margin-top:.6rem"><summary class="muted" style="cursor:pointer">GitHub token
+                (only for a private copy of the repository)</summary>
+                <div id="g-notoken">
+                  <p class="note">Only needed if you update from your own private copy of Pi Frame. Make a read-only key
+                    (a GitHub <i>token</i>):</p>
+                  <ol class="note" style="padding-left:1.2rem;margin:.3rem 0 .7rem">
+                    <li>On GitHub: your picture → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> →
+                      <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+                    <li>Name it e.g. “Pi Frame updates”, set <b>Resource owner</b> to the account or organization that owns
+                      the copy, and choose an expiry (up to a year; the frame tells you when it stops working).</li>
+                    <li>Repository access: <b>Only select repositories</b> → <b id="g-repo-name">Jimmy3D-xyz/pi-frame</b>.</li>
+                    <li>Permissions → Repository permissions → <b>Contents: Read-only</b>. Nothing else.</li>
+                    <li><b>Generate token</b>, copy it, and paste it here.</li>
+                  </ol>
+                  <form id="g-token-form" autocomplete="off" style="display:flex;gap:.5rem;flex-wrap:wrap">
+                    <input type="password" id="g-token" placeholder="github_pat_…" spellcheck="false" autocapitalize="off" style="flex:1 1 14rem">
+                    <button type="submit" class="btn small primary">Save</button>
+                  </form>
+                </div>
+                <p class="note" id="g-hastoken" hidden>A token is saved. <button type="button" class="link-btn" id="g-forget">Remove the token</button></p>
+              </details>
             </div>
             <h4>From a file</h4>
           </div>
@@ -1997,8 +2003,8 @@ let gTimer = null;
 function showGithub(g) {
   $("#g-repo-name").textContent = g.repo;
   $("#g-notoken").hidden = g.token_set;
-  $("#g-on").hidden = !g.token_set;
-  if (!g.token_set) return;
+  $("#g-hastoken").hidden = !g.token_set;
+  $("#g-ignored").hidden = !g.token_ignored;
   let line;
   if (g.busy === "checking") line = '<span class="spin" aria-hidden="true"></span> Checking GitHub…';
   else if (g.busy === "downloading") line = '<span class="spin" aria-hidden="true"></span> Downloading the update…';
@@ -2030,7 +2036,7 @@ $("#g-token-form").onsubmit = (e) => {
     $("#g-token").value = ""; showGithub(g); }, "Token saved");
 };
 $("#g-check").onclick = () => act(async () => { showGithub(await api("/api/maintenance/update/github/check", { method: "POST" }), true); });
-$("#g-forget").onclick = () => { if (confirm("Remove the GitHub token? The frame stops checking for updates.")) act(async () => {
+$("#g-forget").onclick = () => { if (confirm("Remove the GitHub token? The frame carries on checking the public repository without it.")) act(async () => {
   await api("/api/maintenance/update/github/token", { method: "DELETE" }); loadGithub(); }, "Token removed"); };
 $("#g-mode").onchange = (e) => act(async () => { await api("/api/config", { json: { update_auto: e.target.value } }); loadGithub(); }, "Saved");
 $("#g-time").onchange = (e) => { if (e.target.value) act(async () => { await api("/api/config", { json: { update_time: e.target.value } }); loadGithub(); }, "Saved"); };

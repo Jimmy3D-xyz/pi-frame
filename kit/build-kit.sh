@@ -16,4 +16,7 @@ mkdir -p "$TMP/pi-frame-kit"
 cp "$REPO/kit/install-frame.sh" "$REPO/kit/kit.conf" "$REPO/kit/README.txt" "$OUT/pi-photoframe.zip" "$TMP/pi-frame-kit/"
 rm -f "$OUT/pi-frame-kit.zip"
 (cd "$TMP" && zip -qr "$OUT/pi-frame-kit.zip" pi-frame-kit)
+# for the one-line installer: it downloads the kit and checks it against this
+(cd "$OUT" && sha256sum pi-frame-kit.zip > pi-frame-kit.zip.sha256)
+cp "$REPO/kit/get.sh" "$OUT/install.sh"
 echo "Pi Frame $VER: $OUT/pi-photoframe.zip and $OUT/pi-frame-kit.zip"

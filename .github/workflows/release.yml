@@ -39,7 +39,8 @@ jobs:
           {
             echo "**Update**: upload \`pi-photoframe.zip\` on the frame's Maintenance tab → Software update."
             echo
-            echo "- \`pi-frame-kit.zip\`: the installer kit, for setting up a card you've written yourself"
+            echo "- New frame on a card you've written yourself? Over SSH: \`curl -fsSL https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.sh | sudo bash\`"
+            echo "- \`pi-frame-kit.zip\`: the installer kit, to copy onto the card by hand instead"
             if [ -n "$img" ]; then
               echo "- New frame? Use the ready-made image from [$img](https://github.com/${GITHUB_REPOSITORY}/releases/tag/$img); it updates itself to this version (or update from the Maintenance tab)."
             fi
@@ -47,4 +48,4 @@ jobs:
             echo "Built from $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%d)."
           } > notes.md
           gh release create "$tag" --target "$GITHUB_SHA" --title "Pi Frame $ver" \
-            --notes-file notes.md dist/pi-photoframe.zip dist/pi-frame-kit.zip
+            --notes-file notes.md dist/pi-photoframe.zip dist/pi-frame-kit.zip dist/pi-frame-kit.zip.sha256 dist/install.sh

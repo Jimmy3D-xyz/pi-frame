@@ -26,6 +26,7 @@ class FakeGitHub:
         self.releases = []  # newest first; GitHub's /latest skips pre-releases
         self.assets = {}
         self.token_ok = True
+        self.public = False  # a public repository: readable without a token
         self.requests = []
         gh = self
 
@@ -35,10 +36,14 @@ class FakeGitHub:
 
             def do_GET(self):
                 gh.requests.append((self.path, self.headers.get("Authorization"), self.headers.get("Accept")))
-                if self.headers.get("Authorization") != f"Bearer {TOKEN}" or not gh.token_ok:
-                    return self.send(401, {"message": "Bad credentials"})
+                auth = self.headers.get("Authorization")
+                if auth is None:
+                    if not gh.public:  # GitHub hides private repositories from strangers
+                        return self.send(404, {"message": "Not Found"})
+                elif auth != f"Bearer {TOKEN}" or not gh.token_ok:
+                    return self.send(401, {"message": "Bad credentials"})  # even on a public repository
                 if self.path == f"/repos/{REPO}":
-                    return self.send(200, {"full_name": REPO, "private": True})
+                    return self.send(200, {"full_name": REPO, "private": not gh.public})
                 if self.path == f"/repos/{REPO}/releases/latest":
                     rel = next((r for r in gh.releases if not r.get("prerelease")), None)
                     return self.send(200, rel) if rel else self.send(404, {"message": "Not Found"})
@@ -236,3 +241,41 @@ def test_frames_follow_the_repository_to_its_new_home(tmp_path):
     raw = json.loads((tmp_path / "config.json").read_text())
     assert raw["config"]["update_repo"] == "JimmySte/pi-frame"
     assert ConfigStore(tmp_path).get("update_repo") == "Jimmy3D-xyz/pi-frame"
+
+
+
+# ---------------------------------------------------------------- a public repository (0.36.0)
+def test_public_repository_needs_no_token(au, gh):
+    gh.public = True
+    gh.release(newer())
+    st = au.check()
+    assert st["available"]["version"] == newer() and not st["token_set"] and st["error"] is None
+    au.install()
+    assert au.frame_.began == [newer()]
+    assert all(auth is None for _, auth, _ in gh.requests)  # never sent a token
+    assert au.health() is None or au.health()["level"] == "ok"
+
+
+def test_a_stale_token_is_left_out_when_the_repository_is_public(au, gh):
+    au.set_token(TOKEN)
+    gh.public, gh.token_ok = True, False  # the token expired, then the repository went public
+    gh.release(newer())
+    st = au.check()
+    assert st["available"]["version"] == newer() and st["token_ignored"] and st["error"] is None
+    gh.requests.clear()
+    au.install()
+    assert all(auth is None for _, auth, _ in gh.requests)
+    # a working token again: used, and the note goes
+    gh.token_ok = True
+    assert not au.check()["token_ignored"]
+
+
+def test_a_private_copy_still_needs_a_token(au, gh):
+    gh.release(newer())
+    with pytest.raises(AutoUpdateError, match="add a GitHub token"):
+        au.check()
+    au.set_token(TOKEN)
+    assert au.check()["available"]["version"] == newer()
+    gh.token_ok = False
+    with pytest.raises(AutoUpdateError, match="no longer accepts the token"):
+        au.check()

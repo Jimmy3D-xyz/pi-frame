@@ -1,24 +1,24 @@
 # Notes for Claude
 
-Context carried over from earlier chats, so a new session can pick up where the
-last one left off. The guides in `docs/` (especially `docs/developers.md`) cover
+Context carried over from earlier sessions, so a new one can pick up where the
+last left off. The guides in `docs/` (especially `docs/developers.md`) cover
 the code layout, tests and releasing; this file covers the rest.
 
 ## The project
 
-Pi Frame: a digital photo frame on a Raspberry Pi 4 (hostname `piframe`,
-Raspberry Pi OS Trixie, Python 3.13) driving a 24" 2560 × 1440 panel over HDMI.
-It speaks the esp32-photoframe HTTP API. Repository: `Jimmy3D-xyz/pi-frame`
-(moved from `JimmySte/pi-frame` in 0.32.2).
+Pi Frame: a digital photo frame on a Raspberry Pi 4 (Raspberry Pi OS Trixie,
+Python 3.13) driving an HDMI panel (developed on a 24" 2560 × 1440 one). It
+speaks the esp32-photoframe HTTP API. Repository: `Jimmy3D-xyz/pi-frame`
+(moved from `JimmySte/pi-frame` in 0.32.2), public, MIT licence. Only the
+maintainer pushes to `main` and creates `v*` tags.
 
 ## Working on it
 
 - Plain, non-technical wording in the web page, docs and replies.
-- The maintainer publishes releases: Actions → **Release** for every version (a
-  minute or two). Actions → **Image** only when the first start changes, a new
-  Raspberry Pi OS comes out, or now and then; with "Add it to this version's
-  release" ticked it attaches the image to that version's release. Don't
-  publish releases unless asked.
+- Releases are published by the maintainer: Actions → **Release** for every
+  version; Actions → **Image** only when the first start changes, a new
+  Raspberry Pi OS comes out, or now and then. Don't publish releases unless
+  asked.
 - Version numbers: last number for fixes (0.32.1), middle for features (0.33.0).
   Bump `photoframe/__init__.py`, run `python3 -m pytest tests -q -n 4 --dist loadfile`,
   commit, push.
@@ -31,7 +31,6 @@ It speaks the esp32-photoframe HTTP API. Repository: `Jimmy3D-xyz/pi-frame`
 - Page layout (0.34.0): Photos, Slideshow, Screen, Photo source, Maintenance.
   Set-once things live in admin cards in Maintenance (This frame, Frame
   hardware, Screen resolution); everyday tabs hold what the household changes.
-
 - Security updates (0.35.0): Debian-Security only, nightly 03:40 by a root
   timer; the frame restarts the Pi for core updates only while the screen is
   off. Kernel/firmware from Raspberry Pi's archive are deliberately left out
@@ -39,6 +38,10 @@ It speaks the esp32-photoframe HTTP API. Repository: `Jimmy3D-xyz/pi-frame`
 - On-screen notice (0.35.0): `attention.py` watches the Maintenance summary
   (`WATCH` areas), shows after an hour; add new needs-a-person problems as
   summary lines in `health.summarise`.
+- Public repo (0.36.0): updates need no GitHub token (one is only used if
+  saved, for a private fork); the one-line installer is the `install.sh`
+  release asset (`kit/get.sh`), which fetches the newest kit and checks its
+  SHA-256.
 
 ## Things learned the hard way
 
