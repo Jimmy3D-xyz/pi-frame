@@ -17,6 +17,11 @@ from photoframe.storage import Storage
 from photoframe.web import create_app
 
 from adminhelp import unlock
+from photoframe.admin import is_hashed, password_matches
+
+
+def is_pw(stored, plain):
+    return is_hashed(stored) and password_matches(plain, stored)
 
 PANEL = (800, 480)
 REPO = Path(__file__).resolve().parents[1]
@@ -74,7 +79,7 @@ def test_wizard_sets_everything_then_joins_wifi(env):
     assert req["ssh"]["username"] == "alex" and req["ssh"]["hash"].startswith("$6$")
     assert "sshpass12" not in json.dumps(req)  # only the hash goes to the helper
     # the wizard's password is the admin password; everyday use of the page stays open
-    assert frame.cfg.get("device_name") == "Living room" and frame.cfg.get("admin_password") == "pagepass1"
+    assert frame.cfg.get("device_name") == "Living room" and is_pw(frame.cfg.get("admin_password"), "pagepass1")
     assert not frame.cfg.get("http_password")
     assert not firstrun.is_first_run(tmp)
     # done: the normal page, and the wizard can't run again

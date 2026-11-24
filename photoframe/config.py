@@ -196,7 +196,10 @@ class ConfigStore:
         self.processing = copy.deepcopy(DEFAULT_PROCESSING)
         self.palette = copy.deepcopy(DEFAULT_PALETTE)
         self.config_last_updated = 0
+        self._rehashed = False
         self._load()
+        if self._rehashed:
+            self._save()
         apply_timezone(self.config["timezone"])
 
     # ---------- persistence ----------
@@ -212,6 +215,13 @@ class ConfigStore:
         if "admin_password" not in stored and self.config.get("http_password"):
             # saved before the admin login: the page password unlocks the admin options too
             self.config["admin_password"] = self.config["http_password"]
+        from .admin import PASSWORD_KEYS, hash_password, is_hashed
+
+        if any(self.config.get(k) and not is_hashed(self.config[k]) for k in PASSWORD_KEYS):
+            # saved in plain text (before 0.34.1, or a restored backup): keep them scrambled from now on
+            for k in PASSWORD_KEYS:
+                self.config[k] = hash_password(self.config.get(k) or "")
+            self._rehashed = True
         if self.config.get("update_repo") == "JimmySte/pi-frame":  # the repository moved to the Jimmy3D-xyz organization
             self.config["update_repo"] = "Jimmy3D-xyz/pi-frame"
         if "slideshow_styles" not in stored:  # saved before styles could be combined
@@ -383,6 +393,11 @@ class ConfigStore:
         """Validate and apply a partial update. Returns the keys that changed."""
         with self._lock:
             clean = self._validate(dict(updates))
+            from .admin import PASSWORD_KEYS, hash_password
+
+            for k in PASSWORD_KEYS:
+                if k in clean:
+                    clean[k] = hash_password(clean[k])  # stored scrambled
             changed = {k: v for k, v in clean.items() if self.config.get(k) != v}
             self.config.update(clean)
             if "timezone" in changed:

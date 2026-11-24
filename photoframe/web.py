@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 
-import hmac
 import subprocess
 import shutil
 import os
@@ -32,6 +31,10 @@ from .backup import BackupError, Backups, backup_name
 from . import firstrun
 from . import admin as adm
 from .video import is_video
+
+# Pages other websites may show inside theirs (a Home Assistant dashboard, say):
+# only the live view, which has no controls.
+FRAMEABLE = {"/live"}
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -129,13 +132,21 @@ def create_app(frame: Frame) -> Flask:
             if (wait := sessions.throttle.wait(client())):
                 return Response(f"Too many wrong passwords. Try again in {wait} seconds.", 429,
                                 {"Retry-After": str(wait)}, mimetype="text/plain")
-            if hmac.compare_digest(auth.password.encode(), pw.encode()):
+            if adm.password_matches(auth.password, pw):
                 sessions.throttle.succeeded(client())
                 return None
             sessions.throttle.failed(client())
         return Response(
             "Authentication required", 401, {"WWW-Authenticate": 'Basic realm="Pi Frame"'}
         )
+
+    # ---------- other websites can't show the page inside theirs (clickjacking) ----------
+    @app.after_request
+    def _no_framing(resp):
+        if request.path not in FRAMEABLE:
+            resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+            resp.headers.setdefault("Content-Security-Policy", "frame-ancestors 'self'")
+        return resp
 
     # ---------- other websites can't make changes ----------
     @app.before_request

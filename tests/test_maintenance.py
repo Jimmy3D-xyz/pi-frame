@@ -94,7 +94,7 @@ def test_diagnostics_have_no_secrets(env):
     frame.cfg.update({"access_token": "TOKEN-12345", "openai_api_key": "sk-SECRET", "http_password": "hunter2",
                       "admin_password": "admin-secret-9", "device_name": "LCD frame"})
     auth = {"Authorization": "Basic " + __import__("base64").b64encode(b"x:hunter2").decode()}
-    unlock(client, frame, auth)
+    unlock(client, frame, auth, password="admin-secret-9")
     r = client.get("/api/maintenance/diagnostics", headers=auth)
     assert r.status_code == 200 and "attachment" in r.headers["Content-Disposition"]
     text = r.get_data(as_text=True)

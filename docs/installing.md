@@ -245,7 +245,8 @@ Backups made by hand with
 `tar czf frame-backup.tgz -C /var/lib pi-photoframe` (as these docs used to
 say) still restore, from the website or the kit.
 
-Keep backups somewhere private: they hold sign-in tokens and the passwords.
+Keep backups somewhere private: they hold sign-in tokens (the admin and page
+passwords are stored scrambled, so they can't be read from a backup).
 
 ## Moving to a new SD card
 

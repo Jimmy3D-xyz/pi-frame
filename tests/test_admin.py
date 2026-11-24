@@ -18,6 +18,10 @@ PANEL = (1920, 1080)
 ADMIN = "admin-pass-1"
 
 
+def is_pw(stored, plain):
+    return adm.is_hashed(stored) and adm.password_matches(plain, stored)
+
+
 class Clock:
     def __init__(self):
         self.t = 1000.0
@@ -60,7 +64,7 @@ def test_admin_options_need_an_unlock(env):
     # setting the first one needs no unlock, and unlocks
     assert client.post("/api/admin/password", json={"password": "short"}).status_code == 400
     r = client.post("/api/admin/password", json={"password": ADMIN})
-    assert r.status_code == 200 and r.get_json()["unlocked"] and frame.cfg.get("admin_password") == ADMIN
+    assert r.status_code == 200 and r.get_json()["unlocked"] and is_pw(frame.cfg.get("admin_password"), ADMIN)
     c = cookie(r)
     assert "HttpOnly" in c and "SameSite=Strict" in c and "Max-Age" not in c and "Expires" not in c
     assert client.get("/api/maintenance/ssh").status_code == 200
@@ -73,7 +77,7 @@ def test_admin_options_need_an_unlock(env):
     # someone else can't change the password without unlocking
     other = client.application.test_client()
     assert other.post("/api/admin/password", json={"password": "another-pass"}).status_code == 403
-    assert frame.cfg.get("admin_password") == ADMIN
+    assert is_pw(frame.cfg.get("admin_password"), ADMIN)
     assert client.post("/api/admin/unlock", json={"password": ADMIN}).status_code == 200
     assert client.get("/api/maintenance/ssh").status_code == 200
 
@@ -153,7 +157,7 @@ def test_settings_that_belong_to_the_admin(env):
     assert client.post("/api/config", json={"update_auto": "off"}).status_code == 200
     # the admin password only changes through its own form (it needs the old unlock rules)
     r = client.post("/api/config", json={"admin_password": "sneaky-new"})
-    assert r.status_code == 400 and frame.cfg.get("admin_password") == ADMIN
+    assert r.status_code == 400 and is_pw(frame.cfg.get("admin_password"), ADMIN)
     # and never shows up
     assert "admin_password" not in client.get("/api/config").get_json()
 
@@ -166,7 +170,7 @@ def test_page_password_is_set_under_admin(env):
     client.post("/api/admin/unlock", json={"password": ADMIN})
     assert client.post("/api/admin/page-password", json={"password": "abc"}).status_code == 400
     r = client.post("/api/admin/page-password", json={"password": "everyday"})
-    assert r.status_code == 200 and frame.cfg.get("http_password") == "everyday"
+    assert r.status_code == 200 and is_pw(frame.cfg.get("http_password"), "everyday")
     auth = {"Authorization": "Basic " + base64.b64encode(b"x:everyday").decode()}
     assert client.get("/api/status").status_code == 401
     st = client.get("/api/admin", headers=auth).get_json()
@@ -181,7 +185,7 @@ def test_the_image_server_cant_change_admin_settings(tmp_path):
     cfg.apply_remote_payload({"config": {"device_name": "From server", "http_password": "", "admin_password": "x",
                                          "update_repo": "evil/repo", "update_auto": "install", "backup_where": "nas"}})
     assert cfg.get("device_name") == "From server"
-    assert cfg.get("http_password") == "pagepass" and cfg.get("admin_password") == ADMIN
+    assert is_pw(cfg.get("http_password"), "pagepass") and is_pw(cfg.get("admin_password"), ADMIN)
     assert cfg.get("update_repo") == "Jimmy3D-xyz/pi-frame" and cfg.get("update_auto") == "notify"
     assert cfg.get("backup_where") == "frame"
 
@@ -189,10 +193,10 @@ def test_the_image_server_cant_change_admin_settings(tmp_path):
 def test_frames_with_a_page_password_keep_it_for_admin(tmp_path):
     (tmp_path / "config.json").write_text(json.dumps({"config": {"http_password": "oldpass1", "device_name": "Hall"}}))
     cfg = ConfigStore(tmp_path)
-    assert cfg.get("admin_password") == "oldpass1" and cfg.get("http_password") == "oldpass1"
+    assert is_pw(cfg.get("admin_password"), "oldpass1") and is_pw(cfg.get("http_password"), "oldpass1")
     # once saved, it stays the admin's own (removing the page password later doesn't reset it)
     cfg.update({"http_password": ""})
-    assert ConfigStore(tmp_path).get("admin_password") == "oldpass1"
+    assert is_pw(ConfigStore(tmp_path).get("admin_password"), "oldpass1")
     (tmp_path / "config.json").write_text(json.dumps({"config": {"device_name": "Hall"}}))
     assert ConfigStore(tmp_path).get("admin_password") == ""
 
@@ -308,3 +312,49 @@ def test_screen_resolution_is_an_admin_option(env):
     assert client.post("/api/display/mode", json={"mode": "1920x1080"}).status_code == 403
     assert client.post("/api/display/detect").status_code == 403
     assert client.get("/api/display/modes").status_code != 403  # looking is fine
+
+
+# ---------------------------------------------------------------- 0.34.1
+def test_passwords_are_stored_scrambled(tmp_path):
+    cfg = ConfigStore(tmp_path)
+    cfg.update({"admin_password": "admin-pass-1", "http_password": "pagepass"})
+    text = (tmp_path / "config.json").read_text()
+    assert "admin-pass-1" not in text and "pagepass" not in text
+    stored = json.loads(text)["config"]
+    assert adm.is_hashed(stored["admin_password"]) and adm.is_hashed(stored["http_password"])
+    assert stored["admin_password"] != stored["http_password"]  # each has its own salt
+    assert adm.password_matches("admin-pass-1", cfg.get("admin_password"))
+    assert not adm.password_matches("admin-pass-2", cfg.get("admin_password"))
+    assert not adm.password_matches("", cfg.get("admin_password"))
+    # an old file (or an old backup restored) with plain passwords is scrambled when the frame starts
+    (tmp_path / "config.json").write_text(json.dumps({"config": {"admin_password": "plain-admin",
+                                                                  "http_password": "plain-page"}}))
+    cfg = ConfigStore(tmp_path)
+    assert "plain-admin" not in (tmp_path / "config.json").read_text()
+    assert is_pw(cfg.get("admin_password"), "plain-admin") and is_pw(cfg.get("http_password"), "plain-page")
+    # clearing still works (the forgotten-password steps)
+    cfg.update({"http_password": ""})
+    assert cfg.get("http_password") == ""
+
+
+def test_page_password_still_works_for_every_request(env):
+    frame, _, clock = env
+    frame.cfg.update({"http_password": "pagepass"})
+    client, _ = make(env)
+    good = {"Authorization": "Basic " + base64.b64encode(b"x:pagepass").decode()}
+    for _ in range(20):  # remembered after the first check, so this stays quick
+        assert client.get("/api/status", headers=good).status_code == 200
+    frame.cfg.update({"http_password": "changed1"})
+    assert client.get("/api/status", headers=good).status_code == 401
+
+
+def test_other_websites_cant_show_the_page(env):
+    frame, _, clock = env
+    client, _ = make(env)
+    for path in ("/", "/api/status", "/setup"):
+        r = client.get(path)
+        assert r.headers["X-Frame-Options"] == "SAMEORIGIN", path
+        assert "frame-ancestors 'self'" in r.headers["Content-Security-Policy"]
+    # the live view has no controls, so a Home Assistant dashboard can show it
+    r = client.get("/live")
+    assert "X-Frame-Options" not in r.headers and "Content-Security-Policy" not in r.headers

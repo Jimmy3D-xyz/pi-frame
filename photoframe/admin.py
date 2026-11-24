@@ -15,6 +15,8 @@ restarting the frame locks it.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import hmac
 import ipaddress
 import os
@@ -149,8 +151,52 @@ class AdminSessions:
             del self._tokens[t]
 
 
-def password_matches(given: str, wanted: str) -> bool:
-    return bool(given) and bool(wanted) and hmac.compare_digest(given.encode(), wanted.encode())
+# ---------------------------------------------------------------- stored passwords
+# The admin and page passwords are kept scrambled (scrypt), so a settings file
+# or a backup doesn't give them away. Checking one takes ~0.1 s on a Pi 4; the
+# page password comes with every request, so a correct one is remembered (as a
+# keyed digest, in memory only) until it changes.
+PASSWORD_KEYS = ("admin_password", "http_password")
+_SCRYPT = {"n": 2 ** 14, "r": 8, "p": 1}
+_PREFIX = "scrypt$"
+_cache_key = secrets.token_bytes(32)
+_known_good: dict[str, str] = {}  # stored hash -> digest of the password that matched it
+
+
+def is_hashed(value: str) -> bool:
+    return isinstance(value, str) and value.startswith(_PREFIX)
+
+
+def hash_password(password: str) -> str:
+    if not password or is_hashed(password):
+        return password
+    salt = os.urandom(16)
+    h = hashlib.scrypt(password.encode(), salt=salt, dklen=32, **_SCRYPT)
+    return f"{_PREFIX}{_SCRYPT['n']}${_SCRYPT['r']}${_SCRYPT['p']}${base64.b64encode(salt).decode()}${base64.b64encode(h).decode()}"
+
+
+def password_matches(given: str, stored: str) -> bool:
+    """Does `given` match the stored password (scrambled, or plain from an old file)?"""
+    if not given or not stored:
+        return False
+    if not is_hashed(stored):
+        return hmac.compare_digest(given.encode(), stored.encode())
+    digest = hmac.new(_cache_key, given.encode(), hashlib.sha256).hexdigest()
+    known = _known_good.get(stored)
+    if known is not None and hmac.compare_digest(known, digest):
+        return True
+    try:
+        _, n, r, p, salt, want = stored.split("$")
+        h = hashlib.scrypt(given.encode(), salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p),
+                           dklen=len(base64.b64decode(want)), maxmem=64 * 1024 * 1024)
+    except (ValueError, TypeError):
+        return False
+    if not hmac.compare_digest(h, base64.b64decode(want)):
+        return False
+    if len(_known_good) > 16:
+        _known_good.clear()
+    _known_good[stored] = digest
+    return True
 
 
 # ---------------------------------------------------------------- other websites

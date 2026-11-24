@@ -180,6 +180,13 @@ config fields beyond the firmware's are listed with their defaults in
   kept in memory for 15 minutes after its last use. Without it they answer
   403 with `"admin": "locked"` (or `"no-password"`). The image server's
   `X-Config-Payload` can't change `ADMIN_KEYS`.
+- **Stored passwords** (`admin_password`, `http_password`) are kept as
+  scrypt hashes (`scrypt$n$r$p$salt$hash`); plain ones from older files or
+  backups are hashed when the frame starts. A correct page password is
+  remembered in memory (a keyed digest) so basic auth stays fast.
+- **No framing by other sites:** every response except the live view
+  (`FRAMEABLE`) carries `X-Frame-Options: SAMEORIGIN` and
+  `Content-Security-Policy: frame-ancestors 'self'`.
 - **Slow guessing.** After 3 wrong page or admin passwords from one address,
   each further try waits 5 s, then 10 s, 20 s … up to 5 minutes.
 - **Setting-up settings** (`SETUP_KEYS`: name, time zone, Home Assistant
