@@ -3,6 +3,7 @@
 Each version and what it brought, newest first. The full details are in the
 commit messages; releases are on the [Releases](https://github.com/Jimmy3D-xyz/pi-frame/releases) page.
 
+- **0.38.0-beta.4** (2026-11-25, test): No black flash as a video starts: the pictures around it are in place first, and the screen keeps its setting.
 - **0.38.0-beta.3** (2026-11-25, test): Clips go round the collage's spaces; after a video, back to the collage.
 - **0.38.0-beta.2** (2026-11-25, test): A Clip button: a short part of a video, in the collage or full screen.
 - **0.38.0-beta.1** (2026-11-25, test): A Video button: a video plays in a space of the collage, or full screen.

@@ -452,6 +452,20 @@ class KmsDisplay(BaseDisplay):
             log.warning("couldn't switch the screen %s through the display hardware (%s)", "on" if on else "off", e)
 
     # ---------- handing the screen to mpv and back ----------
+    def video_mode(self) -> str | None:
+        """The screen setting in use, for mpv's --drm-mode: its number in the screen's list
+        (mpv reads the same list), so the video player keeps it rather than switching to
+        the screen's favourite, which makes the screen blink."""
+        try:
+            m = self.mode
+            key = lambda x: (x.hdisplay, x.vdisplay, x.clock, x.htotal, x.vtotal, x.flags)  # noqa: E731
+            for i, x in enumerate(self.conn.get_modes()):
+                if key(x) == key(m):
+                    return str(i)
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
     def release(self) -> None:
         """Let go of the display hardware so mpv can use it."""
         with self._lock:

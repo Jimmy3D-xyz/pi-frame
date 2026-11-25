@@ -86,6 +86,29 @@ def test_when_not_to(frame_for):
     assert f._surround_for(Path("v.mp4"), None) is None  # not enough photos
 
 
+def test_hand_over_sends_the_pictures_before_the_video(tmp_path):
+    sock_path = str(tmp_path / "mpv2.sock")
+    got = []
+    server = socket.socket(socket.AF_UNIX)
+    server.bind(sock_path)
+    server.listen(1)
+
+    def fake_mpv():
+        conn, _ = server.accept()
+        f = conn.makefile("rb")
+        for _ in range(2):
+            got.append(json.loads(f.readline().decode())["command"])
+            conn.sendall(b'{"event":"idle"}\n{"data":null,"request_id":0,"error":"success"}\n')
+        conn.close()
+
+    t = threading.Thread(target=fake_mpv, daemon=True)
+    t.start()
+    sur = {"file": tmp_path / "s.bgra", "size": (100, 50), "socket": sock_path, "margins": {}}
+    assert video.hand_over(sur, tmp_path / "v.mp4") is True
+    t.join(2)
+    assert got[0][0] == "overlay-add" and got[1] == ["loadfile", str(tmp_path / "v.mp4")]
+
+
 def test_player_settings_and_overlay(tmp_path, monkeypatch):
     sock_path = str(tmp_path / "mpv.sock")
     got = {}
@@ -122,9 +145,16 @@ def test_player_settings_and_overlay(tmp_path, monkeypatch):
 
     monkeypatch.setattr(video.shutil, "which", lambda n: "/usr/bin/" + n)
     monkeypatch.setattr(video.subprocess, "Popen", FakeProc)
-    monkeypatch.setattr(video, "send_overlay", lambda s: True)
-    video.VideoPlayer(simulate=False).play(tmp_path / "v.mp4", rotate=0, cover=False, sound=False, volume=50,
-                                           max_seconds=0, duration=10, surround=sur)
+    handed = []
+    monkeypatch.setattr(video, "hand_over", lambda s, p: handed.append(p) or True)
+    player = video.VideoPlayer(simulate=False)
+    player.drm_mode = "3"
+    player.play(tmp_path / "v.mp4", rotate=0, cover=False, sound=False, volume=50,
+                max_seconds=0, duration=10, surround=sur)
     a = captured["args"]
+    # mpv waits for the pictures around the video, then gets the video (no black flash first)
+    assert "--idle=once" in a and str(tmp_path / "v.mp4") not in a
+    assert handed == [tmp_path / "v.mp4"]
+    assert "--drm-mode=3" in a  # keeps the frame's screen setting
     assert "--video-margin-ratio-top=0.34200" in a and "--video-margin-ratio-bottom=0.34200" in a
     assert f"--input-ipc-server={sock_path}" in a

@@ -485,12 +485,11 @@ def summarise_mpv(text: str) -> tuple[str | None, list[str]]:
     return decoder, warnings[-8:]
 
 
-def send_overlay(surround: dict, wait: float = 5.0) -> bool:
-    """Once mpv's control socket appears, add the surround picture as an overlay
-    (a premultiplied BGRA file covering the screen, transparent where the video is)."""
+def _mpv_commands(sock_path: str, commands: list, wait: float = 5.0) -> list[str] | None:
+    """Once mpv's control socket appears, send it commands in turn; their replies,
+    or None if the socket never opened."""
     import socket as _socket
 
-    sock_path = surround["socket"]
     deadline = time.time() + wait
     while time.time() < deadline:
         if os.path.exists(sock_path):
@@ -498,19 +497,54 @@ def send_overlay(surround: dict, wait: float = 5.0) -> bool:
                 with _socket.socket(_socket.AF_UNIX) as s:
                     s.settimeout(3)
                     s.connect(sock_path)
-                    w, h = surround["size"]
-                    cmd = {"command": ["overlay-add", 0, 0, 0, str(surround["file"]), 0, "bgra", w, h, w * 4]}
-                    s.sendall((json.dumps(cmd) + "\n").encode())
-                    reply = s.recv(4096).decode(errors="replace")
-                    ok = '"success"' in reply
-                    if not ok:
-                        log.warning("couldn't put photos around the video (%s)", reply.strip()[:200])
-                    return ok
+                    replies = []
+                    f = s.makefile("rb")
+                    for cmd in commands:
+                        s.sendall((json.dumps({"command": cmd}) + "\n").encode())
+                        while True:  # skip mpv's event messages until the reply
+                            line = f.readline().decode(errors="replace")
+                            if not line or '"error"' in line:
+                                break
+                        replies.append(line.strip())
+                    return replies
             except OSError:
                 pass
         time.sleep(0.05)
-    log.warning("couldn't put photos around the video (mpv didn't open its control socket)")
-    return False
+    return None
+
+
+def _overlay_cmd(surround: dict) -> list:
+    w, h = surround["size"]
+    return ["overlay-add", 0, 0, 0, str(surround["file"]), 0, "bgra", w, h, w * 4]
+
+
+def send_overlay(surround: dict, wait: float = 5.0) -> bool:
+    """Add the surround picture as an overlay (a premultiplied BGRA file covering the
+    screen, transparent where the video is)."""
+    replies = _mpv_commands(surround["socket"], [_overlay_cmd(surround)], wait)
+    if replies is None:
+        log.warning("couldn't put photos around the video (mpv didn't open its control socket)")
+        return False
+    ok = '"success"' in replies[0]
+    if not ok:
+        log.warning("couldn't put photos around the video (%s)", replies[0][:200])
+    return ok
+
+
+def hand_over(surround: dict, path: Path, wait: float = 5.0) -> bool:
+    """mpv starts idle with nothing on screen: give it the pictures around the video
+    first, then the video, so its very first frame already has them (no black flash).
+    True once the video is loaded."""
+    replies = _mpv_commands(surround["socket"], [_overlay_cmd(surround), ["loadfile", str(path)]], wait)
+    if replies is None:
+        log.warning("couldn't start the video (mpv didn't open its control socket)")
+        return False
+    if '"success"' not in replies[0]:
+        log.warning("couldn't put photos around the video (%s)", replies[0][:200])
+    ok = len(replies) > 1 and '"success"' in replies[1]
+    if not ok:
+        log.warning("couldn't start the video (%s)", (replies[1] if len(replies) > 1 else "no reply")[:200])
+    return ok
 
 
 class VideoPlayer:
@@ -524,6 +558,8 @@ class VideoPlayer:
         self._lock = threading.Lock()
         self.playing: Path | None = None
         self.started_at = 0.0
+        self.drm_mode: str | None = None  # the screen setting the frame uses, so mpv doesn't switch it
+        self.drm_mode_refused = False  # mpv wouldn't take it: don't pass it again
 
     @staticmethod
     def available() -> bool:
@@ -554,7 +590,10 @@ class VideoPlayer:
                 f"--hwdec={HWDEC}", "--vo=gpu", "--gpu-context=drm",
                 "--profile=fast", "--interpolation=no",
                 f"--video-rotate={rotate % 360}",
-                "--keep-open=no", "--loop-file=no", "--idle=no",
+                "--keep-open=no", "--loop-file=no",
+                # with pictures around the video, mpv waits (idle, nothing on screen) until
+                # they're in place, then plays the video and quits; otherwise it plays straight away
+                "--idle=once" if surround else "--idle=no",
                 f"--volume={max(0, min(100, volume))}",
                 "--mute=no" if sound else "--mute=yes",
             ]
@@ -591,15 +630,24 @@ class VideoPlayer:
             target = _drm_target()
             if target:
                 args += [f"--drm-device={target[0]}", f"--drm-connector={target[1]}"]
+            if self.drm_mode:  # the frame's own screen setting: switching it would blank the screen
+                args.append(f"--drm-mode={self.drm_mode}")
             args += os.environ.get("PHOTOFRAME_MPV_ARGS", "").split()
-            args.append(str(path))
+            if not surround:
+                args.append(str(path))
             with self._lock:
                 if self._stop.is_set():
                     return "stopped"
                 # mpv prints its messages to stdout when it isn't in a terminal
                 self._proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             if surround:
-                threading.Thread(target=send_overlay, args=(surround,), name="video-surround", daemon=True).start()
+                proc = self._proc
+
+                def start():
+                    if not hand_over(surround, path) and proc.poll() is None:
+                        proc.terminate()  # it would wait for ever otherwise
+
+                threading.Thread(target=start, name="video-surround", daemon=True).start()
             err, _ = self._proc.communicate()
             decoder, warnings = summarise_mpv(err or "")
             rc = self._proc.returncode
@@ -609,6 +657,9 @@ class VideoPlayer:
                 raw = [l.strip() for l in (err or "").splitlines() if l.strip()]
                 log.warning("mpv stopped after %.1fs (exit code %s) without playing %s. Its last messages: %s",
                             ran, rc, path.name, " | ".join(raw[-15:]) or "(none)")
+                if self.drm_mode and "mode" in (err or "").lower():
+                    log.warning("mpv didn't take the screen setting %s; videos will let it choose", self.drm_mode)
+                    self.drm_mode_refused = True
             if self._stop.is_set():
                 return "stopped"
             if rc not in (0, 4):  # 4 = quit by signal/user

@@ -1481,6 +1481,8 @@ class Frame:
         return panel_img.point(lambda v, k=level: int(v * k))
 
     def _release_display(self) -> None:
+        mode = getattr(self.display, "video_mode", None)
+        self.player.drm_mode = mode() if mode and not self.player.drm_mode_refused else None
         rel = getattr(self.display, "release", None)
         if rel:
             rel()
