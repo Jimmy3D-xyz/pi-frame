@@ -18,7 +18,7 @@ from collections import deque
 from pathlib import Path
 
 import requests
-from PIL import Image
+from PIL import Image, ImageDraw, ImageOps
 
 from . import fetcher, render, screens
 from .network import HOTSPOT_IP, frame_urls
@@ -126,6 +126,8 @@ class Frame:
         self.away = False  # away from its Wi-Fi, carrying on with the photos (see _go_away)
         # moving transitions (motion.py)
         self._shown = 0  # counts pictures put on screen, so a 3D turn drawn ahead knows it's still current
+        # the collage on screen, if one is: (picture, boxes, self._shown when it went up), for the Video button
+        self._collage_shown: tuple | None = None
         self._turn: motion.Turn | None = None  # a 3D turn being drawn for the next picture
         self._turn_n = 0
         self._queued: Path | None = None  # classic style: the next photo, chosen early for its 3D turn
@@ -626,6 +628,7 @@ class Frame:
             remember = self._cache_image(img)
             self._present([img], {"source": "storage", "filepath": f"Collage of {len(imgs)} photos"}, remember,
                           move=move)
+            self._collage_shown = (img, list(boxes), self._shown)
             minutes = self.cfg.get("collage_minutes")
         else:
             img = render.open_image(path, self.logical)
@@ -665,6 +668,7 @@ class Frame:
                           self._cache_image(lv["base"]), composed=lv["base"],
                           move={"kind": "zoom-out", "src": motion.tile_source(size, box, self.logical, scale),
                                 "dst": motion.box_rect(box)})
+            self._collage_shown = (lv["base"], list(lv["boxes"]), self._shown)
             self._step_due = time.time() + self.cfg.get("living_minutes") * 60
             self._living_ahead()
             return True, "living collage: back to the collage"
@@ -704,6 +708,7 @@ class Frame:
             move = {"kind": "part3d", "turn": turn, "rect": turn.rect, "fallback": move}
         self._present([base], {"source": "storage", "filepath": f"Living collage: {p.parent.name}/{p.name}"},
                       self._cache_image(base), move=move, composed=base)
+        self._collage_shown = (base, list(lv["boxes"]), self._shown)
         self._step_due = time.time() + self.cfg.get("living_minutes") * 60
         self._living_ahead()
         return True, f"living collage: swapped in {p.name}" + (" (3D)" if turn is not None else "")
@@ -756,7 +761,6 @@ class Frame:
         logical = self.logical
 
         def new_tile(path=p):
-            from PIL import ImageOps
             return ImageOps.fit(render.open_image(path, logical), tile, Image.LANCZOS, centering=(0.5, 0.4))
 
         self._drop_turn()
@@ -790,9 +794,131 @@ class Frame:
         self._present([base], {"source": "storage", "filepath": f"Living collage of {len(chosen)} photos"},
                       self._cache_image(base), composed=base,
                       move=self._new_set_move())
+        self._collage_shown = (base, list(boxes), self._shown)
         self._step_due = time.time() + self.cfg.get("living_minutes") * 60
         self._living_ahead()
         return True, "living collage: new layout"
+
+    # ---------- the Video button ----------
+    def video_now(self) -> tuple[bool, str]:
+        """The Video button: a video from the frame. With a collage on screen it plays in the
+        space that suits its shape, the rest of the collage around it, and the collage comes
+        back afterwards; otherwise it plays full screen (as tapping it in the Photos tab)."""
+        if self.player.playing:
+            return False, "A video is already playing"
+        if self.notice is not None or self.demo_active():
+            return False, "Not just now"
+        if not self.display.screen_on:
+            return False, "The screen is off"
+        videos = [p for p in self.storage.rotation_pool(videos=True) if is_video(p)]
+        if not videos:
+            return False, "There are no videos on the frame yet"
+        with self._rotate_lock:
+            if self.player.playing:
+                return False, "A video is already playing"
+            col = self._collage_shown
+            if col is not None and col[2] == self._shown:
+                try:
+                    msg = self._video_in_collage(videos, col[0], col[1])
+                    if msg:
+                        return True, msg
+                except Exception as e:  # noqa: BLE001
+                    log.warning("couldn't play a video in the collage: %s", e)
+            path = self._fresh_video(videos)
+            self._start_video(path)
+            return True, f"Playing {path.name}"
+
+    def _fresh_video(self, videos: list[Path]) -> Path:
+        """A random video, not the one played last time if there's a choice."""
+        last = getattr(self, "_last_video", None)
+        pool = [v for v in videos if v != last] or videos
+        self._last_video = random.choice(pool)
+        return self._last_video
+
+    def _video_in_collage(self, videos: list[Path], base: Image.Image, boxes: list) -> str | None:
+        """Play a video in one space of the collage on screen. Call with _rotate_lock held."""
+        last = getattr(self, "_last_video", None)
+        pool = [v for v in videos if v != last] or videos
+        random.shuffle(pool)
+        area = self.logical[0] * self.logical[1]
+        best = None  # (cost, video, box): the shape that suits a space best, bigger spaces preferred
+        for v in pool[:12]:
+            m = self.storage.video_meta(v)
+            w, h = m.get("width"), m.get("height")
+            if not (w and h):
+                continue
+            for b in boxes:
+                bw, bh = b[2] - b[0], b[3] - b[1]
+                cost = abs(math.log((bw / max(1, bh)) / (w / h))) - 0.5 * (bw * bh / area)
+                if best is None or cost < best[0]:
+                    best = (cost, v, b)
+        if best is None:
+            return None
+        _, path, box = best
+        self._last_video = path
+        label = f"{path.parent.name}/{path.name}"
+        poster = self.storage.poster_path(path)
+        if not poster.exists():
+            try:
+                self.storage.ensure_thumbnail(path)
+            except Exception as e:  # noqa: BLE001
+                log.warning("no poster for %s: %s", path, e)
+        poster_img = render.open_image(poster, self.logical) if poster.exists() else None
+        # close to the space's shape: fill it (a little is cropped, like the photos); far from it
+        # (a phone video in a wide space): the whole video, with the collage's dark mat beside it
+        m = self.storage.video_meta(path)
+        vw, vh = int(m["width"]), int(m["height"])
+        bw, bh = box[2] - box[0], box[3] - box[1]
+        cover = abs(math.log((bw / bh) / (vw / vh))) <= math.log(1.4)
+        if cover:
+            window = box
+        else:
+            k = min(bw / vw, bh / vh)
+            ww, wh = round(vw * k), round(vh * k)
+            x, y = box[0] + (bw - ww) // 2, box[1] + (bh - wh) // 2
+            window = (x, y, x + ww, y + wh)
+        rgba = base.convert("RGBA")
+        draw = ImageDraw.Draw(rgba)
+        draw.rectangle([box[0], box[1], box[2] - 1, box[3] - 1], fill=collage.BACKGROUND + (255,))
+        draw.rectangle([window[0], window[1], window[2] - 1, window[3] - 1], fill=(0, 0, 0, 0))
+        tile = (window[2] - window[0], window[3] - window[1])
+        fill = ImageOps.fit(poster_img, tile, Image.LANCZOS) if poster_img is not None else None
+        sur = self._video_overlay(rgba, window, fill)
+        # the collage with the video's first frame in its space, for a seamless start
+        self._present([sur["preview"]], {"source": "video", "filepath": f"Collage: {label}"}, None,
+                      composed=sur["preview"])
+        started = self._shown
+        self.player.playing = path  # busy before the thread starts
+        c = self.cfg.snapshot()
+        meta = self.storage.video_meta(path)
+        log.info("video in the collage: %s in the %dx%d space (%s)", path.name, bw, bh, "filled" if cover else "whole")
+
+        def run():
+            gain = float(meta.get("gain_db", 0.0)) if c["video_normalize"] and c["video_sound"] else 0.0
+            t0 = time.time()
+            self._release_display()  # mpv needs the display hardware
+            try:
+                result = self.player.play(
+                    path, rotate=self._video_rotation(), cover=cover, sound=c["video_sound"],
+                    volume=c["video_volume"], max_seconds=c["video_max_seconds"],
+                    duration=meta.get("duration", 0), boost_db=c["video_boost_db"], gain_db=gain, surround=sur)
+            finally:
+                self._reacquire_display()  # take the screen back, however the video ended
+                Path(sur["file"]).unlink(missing_ok=True)
+            log.info("video in the collage %s: %s", label, result)
+            with self._rotate_lock:
+                # put the collage back as it was, unless something else has gone up since
+                if self._shown != started or not self.display.screen_on or self.notice is not None:
+                    return
+                self._present([base], {"source": "storage", "filepath": "Collage"}, None, composed=base)
+                self._collage_shown = (base, list(boxes), self._shown)
+                if self._step_due is not None:  # the collage's own time carries on after the video
+                    self._step_due = max(self._step_due + (time.time() - t0), time.time() + 60)
+                if self._style == "living" and self._living is not None:
+                    self._living_ahead()
+
+        threading.Thread(target=run, name="video", daemon=True).start()
+        return f"Playing {path.name} in the collage"
 
     # ---------- video moments ----------
     def play_clip(self) -> tuple[bool, str]:
@@ -1236,6 +1362,16 @@ class Frame:
             return None  # not enough photos
         photos = [render.open_image(p, self.logical) for p in chosen]
         rgba = surround.compose(self.logical, window, spaces, photos)
+        fill = poster.resize((window[2] - window[0], window[3] - window[1]), Image.LANCZOS) if poster is not None else None
+        log.info("photos around %s: %s", path.name, ", ".join(p.name for p in chosen))
+        return self._video_overlay(rgba, window, fill)
+
+    def _video_overlay(self, rgba: Image.Image, window, fill: Image.Image | None) -> dict:
+        """mpv's overlay: a picture over the whole screen with a transparent window where the
+        video plays (the graphics chip draws it with each video frame at almost no cost).
+        fill: the video's first frame, sized to the window, for the preview shown before it starts."""
+        from . import surround
+
         rot = self.cfg.get("display_rotation_deg")
         panel_rgba = render.to_panel(rgba, self.panel, rot)
         # where the window lands on the screen as mpv sees it (it may be turned on its side)
@@ -1247,9 +1383,8 @@ class Frame:
         raw = tmp / "surround.bgra"
         raw.write_bytes(panel_rgba.tobytes("raw", "BGRa"))  # premultiplied BGRA, as mpv's overlays want
         preview = rgba.copy()
-        if poster is not None:  # the opening frame in the window, for a seamless start
-            preview.paste(poster.resize((window[2] - window[0], window[3] - window[1]), Image.LANCZOS), window[:2])
-        log.info("photos around %s: %s", path.name, ", ".join(p.name for p in chosen))
+        if fill is not None:  # the opening frame in the window, for a seamless start
+            preview.paste(fill.convert("RGBA"), window[:2])
         return {"file": raw, "size": panel_rgba.size, "margins": surround.margins(window_panel, self.panel),
                 "socket": str(tmp / "mpv.sock"), "preview": preview.convert("RGB")}
 

@@ -60,6 +60,15 @@ When a video comes up, it plays once (or for the time limit under Slideshow →
 Videos), then the slideshow moves on. Scheduled changes never cut a video
 short; the Next button does. Tap a video in the Photos tab to play it now.
 
+**The Video button** (next to Next on the web page) plays one of the
+frame's videos now. If a collage is on screen, the video plays in one of its
+spaces, the one that best suits its shape, with the rest of the collage
+around it, and the collage comes back when the video ends. A video close to
+the space's shape fills it (a little is cropped, like the photos); a very
+different shape (a phone video in a wide space) is shown whole, with the
+dark mat beside it. With no collage on screen, the video plays full screen.
+While it plays, Next becomes **Stop video**.
+
 **Sound** is off by default. When on, it goes to the HDMI port the monitor
 is plugged into. Each video's loudness is measured when it's added and
 evened out on playback, so quiet and loud videos come out at a similar

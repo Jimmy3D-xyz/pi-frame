@@ -103,8 +103,13 @@ def au(tmp_path, gh):
     return a
 
 
+def plain(v: str) -> list[int]:
+    """The numbers of a version, without any test part (0.38.0-beta.1 -> [0, 38, 0])."""
+    return [int(x) for x in v.split("-")[0].split(".")]
+
+
 def newer(step=1):
-    parts = [int(x) for x in __version__.split(".")]
+    parts = plain(__version__)
     parts[-1] += step
     return ".".join(map(str, parts))
 
@@ -231,7 +236,7 @@ def test_frames_follow_the_repository_to_its_new_home(tmp_path):
 
 
 def next_minor():
-    parts = [int(x) for x in __version__.split(".")]
+    parts = plain(__version__)
     return f"{parts[0]}.{parts[1] + 1}.0"
 
 

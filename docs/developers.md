@@ -127,6 +127,7 @@ errors or placeholder values. Pi Frame adds:
 | `PUT /api/albums/enabled?name=…` | Include or leave out an album |
 | `POST /api/upload/start`, `PUT /api/upload/<id>`, `POST /api/upload/<id>/finish`, `DELETE /api/upload/<id>`, `GET /api/uploads/pending` | Resumable uploads in pieces |
 | `GET /api/jobs` | Video conversion progress |
+| `POST /api/video/now` | The Video button: a video in a space of the collage on screen, or full screen |
 | `POST /api/video/stop` | Stop the playing video |
 | `GET /api/weather`, `GET /api/weather/search?q=…` | Weather, and the place search |
 | `GET /api/monitor`, `POST /api/monitor/probe` | Monitor brightness support (DDC/CI) |

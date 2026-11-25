@@ -41,7 +41,7 @@ work with it unchanged.
 
 - **Photos and videos**: upload from your phone, or sync folders from OneDrive, Google Drive, Dropbox or a NAS
 - **Smooth 60 fps fades, zooms and 3D turns** done by the Pi's display hardware, even at 1440p
-- **Collages and slideshow styles** (including a living collage), photos around videos that don't fill the screen, and short video moments
+- **Collages and slideshow styles** (including a living collage), photos around videos that don't fill the screen, short video moments, and a Video button that plays a video inside the collage
 - **On-screen info**: clock, weather, when and where each photo was taken, jokes and fun facts
 - **Looks after itself**: screen schedule, presence sensor, monitor brightness and standby over HDMI,
   automatic Wi-Fi repair with a setup hotspot, a health page, safe updates (automatically from GitHub, if you like),

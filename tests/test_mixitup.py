@@ -121,6 +121,101 @@ def test_video_moment_plays_a_random_part(frame, tmp_path, monkeypatch):
     assert calls[0]["max_seconds"] == 20 and 0 <= calls[0]["start"] <= 80
 
 
+# ---------------- the Video button ----------------
+def add_video(frame, name, size, poster=True):
+    vid = frame.storage.root / "Default" / name
+    vid.write_bytes(b"x")
+    meta = frame.storage._meta_path(vid)
+    meta.parent.mkdir(exist_ok=True)
+    meta.write_text(json.dumps({"width": size[0], "height": size[1], "duration": 12.0}))
+    if poster:
+        Image.new("RGB", size, (200, 30, 30)).save(frame.storage.poster_path(vid))
+    return vid
+
+
+def wait_for(cond, secs=3.0):
+    end = time.time() + secs
+    while time.time() < end and not cond():
+        time.sleep(0.02)
+    return cond()
+
+
+def test_video_button_with_no_videos(frame):
+    frame.rotate()
+    assert frame.video_now() == (False, "There are no videos on the frame yet")
+    r = create_app(frame).test_client().post("/api/video/now")
+    assert r.status_code == 409
+
+
+def test_video_button_plays_in_a_space_of_the_collage(frame, monkeypatch):
+    frame.cfg.update({"slideshow_style": "living", "collage_count": 3})
+    frame.rotate()
+    base, boxes, _ = frame._collage_shown
+    add_video(frame, "phone.mp4", (1080, 1920))  # a portrait phone video
+    calls = []
+
+    def play(path, **kw):  # as the real player: busy until it returns
+        calls.append((path, kw))
+        frame.player.playing = None
+        return "finished"
+
+    monkeypatch.setattr(frame.player, "play", play)
+    ok, msg = frame.video_now()
+    assert ok and msg == "Playing phone.mp4 in the collage"
+    assert wait_for(lambda: calls)
+    path, kw = calls[0]
+    assert path.name == "phone.mp4"
+    # it went into the tallest space, with the rest of the collage left around it
+    tall = min(boxes, key=lambda b: (b[2] - b[0]) / (b[3] - b[1]))
+    m = kw["surround"]["margins"]
+    W, H = PANEL
+    got = (round(m["left"] * W), round(m["top"] * H), round(W - m["right"] * W), round(H - m["bottom"] * H))
+    if kw["cover"]:  # close to the space's shape: it fills the space
+        assert got == tall
+    else:  # the whole video, centred in the space
+        assert tall[0] <= got[0] and tall[1] <= got[1] and got[2] <= tall[2] and got[3] <= tall[3]
+        assert abs((got[2] - got[0]) / (got[3] - got[1]) - 1080 / 1920) < 0.01
+    # afterwards the collage is back as it was, and the button works again
+    assert wait_for(lambda: frame._base is base)
+    assert frame._collage_shown[0] is base and frame.player.playing is None
+    assert not kw["surround"]["file"].exists()
+
+
+def test_video_button_shapes(frame, monkeypatch):
+    """A video close to its space's shape fills it; a wide video in a tall space is shown whole."""
+    frame.cfg.update({"slideshow_style": "living", "collage_count": 4})
+    frame.rotate()
+    _, boxes, _ = frame._collage_shown
+    b = boxes[0]
+    calls = []
+
+    def play(path, **kw):
+        calls.append(kw)
+        frame.player.playing = None
+        return "finished"
+
+    monkeypatch.setattr(frame.player, "play", play)
+    add_video(frame, "same.mp4", (b[2] - b[0], b[3] - b[1]))  # exactly a space's shape
+    assert frame.video_now()[0] and wait_for(lambda: calls and frame.player.playing is None)
+    assert calls[0]["cover"] is True
+
+
+def test_video_button_plays_full_screen_without_a_collage(frame, monkeypatch):
+    frame.rotate()  # classic: a photo
+    add_video(frame, "beach.mp4", (1920, 1080))
+    started = []
+    monkeypatch.setattr(frame, "_start_video", lambda p: started.append(p))
+    ok, msg = frame.video_now()
+    assert ok and started[0].name == "beach.mp4"
+
+
+def test_video_button_waits_for_a_playing_video(frame):
+    frame.rotate()
+    add_video(frame, "beach.mp4", (1920, 1080))
+    frame.player.playing = Path("x.mp4")
+    assert frame.video_now() == (False, "A video is already playing")
+
+
 # ---------------- jokes and facts ----------------
 def test_fun_deck_no_repeats_and_own_lines(frame):
     fun = frame.overlay.fun

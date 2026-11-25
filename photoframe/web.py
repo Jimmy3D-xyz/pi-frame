@@ -838,6 +838,13 @@ def create_app(frame: Frame) -> Flask:
     def jobs():
         return jsonify(frame.jobs.list() if frame.jobs else [])
 
+    @app.post("/api/video/now")
+    def video_now():
+        """Pi extra: the Video button. A video from the frame, in a space of the collage on
+        screen (the rest of the collage around it), or full screen when no collage is showing."""
+        ok, msg = frame.video_now()
+        return _ok(msg) if ok else _err(msg, 409)
+
     @app.post("/api/video/stop")
     def video_stop():
         frame.stop_video()
