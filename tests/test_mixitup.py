@@ -221,7 +221,8 @@ def test_clip_button_plays_a_short_part_in_the_collage(frame, monkeypatch):
     assert wait_for(lambda: calls)
     assert calls[0]["max_seconds"] == 10 and 0 <= calls[0]["start"] <= 90 and calls[0]["surround"]
     # one clip in each space, one after another (one video here, so it's played again from another point)
-    assert wait_for(lambda: len(calls) == 3 and frame._base is base)
+    assert wait_for(lambda: len(calls) == 3 and frame._base is base and frame.player.playing is None
+                    and frame._collage_shown[2] == frame._shown)
     spaces = {tuple(round(v, 4) for v in c["surround"]["margins"].values()) for c in calls}
     assert len(spaces) == 3  # every space had its turn
     assert frame._collage_shown[0] is base and frame.player.playing is None  # and the collage is back
@@ -266,8 +267,9 @@ def test_after_a_full_screen_video_the_collage_comes_back(frame, monkeypatch):
 
     monkeypatch.setattr(frame.player, "play", play)
     frame.play_video(vid)  # e.g. tapped in the Photos tab
-    assert wait_for(lambda: frame._base is base)  # not a random photo on its own
-    assert frame._collage_shown is not None and frame._collage_shown[2] == frame._shown
+    # not a random photo on its own, and the Video button knows the collage is up again
+    assert wait_for(lambda: frame._base is base and frame._collage_shown is not None
+                    and frame._collage_shown[2] == frame._shown)
 
 
 def test_clip_button_full_screen_without_a_collage(frame, monkeypatch):
