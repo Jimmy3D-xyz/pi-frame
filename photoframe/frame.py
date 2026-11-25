@@ -844,7 +844,7 @@ class Frame:
         return self._last_video
 
     def _video_in_collage(self, videos: list[Path], base: Image.Image, boxes: list, clip: bool = False,
-                          done: tuple = (), played: tuple = ()) -> str | None:
+                          done: tuple = (), played: tuple = (), chain: bool = True) -> str | None:
         """Play a video in one space of the collage on screen. Call with _rotate_lock held.
         clip: a short part; when it ends, another clip follows in a space that hasn't had one
         (done), from a video not yet played (played), until every space has had one."""
@@ -931,7 +931,7 @@ class Frame:
                 if self._step_due is not None:  # the collage's own time carries on after the video
                     self._step_due = max(self._step_due + (time.time() - t0), time.time() + 60)
                 # a clip: the next one, straight into another space (stopping a clip stops the run)
-                if clip and result == "finished" and len(done) + 1 < len(boxes) and self.story_style():
+                if clip and chain and result == "finished" and len(done) + 1 < len(boxes) and self.story_style():
                     try:
                         if self._video_in_collage(videos, base, boxes, clip=True, done=done + (box,),
                                                   played=played + (path,)):
@@ -944,19 +944,33 @@ class Frame:
                     self._living_ahead()
 
         threading.Thread(target=run, name="video", daemon=True).start()
+        if clip and not chain:
+            return f"Playing {length}s of {path.name} in the collage"
         if clip:
             return f"Playing {length}-second clips in the collage, one space after another"
         return f"Playing {path.name} in the collage"
 
     # ---------- video moments ----------
     def play_clip(self) -> tuple[bool, str]:
-        """A short clip from a random point of a random video, then back to
-        whatever was on screen."""
+        """A video moment: a short clip from a random point of a random video. With a
+        collage on screen it plays in one of its spaces (the rest of the collage around it);
+        otherwise full screen, then back to whatever was on screen."""
         if self.player.playing or self.notice is not None or not self.display.screen_on:
             return False, "not now"
         videos = [p for p in self.storage.rotation_pool(videos=True) if is_video(p)]
         if not videos:
             return False, "no videos"
+        with self._rotate_lock:
+            col = self._collage_shown
+            if not self.player.playing and col is not None and col[2] == self._shown:
+                try:
+                    msg = self._video_in_collage(videos, col[0], col[1], clip=True, chain=False)
+                    if msg:
+                        return True, msg[0].lower() + msg[1:]
+                except Exception as e:  # noqa: BLE001
+                    log.warning("couldn't play the video moment in the collage: %s", e)
+        if self.player.playing:
+            return False, "not now"
         path = random.choice(videos)
         length = self.cfg.get("clip_seconds")
         duration = float(self.storage.video_meta(path).get("duration") or 0)

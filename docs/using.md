@@ -135,8 +135,10 @@ screen, such as a landscape video on a portrait screen or a phone video on
 a landscape screen, photos that suit the empty spaces go around it.
 
 **Video moments**: every 15 minutes to 4 hours, a short clip (10 seconds to
-1 minute) from a random point in a random video, then back to whatever was
-showing.
+1 minute) from a random point in a random video, so the videos come up even
+among lots of photos. With a collage on screen it plays in one of the
+collage's spaces, with the rest of the collage around it; otherwise full
+screen. Then the slideshow carries on from where it was.
 
 **Transitions** (Slideshow tab):
 

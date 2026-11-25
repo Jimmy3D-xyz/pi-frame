@@ -272,6 +272,30 @@ def test_after_a_full_screen_video_the_collage_comes_back(frame, monkeypatch):
                     and frame._collage_shown[2] == frame._shown)
 
 
+def test_a_video_moment_plays_in_the_collage_on_screen(frame, monkeypatch):
+    """The timed video moments play in the slideshow as it is: in a space of the collage
+    showing (just one clip, not round every space), with the collage back afterwards."""
+    frame.cfg.update({"slideshow_style": "living", "collage_count": 3, "clip_seconds": 10})
+    frame.rotate()
+    base = frame._collage_shown[0]
+    for name in ("a.mp4", "b.mp4", "c.mp4"):
+        add_video(frame, name, (1920, 1080))
+    calls = []
+
+    def play(path, **kw):
+        calls.append(kw)
+        frame.player.playing = None
+        return "finished"
+
+    monkeypatch.setattr(frame.player, "play", play)
+    ok, msg = frame.play_clip()
+    assert ok and msg.startswith("playing 10s of ") and msg.endswith(" in the collage")
+    assert wait_for(lambda: calls and frame._base is base and frame.player.playing is None
+                    and frame._collage_shown[2] == frame._shown)
+    time.sleep(0.2)
+    assert len(calls) == 1 and calls[0]["surround"] and calls[0]["max_seconds"] == 10
+
+
 def test_clip_button_full_screen_without_a_collage(frame, monkeypatch):
     frame.rotate()  # classic: a photo
     add_video(frame, "beach.mp4", (1920, 1080))
