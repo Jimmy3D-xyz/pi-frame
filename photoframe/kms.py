@@ -60,6 +60,7 @@ class KmsDisplay(BaseDisplay):
         self._released = False
         self._dropped_master = False
         self._held = None
+        self._hold_plane = None
         self._setup()
         from . import console
 
@@ -481,15 +482,22 @@ class KmsDisplay(BaseDisplay):
         w, h = self.size
         if tuple(hold["size"]) != (w, h):
             return
+        # not our usual top layer: mpv takes the first one ("Using overlay plane .. as drmprime
+        # plane") and switches it off as it starts. A second one above it is left alone.
+        if self._hold_plane is None:
+            self._hold_plane = self.res.reserve_overlay_plane(self.crtc, self.k.PixelFormat.ARGB8888)
+        if self._hold_plane is None:
+            log.info("no spare layer to keep the pictures on while the video starts")
+            return
         data = Path(hold["file"]).read_bytes()  # premultiplied BGRA: the layer's own format
         fb = self.k.DumbFramebuffer(self.card, w, h, self.k.PixelFormat.ARGB8888)
         px = np.frombuffer(fb.map(0), dtype=np.uint8).reshape(h, fb.stride(0))[:, : w * 4]
         np.copyto(px, np.frombuffer(data, dtype=np.uint8).reshape(h, w * 4))
         r = self.k.AtomicReq(self.card)
-        r.add(self.overlay, {**self._plane_props(fb), "alpha": 65535})
+        r.add(self._hold_plane, {**self._plane_props(fb), "alpha": 65535})
         r.commit_sync()
         self._held = fb  # kept until the screen comes back
-        log.info("pictures around the video kept on the top layer")
+        log.info("pictures around the video kept on layer %s", self._hold_plane.id)
 
     def release(self, hold: dict | None = None) -> None:
         """Let go of the display hardware so mpv can use it. hold: the pictures around the
@@ -545,6 +553,8 @@ class KmsDisplay(BaseDisplay):
                     self.crtc.set_mode(self.conn, self.fbs[self.front], self.mode)  # mpv changed the set-up
                     r = self.k.AtomicReq(self.card)
                     r.add(self.overlay, {"FB_ID": 0, "CRTC_ID": 0})
+                    if self._held is not None and self._hold_plane is not None:
+                        r.add(self._hold_plane, {"FB_ID": 0, "CRTC_ID": 0})
                     r.commit_sync(allow_modeset=True)
                     self._held = None
                 else:

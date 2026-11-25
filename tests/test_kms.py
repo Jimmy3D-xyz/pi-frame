@@ -50,7 +50,7 @@ def fake_pykms(has_drop_master=True):
 
     class ResourceManager:
         def __init__(self, card):
-            pass
+            self.overlays = iter([127, 133, 139])
 
         def reserve_connector(self):
             return Conn()
@@ -62,7 +62,7 @@ def fake_pykms(has_drop_master=True):
             return Obj(91)
 
         def reserve_overlay_plane(self, crtc, fmt):
-            return Obj(127)
+            return Obj(next(self.overlays))
 
     ids = iter(range(200, 10000))
 
@@ -262,11 +262,13 @@ def test_pictures_around_a_video_stay_on_the_top_layer(disp, tmp_path):
     d.release(hold={"file": raw, "size": (w, h)})
     assert pk.log["master"] == ["drop"]
     (plane, props), = pk.log["commits"][-1]
-    assert plane == 127 and props["FB_ID"] == d._held.id and d._held.fmt == "AR24" and props["CRTC_W"] == w
+    # on a second top layer: the video player takes the first one (127) for itself
+    assert plane == 133 and props["FB_ID"] == d._held.id and d._held.fmt == "AR24" and props["CRTC_W"] == w
     held = np.frombuffer(bytes(d._held.buf), dtype=np.uint8).reshape(h, w, 4)
     assert tuple(held[5, 5]) == (30, 20, 10, 255) and tuple(held[150, 150]) == (0, 0, 0, 0)
     d.reacquire()  # afterwards the top layer is cleared and let go
-    assert pk.log["commits"][-1] == [(127, {"FB_ID": 0, "CRTC_ID": 0})] and d._held is None
+    assert pk.log["commits"][-1] == [(127, {"FB_ID": 0, "CRTC_ID": 0}), (133, {"FB_ID": 0, "CRTC_ID": 0})]
+    assert d._held is None
 
 
 def test_a_hold_of_the_wrong_size_is_skipped(disp, tmp_path):
