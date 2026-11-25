@@ -439,3 +439,18 @@ def test_mpv_messages_summarised():
           "[vo/gpu/drm] Failed to set up VT switcher. Terminal switching will be unavailable.\n")
     decoder, warnings = video.summarise_mpv(pi)
     assert decoder == "hardware (v4l2m2m)" and warnings == ["Audio device underrun detected."]
+
+
+def test_screen_messages_are_kept_apart_and_handover_noise_dropped():
+    text = """[vo/gpu/drm] Connector name: HDMI-A-1
+[vo/gpu/drm] Mode: 2560x1440@59.95 (setting 0)
+[vo/gpu] Using DRM plane 91 for drawing
+[ipc_0] Write error (Broken pipe)
+client removed during hook handling
+[vd] Using hardware decoding (v4l2m2m).
+"""
+    decoder, warnings = video.summarise_mpv(text)
+    assert decoder == "hardware (v4l2m2m)" and warnings == []
+    assert video.screen_lines(text) == ["[vo/gpu/drm] Connector name: HDMI-A-1",
+                                        "[vo/gpu/drm] Mode: 2560x1440@59.95 (setting 0)",
+                                        "[vo/gpu] Using DRM plane 91 for drawing"]

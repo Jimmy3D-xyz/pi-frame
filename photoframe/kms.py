@@ -107,6 +107,12 @@ class KmsDisplay(BaseDisplay):
         self.device = f"{self.conn.fullname} (display hardware)"
         log.info("display hardware: %s %dx%d @ %d Hz, fades on the top layer", self.conn.fullname, w, h,
                  round(self.mode.vrefresh))
+        try:
+            m = self.mode
+            log.info("screen setting #%s: %dx%d, %.3f Hz, %d kHz pixel clock, flags %s", self.video_mode(),
+                     m.hdisplay, m.vdisplay, m.clock * 1000 / (m.htotal * m.vtotal), m.clock, m.flags)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _pixels(self, fb) -> np.ndarray:
         w, h = self.size

@@ -464,7 +464,21 @@ HWDEC = "v4l2m2m,drm,v4l2m2m-copy"
 MPV_NOISE = ("libcuda", "cuvid", "nvcuvid", "vdpau", "vaapi", "unsupported hwdec", "could not find a valid device",
              "can't configure decoder", "could not open codec",
              # it can't offer console switching, which a frame doesn't need
-             "vt switcher", "tty for vt control")
+             "vt switcher", "tty for vt control",
+             # the frame closing its control connection once the video is handed over
+             "write error (broken pipe)", "client removed during hook handling")
+
+
+def screen_lines(text: str) -> list[str]:
+    """What mpv says about the screen (its [vo...] messages): the connector, the screen
+    setting it picked and the layers it uses, to see why the screen might blink."""
+    keep = ("mode", "connector", "crtc", "plane", "drm", "format", "vsync", "resolution")
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("[vo") and any(k in line.lower() for k in keep):
+            out.append(line)
+    return out[:20]
 
 
 def summarise_mpv(text: str) -> tuple[str | None, list[str]]:
@@ -472,6 +486,8 @@ def summarise_mpv(text: str) -> tuple[str | None, list[str]]:
     decoder, warnings = None, []
     for line in text.splitlines():
         line = line.strip()
+        if line.startswith("[vo"):  # screen details, logged separately
+            continue
         m = re.search(r"Using hardware decoding \(([^)]+)\)", line)
         if m:
             decoder = f"hardware ({m.group(1)})"
@@ -582,7 +598,7 @@ class VideoPlayer:
                 return "stopped" if self._stop.is_set() else "finished"
             args = [
                 # messages on (warnings, plus which decoder it uses), status line off
-                "mpv", "--msg-level=all=warn,vd=v", "--term-status-msg=", "--no-input-terminal",
+                "mpv", "--msg-level=all=warn,vd=v,vo=v", "--term-status-msg=", "--no-input-terminal",
                 "--no-config", "--osc=no", "--osd-level=0",
                 "--no-input-default-bindings", "--input-vo-keyboard=no", "--cursor-autohide=always",
                 # only the Pi's own H.264 decoder (every stored video is H.264); "auto"
@@ -650,6 +666,10 @@ class VideoPlayer:
                 threading.Thread(target=start, name="video-surround", daemon=True).start()
             err, _ = self._proc.communicate()
             decoder, warnings = summarise_mpv(err or "")
+            screen = screen_lines(err or "")
+            if screen:
+                log.info("video player and the screen (asked for setting %s): %s",
+                         self.drm_mode or "none", " | ".join(screen))
             rc = self._proc.returncode
             ran = time.time() - self.started_at
             if decoder is None and ran < 15 and not self._stop.is_set():
