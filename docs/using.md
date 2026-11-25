@@ -69,9 +69,15 @@ different shape (a phone video in a wide space) is shown whole, with the
 dark mat beside it. With no collage on screen, the video plays full screen.
 While it plays, Next becomes **Stop video**.
 
-**The Clip button** does the same with a short part of a video, from a
-random point, like a video moment (its length is set under Slideshow →
-Video moments, 20 seconds to start with).
+**The Clip button** plays a short part of a video, from a random point,
+like a video moment (its length is set under Slideshow → Video moments, 20
+seconds to start with). In a collage, when one clip ends the next starts in
+another space, from a different video when there is one, until every space
+has had a clip; then the collage carries on. **Stop video** ends the run.
+With no collage on screen, it plays one clip full screen.
+
+After any video in a collage style (Story, Spotlight or Living collage),
+the frame goes back to the picture that was on screen before it.
 
 **Sound** is off by default. When on, it goes to the HDMI port the monitor
 is plugged into. Each video's loudness is measured when it's added and

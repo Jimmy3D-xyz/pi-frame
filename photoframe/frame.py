@@ -128,6 +128,7 @@ class Frame:
         self._shown = 0  # counts pictures put on screen, so a 3D turn drawn ahead knows it's still current
         # the collage on screen, if one is: (picture, boxes, self._shown when it went up), for the Video button
         self._collage_shown: tuple | None = None
+        self._base_before_video = self._collage_before_video = None
         self._turn: motion.Turn | None = None  # a 3D turn being drawn for the next picture
         self._turn_n = 0
         self._queued: Path | None = None  # classic style: the next photo, chosen early for its 3D turn
@@ -842,11 +843,16 @@ class Frame:
         self._last_video = random.choice(pool)
         return self._last_video
 
-    def _video_in_collage(self, videos: list[Path], base: Image.Image, boxes: list, clip: bool = False) -> str | None:
-        """Play a video in one space of the collage on screen. Call with _rotate_lock held."""
+    def _video_in_collage(self, videos: list[Path], base: Image.Image, boxes: list, clip: bool = False,
+                          done: tuple = (), played: tuple = ()) -> str | None:
+        """Play a video in one space of the collage on screen. Call with _rotate_lock held.
+        clip: a short part; when it ends, another clip follows in a space that hasn't had one
+        (done), from a video not yet played (played), until every space has had one."""
         last = getattr(self, "_last_video", None)
-        pool = [v for v in videos if v != last] or videos
+        videos = [v for v in videos if v.exists()]
+        pool = [v for v in videos if v != last and v not in played] or [v for v in videos if v != last] or videos
         random.shuffle(pool)
+        free = [b for b in boxes if b not in done]
         area = self.logical[0] * self.logical[1]
         best = None  # (cost, video, box): the shape that suits a space best, bigger spaces preferred
         for v in pool[:12]:
@@ -854,7 +860,7 @@ class Frame:
             w, h = m.get("width"), m.get("height")
             if not (w and h):
                 continue
-            for b in boxes:
+            for b in free:
                 bw, bh = b[2] - b[0], b[3] - b[1]
                 cost = abs(math.log((bw / max(1, bh)) / (w / h))) - 0.5 * (bw * bh / area)
                 if best is None or cost < best[0]:
@@ -922,16 +928,24 @@ class Frame:
                 # put the collage back as it was, unless something else has gone up since
                 if self._shown != started or not self.display.screen_on or self.notice is not None:
                     return
-                self._present([base], {"source": "storage", "filepath": "Collage"}, None, composed=base)
-                self._collage_shown = (base, list(boxes), self._shown)
                 if self._step_due is not None:  # the collage's own time carries on after the video
                     self._step_due = max(self._step_due + (time.time() - t0), time.time() + 60)
+                # a clip: the next one, straight into another space (stopping a clip stops the run)
+                if clip and result == "finished" and len(done) + 1 < len(boxes) and self.story_style():
+                    try:
+                        if self._video_in_collage(videos, base, boxes, clip=True, done=done + (box,),
+                                                  played=played + (path,)):
+                            return
+                    except Exception as e:  # noqa: BLE001
+                        log.warning("couldn't play the next clip in the collage: %s", e)
+                self._present([base], {"source": "storage", "filepath": "Collage"}, None, composed=base)
+                self._collage_shown = (base, list(boxes), self._shown)
                 if self._style == "living" and self._living is not None:
                     self._living_ahead()
 
         threading.Thread(target=run, name="video", daemon=True).start()
         if clip:
-            return f"Playing {length} seconds of {path.name} in the collage"
+            return f"Playing {length}-second clips in the collage, one space after another"
         return f"Playing {path.name} in the collage"
 
     # ---------- video moments ----------
@@ -1300,6 +1314,9 @@ class Frame:
             except Exception as e:  # noqa: BLE001
                 log.warning("no poster for %s: %s", path, e)
         poster_img = render.open_image(poster, self.logical) if poster.exists() else None
+        self._base_before_video = self._base
+        col = self._collage_shown
+        self._collage_before_video = col if col is not None and col[2] == self._shown else None
         sur = None
         try:
             sur = self._surround_for(path, poster_img)
@@ -1309,6 +1326,8 @@ class Frame:
             self._present([sur["preview"]], {"source": "video", "filepath": label}, None)
         elif poster_img is not None:
             self._present([poster_img], {"source": "video", "filepath": label}, None)
+        # in a collage style, the picture to go back to afterwards (not a random lone photo)
+        back = (self._base_before_video, self._collage_before_video) if self.story_style() else None
         self.player.playing = path  # mark busy before the thread starts
         c = self.cfg.snapshot()
 
@@ -1344,7 +1363,10 @@ class Frame:
                     Path(sur["file"]).unlink(missing_ok=True)
             log.info("video %s: %s", label, result)
             if self.display.screen_on and self.notice is None:
-                self._after_video()
+                if back is not None and back[0] is not None:
+                    self._back_to(back[0], back[1])
+                else:
+                    self._after_video()
 
         threading.Thread(target=run, name="video", daemon=True).start()
 
@@ -1401,6 +1423,18 @@ class Frame:
             preview.paste(fill.convert("RGBA"), window[:2])
         return {"file": raw, "size": panel_rgba.size, "margins": surround.margins(window_panel, self.panel),
                 "socket": str(tmp / "mpv.sock"), "preview": preview.convert("RGB")}
+
+    def _back_to(self, picture: Image.Image, collage_shown: tuple | None) -> None:
+        """After a video in a collage style: the picture that was on screen before it."""
+        with self._rotate_lock:
+            if self.player.playing:
+                return
+            self._present([picture], {"source": "storage", "filepath": "Collage" if collage_shown else "Photo"},
+                          None, composed=picture)
+            if collage_shown is not None:
+                self._collage_shown = (collage_shown[0], collage_shown[1], self._shown)
+            if self._step_due is not None:
+                self._step_due = max(self._step_due, time.time() + 60)
 
     def _after_video(self) -> None:
         with self._rotate_lock:

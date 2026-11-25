@@ -216,10 +216,58 @@ def test_clip_button_plays_a_short_part_in_the_collage(frame, monkeypatch):
 
     monkeypatch.setattr(frame.player, "play", play)
     r = create_app(frame).test_client().post("/api/video/now", json={"clip": True})
-    assert r.status_code == 200 and r.get_json()["message"] == "Playing 10 seconds of long.mp4 in the collage"
+    assert r.status_code == 200
+    assert r.get_json()["message"] == "Playing 10-second clips in the collage, one space after another"
     assert wait_for(lambda: calls)
     assert calls[0]["max_seconds"] == 10 and 0 <= calls[0]["start"] <= 90 and calls[0]["surround"]
-    assert wait_for(lambda: frame._base is base)  # and the collage comes back
+    # one clip in each space, one after another (one video here, so it's played again from another point)
+    assert wait_for(lambda: len(calls) == 3 and frame._base is base)
+    spaces = {tuple(round(v, 4) for v in c["surround"]["margins"].values()) for c in calls}
+    assert len(spaces) == 3  # every space had its turn
+    assert frame._collage_shown[0] is base and frame.player.playing is None  # and the collage is back
+
+
+def test_clips_use_different_videos_and_stopping_ends_the_run(frame, monkeypatch):
+    frame.cfg.update({"slideshow_style": "living", "collage_count": 3})
+    frame.rotate()
+    base = frame._collage_shown[0]
+    for name in ("a.mp4", "b.mp4", "c.mp4"):
+        add_video(frame, name, (1920, 1080))
+    played = []
+
+    def play(path, **kw):
+        played.append(path.name)
+        frame.player.playing = None
+        return "finished"
+
+    monkeypatch.setattr(frame.player, "play", play)
+    assert frame.video_now(clip=True)[0]
+    assert wait_for(lambda: len(played) == 3 and frame._base is base)
+    assert sorted(played) == ["a.mp4", "b.mp4", "c.mp4"]
+    # stopped part-way (the Stop video button): no more clips, the collage comes back
+    played.clear()
+    monkeypatch.setattr(frame.player, "play", lambda path, **kw: played.append(path.name)
+                        or setattr(frame.player, "playing", None) or "stopped")
+    assert frame.video_now(clip=True)[0]
+    assert wait_for(lambda: frame._base is base and frame.player.playing is None)
+    time.sleep(0.2)
+    assert len(played) == 1
+
+
+def test_after_a_full_screen_video_the_collage_comes_back(frame, monkeypatch):
+    frame.cfg.update({"slideshow_style": "living", "collage_count": 3, "video_surround": False})
+    frame.rotate()
+    base = frame._collage_shown[0]
+    vid = add_video(frame, "beach.mp4", (1920, 1080))
+
+    def play(path, **kw):
+        frame.player.playing = None
+        return "finished"
+
+    monkeypatch.setattr(frame.player, "play", play)
+    frame.play_video(vid)  # e.g. tapped in the Photos tab
+    assert wait_for(lambda: frame._base is base)  # not a random photo on its own
+    assert frame._collage_shown is not None and frame._collage_shown[2] == frame._shown
 
 
 def test_clip_button_full_screen_without_a_collage(frame, monkeypatch):
