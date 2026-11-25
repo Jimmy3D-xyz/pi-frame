@@ -1284,7 +1284,15 @@ document.querySelectorAll('[role="tab"]').forEach(tab => tab.onclick = () => {
     const on = t === tab; t.setAttribute("aria-selected", on);
     $("#" + t.getAttribute("aria-controls")).hidden = !on;
   });
+  try { sessionStorage.setItem("tab", tab.id); } catch {}  // so a reload comes back to it
 });
+// back on the tab this browser tab was on, after a reload (a phone coming back to the page,
+// an update or a restart); a new visit starts on Photos. After the rest of the page is set up.
+setTimeout(() => {
+  let t = null; try { t = sessionStorage.getItem("tab"); } catch {}
+  const tab = t && t !== "t-photos" && document.getElementById(t);
+  if (tab && tab.getAttribute("role") === "tab") tab.click();
+}, 0);
 
 /* ---------- albums & photos ---------- */
 let albums = [], album = "Default", sheetPath = null;
