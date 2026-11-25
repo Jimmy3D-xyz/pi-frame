@@ -914,7 +914,7 @@ class Frame:
         def run():
             gain = float(meta.get("gain_db", 0.0)) if c["video_normalize"] and c["video_sound"] else 0.0
             t0 = time.time()
-            self._release_display()  # mpv needs the display hardware
+            self._release_display(hold=sur)  # mpv needs the display hardware
             try:
                 result = self.player.play(
                     path, rotate=self._video_rotation(), cover=cover, sound=c["video_sound"],
@@ -1343,7 +1343,7 @@ class Frame:
                     except Exception as e:  # noqa: BLE001
                         log.warning("couldn't measure sound of %s: %s", path.name, e)
                 gain = float(m.get("gain_db", 0.0))
-            self._release_display()  # mpv needs the display hardware
+            self._release_display(hold=sur)  # mpv needs the display hardware
             try:
                 result = self.player.play(
                     path,
@@ -1480,11 +1480,19 @@ class Frame:
             return panel_img
         return panel_img.point(lambda v, k=level: int(v * k))
 
-    def _release_display(self) -> None:
+    def _release_display(self, hold: dict | None = None) -> None:
+        """Hand the screen to the video player. hold: the pictures around the video, which
+        stay on the screen's top layer meanwhile (no black flash as the player starts)."""
         mode = getattr(self.display, "video_mode", None)
         self.player.drm_mode = mode() if mode and not self.player.drm_mode_refused else None
         rel = getattr(self.display, "release", None)
         if rel:
+            if hold:
+                try:
+                    rel(hold=hold)
+                    return
+                except TypeError:  # a display without layers
+                    pass
             rel()
 
     def _reacquire_display(self) -> None:

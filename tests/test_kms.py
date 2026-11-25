@@ -19,7 +19,7 @@ def fake_pykms(has_drop_master=True):
     m = types.SimpleNamespace()
     log = {"commits": [], "set_mode": [], "master": [], "cards": 0}
     m.log = log
-    m.PixelFormat = types.SimpleNamespace(XRGB8888="XR24")
+    m.PixelFormat = types.SimpleNamespace(XRGB8888="XR24", ARGB8888="AR24")
 
     class Card:
         def __init__(self):
@@ -69,6 +69,7 @@ def fake_pykms(has_drop_master=True):
     class DumbFramebuffer:
         def __init__(self, card, w, h, fmt):
             self.id = next(ids)
+            self.fmt = fmt
             self._w, self._h = w, h
             self.buf = bytearray(w * 4 * h)
 
@@ -246,3 +247,32 @@ def test_real_screens_really_play_videos(tmp_path, monkeypatch, disp):
     test = Frame(ConfigStore(tmp_path / "t"), Storage(tmp_path / "t", (320, 200)),
                  FileDisplay((320, 200), str(tmp_path / "f.png")), tmp_path / "t")
     assert test.player.simulate is True  # only the test display pretends
+
+
+def test_pictures_around_a_video_stay_on_the_top_layer(disp, tmp_path):
+    """While the video player starts (its first picture is black), the pictures around the
+    video stay on the top layer, see-through where the video goes."""
+    d, pk = disp
+    w, h = d.size
+    raw = tmp_path / "surround.bgra"
+    pic = Image.new("RGBa", (w, h), (10, 20, 30, 255))
+    pic.paste((0, 0, 0, 0), (100, 100, 400, 300))  # the video's space
+    raw.write_bytes(pic.tobytes("raw", "BGRa"))
+    pk.log["commits"].clear()
+    d.release(hold={"file": raw, "size": (w, h)})
+    assert pk.log["master"] == ["drop"]
+    (plane, props), = pk.log["commits"][-1]
+    assert plane == 127 and props["FB_ID"] == d._held.id and d._held.fmt == "AR24" and props["CRTC_W"] == w
+    held = np.frombuffer(bytes(d._held.buf), dtype=np.uint8).reshape(h, w, 4)
+    assert tuple(held[5, 5]) == (30, 20, 10, 255) and tuple(held[150, 150]) == (0, 0, 0, 0)
+    d.reacquire()  # afterwards the top layer is cleared and let go
+    assert pk.log["commits"][-1] == [(127, {"FB_ID": 0, "CRTC_ID": 0})] and d._held is None
+
+
+def test_a_hold_of_the_wrong_size_is_skipped(disp, tmp_path):
+    d, pk = disp
+    raw = tmp_path / "s.bgra"
+    raw.write_bytes(b"\0" * 16)
+    pk.log["commits"].clear()
+    d.release(hold={"file": raw, "size": (2, 2)})
+    assert pk.log["commits"] == [] and pk.log["master"] == ["drop"]

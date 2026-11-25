@@ -59,6 +59,7 @@ class KmsDisplay(BaseDisplay):
         self._fb_size_file = fb_size_file
         self._released = False
         self._dropped_master = False
+        self._held = None
         self._setup()
         from . import console
 
@@ -466,11 +467,35 @@ class KmsDisplay(BaseDisplay):
             pass
         return None
 
-    def release(self) -> None:
-        """Let go of the display hardware so mpv can use it."""
+    def _hold(self, hold: dict) -> None:
+        """Keep a picture on the top layer while the video player has the screen: the
+        pictures around the video, see-through where the video goes. mpv draws on the bottom
+        layer, so the black picture it starts with only shows in that space, for an instant,
+        instead of over the whole screen."""
+        w, h = self.size
+        if tuple(hold["size"]) != (w, h):
+            return
+        data = Path(hold["file"]).read_bytes()  # premultiplied BGRA: the layer's own format
+        fb = self.k.DumbFramebuffer(self.card, w, h, self.k.PixelFormat.ARGB8888)
+        px = np.frombuffer(fb.map(0), dtype=np.uint8).reshape(h, fb.stride(0))[:, : w * 4]
+        np.copyto(px, np.frombuffer(data, dtype=np.uint8).reshape(h, w * 4))
+        r = self.k.AtomicReq(self.card)
+        r.add(self.overlay, {**self._plane_props(fb), "alpha": 65535})
+        r.commit_sync()
+        self._held = fb  # kept until the screen comes back
+        log.info("pictures around the video kept on the top layer")
+
+    def release(self, hold: dict | None = None) -> None:
+        """Let go of the display hardware so mpv can use it. hold: the pictures around the
+        video (as for mpv's overlay), kept on the top layer meanwhile."""
         with self._lock:
             if self._released:
                 return
+            if hold:
+                try:
+                    self._hold(hold)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("couldn't keep the pictures on the top layer (%s)", e)
             self._released = True
             try:
                 fd = _card_fd(self.card)
@@ -515,6 +540,7 @@ class KmsDisplay(BaseDisplay):
                     r = self.k.AtomicReq(self.card)
                     r.add(self.overlay, {"FB_ID": 0, "CRTC_ID": 0})
                     r.commit_sync(allow_modeset=True)
+                    self._held = None
                 else:
                     self._setup()
                 self._released = False
