@@ -200,6 +200,38 @@ def test_video_button_shapes(frame, monkeypatch):
     assert calls[0]["cover"] is True
 
 
+def test_clip_button_plays_a_short_part_in_the_collage(frame, monkeypatch):
+    frame.cfg.update({"slideshow_style": "living", "collage_count": 3, "clip_seconds": 10})
+    frame.rotate()
+    base = frame._collage_shown[0]
+    add_video(frame, "long.mp4", (1920, 1080))  # 12 seconds long in add_video's details
+    meta = frame.storage._meta_path(frame.storage.root / "Default" / "long.mp4")
+    meta.write_text(json.dumps({"width": 1920, "height": 1080, "duration": 100.0}))
+    calls = []
+
+    def play(path, **kw):
+        calls.append(kw)
+        frame.player.playing = None
+        return "finished"
+
+    monkeypatch.setattr(frame.player, "play", play)
+    r = create_app(frame).test_client().post("/api/video/now", json={"clip": True})
+    assert r.status_code == 200 and r.get_json()["message"] == "Playing 10 seconds of long.mp4 in the collage"
+    assert wait_for(lambda: calls)
+    assert calls[0]["max_seconds"] == 10 and 0 <= calls[0]["start"] <= 90 and calls[0]["surround"]
+    assert wait_for(lambda: frame._base is base)  # and the collage comes back
+
+
+def test_clip_button_full_screen_without_a_collage(frame, monkeypatch):
+    frame.rotate()  # classic: a photo
+    add_video(frame, "beach.mp4", (1920, 1080))
+    calls = []
+    monkeypatch.setattr(frame.player, "play", lambda path, **kw: calls.append(kw) or "finished")
+    ok, msg = frame.video_now(clip=True)
+    assert ok and msg.startswith("Playing ") and "beach.mp4" in msg
+    assert wait_for(lambda: calls) and "surround" not in calls[0]
+
+
 def test_video_button_plays_full_screen_without_a_collage(frame, monkeypatch):
     frame.rotate()  # classic: a photo
     add_video(frame, "beach.mp4", (1920, 1080))

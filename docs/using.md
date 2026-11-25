@@ -69,6 +69,10 @@ different shape (a phone video in a wide space) is shown whole, with the
 dark mat beside it. With no collage on screen, the video plays full screen.
 While it plays, Next becomes **Stop video**.
 
+**The Clip button** does the same with a short part of a video, from a
+random point, like a video moment (its length is set under Slideshow →
+Video moments, 20 seconds to start with).
+
 **Sound** is off by default. When on, it goes to the HDMI port the monitor
 is plugged into. Each video's loudness is measured when it's added and
 evened out on playback, so quiet and loud videos come out at a similar

@@ -363,6 +363,7 @@
       <button class="btn" id="next-3d" title="A new set with a 3D turn (card flip, tip away or cube, in turn): a new collage, or the next style when styles take turns; with Classic, the next photo. Drawing it takes a few seconds." hidden>3D</button>
       <button class="btn" id="next-set" title="Start a fresh set: a new collage and its photos, or the next style when styles take turns" hidden>New set</button>
       <button class="btn" id="video-now" title="Play one of the frame's videos: in a space of the collage on screen, or full screen when there's no collage" hidden>Video</button>
+      <button class="btn" id="clip-now" title="Play a short part of one of the frame's videos (the length is under Slideshow → Video moments): in a space of the collage on screen, or full screen" hidden>Clip</button>
     </div>
   </section>
 
@@ -1233,6 +1234,8 @@ async function refreshStatus(reloadImage = false) {
   $("#next-set").hidden = config.rotation_mode !== "storage" || (st.length === 1 && st[0] === "classic") || !!config.demo_mode;
   $("#video-now").hidden = !status.videos_supported || !!config.demo_mode;
   $("#video-now").disabled = !!status.playing;
+  $("#clip-now").hidden = $("#video-now").hidden;
+  $("#clip-now").disabled = !!status.playing;
   const fe = $("#fetch-error");
   fe.hidden = !status.last_fetch_error;
   fe.textContent = status.last_fetch_error ? `Last download failed: ${status.last_fetch_error}` : "";
@@ -1255,12 +1258,14 @@ $("#next-set").onclick = async (e) => {
   await act(() => api("/api/next-set", { method: "POST" }));
   e.target.disabled = false; refreshStatus(true);
 };
-$("#video-now").onclick = async (e) => {
+async function videoNow(e, clip) {
   e.target.disabled = true;
-  const r = await act(() => api("/api/video/now", { method: "POST" }));
+  const r = await act(() => api("/api/video/now", { json: { clip } }));
   if (r && r.message) toast(r.message);
   refreshStatus(true);
-};
+}
+$("#video-now").onclick = (e) => videoNow(e, false);
+$("#clip-now").onclick = (e) => videoNow(e, true);
 $("#prev").onclick = async () => { await act(() => api("/api/previous", { method: "POST" })); refreshStatus(true); };
 $("#brand-screen").onclick = async (e) => {
   const b = e.currentTarget;

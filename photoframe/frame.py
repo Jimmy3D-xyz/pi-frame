@@ -800,10 +800,11 @@ class Frame:
         return True, "living collage: new layout"
 
     # ---------- the Video button ----------
-    def video_now(self) -> tuple[bool, str]:
+    def video_now(self, clip: bool = False) -> tuple[bool, str]:
         """The Video button: a video from the frame. With a collage on screen it plays in the
         space that suits its shape, the rest of the collage around it, and the collage comes
-        back afterwards; otherwise it plays full screen (as tapping it in the Photos tab)."""
+        back afterwards; otherwise it plays full screen (as tapping it in the Photos tab).
+        clip: the Clip button, a short part from a random point (as a video moment)."""
         if self.player.playing:
             return False, "A video is already playing"
         if self.notice is not None or self.demo_active():
@@ -819,11 +820,17 @@ class Frame:
             col = self._collage_shown
             if col is not None and col[2] == self._shown:
                 try:
-                    msg = self._video_in_collage(videos, col[0], col[1])
+                    msg = self._video_in_collage(videos, col[0], col[1], clip=clip)
                     if msg:
                         return True, msg
                 except Exception as e:  # noqa: BLE001
                     log.warning("couldn't play a video in the collage: %s", e)
+        if clip:  # full screen, then back to what was showing
+            ok, msg = self.play_clip()
+            return ok, (msg[0].upper() + msg[1:]) if ok else "Not just now"
+        with self._rotate_lock:
+            if self.player.playing:
+                return False, "A video is already playing"
             path = self._fresh_video(videos)
             self._start_video(path)
             return True, f"Playing {path.name}"
@@ -835,7 +842,7 @@ class Frame:
         self._last_video = random.choice(pool)
         return self._last_video
 
-    def _video_in_collage(self, videos: list[Path], base: Image.Image, boxes: list) -> str | None:
+    def _video_in_collage(self, videos: list[Path], base: Image.Image, boxes: list, clip: bool = False) -> str | None:
         """Play a video in one space of the collage on screen. Call with _rotate_lock held."""
         last = getattr(self, "_last_video", None)
         pool = [v for v in videos if v != last] or videos
@@ -891,6 +898,11 @@ class Frame:
         self.player.playing = path  # busy before the thread starts
         c = self.cfg.snapshot()
         meta = self.storage.video_meta(path)
+        duration = float(meta.get("duration") or 0)
+        length, start = c["video_max_seconds"], 0.0
+        if clip:  # a short part, from a random point
+            length = c["clip_seconds"]
+            start = random.uniform(0, duration - length) if duration > length + 1 else 0.0
         log.info("video in the collage: %s in the %dx%d space (%s)", path.name, bw, bh, "filled" if cover else "whole")
 
         def run():
@@ -900,8 +912,8 @@ class Frame:
             try:
                 result = self.player.play(
                     path, rotate=self._video_rotation(), cover=cover, sound=c["video_sound"],
-                    volume=c["video_volume"], max_seconds=c["video_max_seconds"],
-                    duration=meta.get("duration", 0), boost_db=c["video_boost_db"], gain_db=gain, surround=sur)
+                    volume=c["video_volume"], max_seconds=length, duration=duration,
+                    boost_db=c["video_boost_db"], gain_db=gain, start=start, surround=sur)
             finally:
                 self._reacquire_display()  # take the screen back, however the video ended
                 Path(sur["file"]).unlink(missing_ok=True)
@@ -918,6 +930,8 @@ class Frame:
                     self._living_ahead()
 
         threading.Thread(target=run, name="video", daemon=True).start()
+        if clip:
+            return f"Playing {length} seconds of {path.name} in the collage"
         return f"Playing {path.name} in the collage"
 
     # ---------- video moments ----------
