@@ -41,7 +41,7 @@ ADMIN_KEYS = frozenset({
 # with the admin options unlocked; apps (Home Assistant, the image server) use
 # the firmware API as before, so requests that don't come from a browser can.
 SETUP_KEYS = frozenset({
-    "device_name", "timezone", "ha_url", "demo_mode", "attention_on_screen",
+    "device_name", "timezone", "ha_url", "demo_mode", "showcase_mode", "attention_on_screen",
     "image_url", "access_token", "http_header_key", "http_header_value",
     "display_orientation", "display_rotation_deg", "display_hw_fade",
     "buttons_enabled", "button_previous_pin", "button_next_pin", "button_screen_pin",

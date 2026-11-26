@@ -10,6 +10,7 @@ scan the QR code the frame shows when it starts).
 - [The slideshow](#the-slideshow)
 - [On-screen info](#on-screen-info)
 - [Demo mode](#demo-mode)
+- [Showcase](#showcase)
 - [Seeing what's on the frame](#seeing-whats-on-the-frame)
 - [Turning the screen on and off](#turning-the-screen-on-and-off)
 - [Portrait mounting](#portrait-mounting)
@@ -195,6 +196,25 @@ from the space station, Saturn, the Webb telescope's Cosmic Cliffs). Each
 one's title, creator, source and licence is in `photoframe/data/demo/credits.json`.
 They live with the software, not in your albums: they're never in your
 photo count, history or backups.
+
+
+## Showcase
+
+Your own photos and videos, going quickly through everything the frame can
+do: every slideshow style in turn (Classic, Story, Spotlight and Living
+collage), every kind of change between pictures, and video moments. It's
+handy for showing the frame off, or trying out what each style looks like
+with your photos.
+
+- **Maintenance → This frame → Showcase** (an admin option) switches it on.
+- While it's on: photos change every 12 seconds (collages every 20), each
+  style shows one round and hands over to the next, a 10-second video clip
+  plays every minute and a half (in a space of the collage when one is
+  showing), and videos that come up in the slideshow play for 20 seconds at
+  most.
+- Your slideshow settings aren't changed: the Slideshow tab still shows
+  them, and they're back in charge as soon as you switch the showcase off.
+- Demo mode (the sample photos) takes priority if both are on.
 
 ## Seeing what's on the frame
 

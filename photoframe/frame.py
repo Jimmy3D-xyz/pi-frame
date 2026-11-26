@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 from . import fetcher, render, screens
 from .network import HOTSPOT_IP, frame_urls
-from .config import ConfigStore
+from .config import SHOWCASE_CLASSIC_SECONDS, ConfigStore
 from .cron import CronError, next_fire, parse_rules
 from .display import BaseDisplay, FileDisplay, HeadlessDisplay
 from .storage import Storage, timestamp_name
@@ -543,7 +543,8 @@ class Frame:
             return st is None or st["i"] >= len(st["steps"]) - 1
         if self._style == "living":
             lv = self._living
-            return lv is None or (lv["swaps"] >= 2 * len(lv["photos"]) and lv.get("spot") is None)
+            rounds = 1 if self.showcase() else 2  # the showcase moves on after one pass
+            return lv is None or (lv["swaps"] >= rounds * len(lv["photos"]) and lv.get("spot") is None)
         return not every_round or self._style_steps >= self.CLASSIC_ROUND
 
     def next_set(self) -> tuple[bool, str]:
@@ -576,6 +577,19 @@ class Frame:
         self._story = self._living = None
         self._reschedule = True  # classic goes back to the schedule rules
         log.info("slideshow style: %s now", self._style)
+
+    def showcase(self) -> bool:
+        """Showcase: the frame's own photos and videos, quickly through every style."""
+        return bool(self.cfg.get("showcase_mode")) and not self.demo_active() \
+            and self.cfg.get("rotation_mode") == "storage"
+
+    def showcase_switched(self) -> None:
+        """Showcase switched on or off: start afresh in the styles now in effect, now."""
+        with self._rotate_lock:
+            self._next_clip = None
+            self._reschedule = True
+        self.reset_story()
+        threading.Thread(target=self.rotate, name="showcase-switch", daemon=True).start()
 
     def reset_story(self) -> None:
         self._story = None
@@ -1749,8 +1763,10 @@ class Frame:
                 continue
             self._demo_due = None
 
-            # Story / spotlight styles: each step sets its own timer
-            if self.story_style() and self.cfg.get("auto_rotate"):
+            # Story / spotlight styles: each step sets its own timer (and Classic during
+            # the showcase, whose photos change every few seconds)
+            showcase_classic = self.showcase() and not self.story_style()
+            if (self.story_style() or showcase_classic) and self.cfg.get("auto_rotate"):
                 if self._step_due is None:
                     self._step_due = now + 30  # start the first collage shortly after start-up
                 self.next_rotation = self._step_due
@@ -1762,6 +1778,8 @@ class Frame:
                         log.info("slideshow step: %s", msg)
                         if not ok:
                             self._step_due = now + 60
+                        elif showcase_classic and not self.story_style():
+                            self._step_due = time.time() + SHOWCASE_CLASSIC_SECONDS
                     continue
                 timeout = min(30.0, max(0.2, self._step_due - now))
                 if self._next_clip:

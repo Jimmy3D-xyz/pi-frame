@@ -759,6 +759,11 @@
           <small class="note" style="display:block;margin:-.3rem 0 .8rem">Shows sample photos (public-domain paintings
             and NASA pictures) with collages and slides about the frame, like a TV in a shop, instead of your photos.
             A frame with no photos yet shows it by itself until you add some.</small>
+          <label class="toggle"><input type="checkbox" name="showcase_mode"> Showcase</label>
+          <small class="note" style="display:block;margin:-.3rem 0 .8rem">Your own photos and videos, going quickly
+            through every slideshow style (Classic, Story, Spotlight and Living collage) with every kind of
+            transition, and a video clip every minute and a half. Your slideshow settings are kept and come back when
+            you switch it off. Demo mode takes priority if both are on.</small>
           <label class="toggle"><input type="checkbox" name="attention_on_screen"> Show a notice on the screen when the frame needs attention</label>
           <small class="note" style="display:block;margin:-.3rem 0 .8rem">A small panel saying to look at Maintenance, when something has needed a person for an hour
               (a failing backup or update, a synced folder that's signed out, the SD card filling up). It doesn't say
@@ -1231,7 +1236,7 @@ async function refreshStatus(reloadImage = false) {
   $("#prev").disabled = !status.can_go_back;
   const st = config.slideshow_styles || [config.slideshow_style || "classic"];
   $("#next-3d").hidden = !status.motions || config.transition !== "fade";
-  $("#next-set").hidden = config.rotation_mode !== "storage" || (st.length === 1 && st[0] === "classic") || !!config.demo_mode;
+  $("#next-set").hidden = config.rotation_mode !== "storage" || (st.length === 1 && st[0] === "classic" && !config.showcase_mode) || !!config.demo_mode;
   $("#video-now").hidden = !status.videos_supported || !!config.demo_mode;
   $("#video-now").disabled = !!status.playing;
   $("#clip-now").hidden = $("#video-now").hidden;
@@ -1724,7 +1729,7 @@ async function loadConfig() {
   setForm($("#f-display"), config);
   setForm($("#f-frame"), config);
   setForm($("#f-hw"), config);
-  foldSum("frame", [config.device_name, config.demo_mode ? "demo mode on" : ""].filter(Boolean).join(" · "), config.demo_mode ? "warn" : "");
+  foldSum("frame", [config.device_name, config.demo_mode ? "demo mode on" : "", config.showcase_mode ? "showcase on" : ""].filter(Boolean).join(" · "), config.demo_mode || config.showcase_mode ? "warn" : "");
   foldSum("hardware", [config.display_orientation === "portrait" ? "Portrait" : "Landscape",
     config.buttons_enabled ? "buttons" : "", config.presence_enabled ? "presence sensor" : ""].filter(Boolean).join(" · "));
   $("#vol-out").textContent = `${config.video_volume}%`;
@@ -1781,7 +1786,7 @@ $("#f-frame").onsubmit = (e) => {
   act(async () => {
     await api("/api/config", { json: {
       device_name: f.device_name.value.trim() || "Pi Frame", timezone: f.timezone.value.trim(),
-      ha_url: f.ha_url.value.trim(), demo_mode: f.demo_mode.checked, attention_on_screen: f.attention_on_screen.checked,
+      ha_url: f.ha_url.value.trim(), demo_mode: f.demo_mode.checked, showcase_mode: f.showcase_mode.checked, attention_on_screen: f.attention_on_screen.checked,
     } });
     await loadConfig(); refreshStatus();
   }, "Saved");

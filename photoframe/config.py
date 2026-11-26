@@ -119,7 +119,31 @@ DEFAULT_CONFIG: dict = {
     # demo (shop) mode: sample photos and "about this frame" slides; also shown
     # automatically on a set-up frame with no photos yet
     "demo_mode": False,
+    # showcase: the frame's own photos and videos, going quickly through every
+    # slideshow style (SHOWCASE below, laid over the saved settings while it's on)
+    "showcase_mode": False,
 }
+
+# While showcase is on, these take the place of the saved settings (which are
+# kept, and come back when it's switched off): every style in turn, short times,
+# every transition, and frequent video moments. Times in minutes.
+SHOWCASE = {
+    "slideshow_style": "classic",
+    "slideshow_styles": ["classic", "story", "spotlight", "living"],
+    "style_switch_minutes": 0,  # change style at the end of each round
+    "auto_rotate": True,
+    "single_minutes": 0.2,  # 12 s
+    "collage_minutes": 0.33,  # 20 s
+    "living_minutes": 0.2,
+    "living_spotlight": True,
+    "collage_count": 0,
+    "transition_effects": "all",
+    "video_enabled": True,
+    "clip_every_minutes": 1.5,
+    "clip_seconds": 10,
+    "video_max_seconds": 20,  # videos that come up in the slideshow play 20 s at most
+}
+SHOWCASE_CLASSIC_SECONDS = 12  # Classic's photo time (its usual schedule counts in minutes)
 
 # Firmware defaults (Spectra 6 measured palette). Irrelevant to an LCD but
 # reported so the image server has something sane to read.
@@ -258,11 +282,17 @@ class ConfigStore:
     # ---------- accessors ----------
     def get(self, key: str):
         with self._lock:
+            if key in SHOWCASE and self.config.get("showcase_mode"):
+                return copy.deepcopy(SHOWCASE[key])
             return self.config[key]
 
     def snapshot(self) -> dict:
+        """The settings in effect (with showcase's laid over the saved ones while it's on)."""
         with self._lock:
-            return copy.deepcopy(self.config)
+            c = copy.deepcopy(self.config)
+            if c.get("showcase_mode"):
+                c.update(copy.deepcopy(SHOWCASE))
+            return c
 
     def public(self) -> dict:
         """The settings as the API shows them: passwords left out, other stored

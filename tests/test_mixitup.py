@@ -489,3 +489,37 @@ def test_early_redraw_never_stretches(tmp_path, monkeypatch):
     px = np.frombuffer(fb.read_bytes(), np.uint8).reshape(h, w, 4)
     assert tuple(px[72, 3, :3]) == (0, 0, 0)  # black bars at the sides: shape kept, not stretched
     assert tuple(px[72, 128, :3]) == (40, 80, 200)  # the picture in the middle
+
+
+# ---------------- showcase ----------------
+def test_showcase_lays_quick_settings_over_the_saved_ones(frame):
+    from photoframe.config import SHOWCASE
+    frame.cfg.update({"slideshow_styles": ["living"], "slideshow_style": "living", "living_minutes": 5,
+                      "clip_every_minutes": 30})
+    frame.cfg.update({"showcase_mode": True})
+    assert frame.showcase()
+    assert frame.cfg.get("slideshow_styles") == ["classic", "story", "spotlight", "living"]
+    assert frame.cfg.get("living_minutes") == SHOWCASE["living_minutes"]
+    assert frame.cfg.snapshot()["clip_every_minutes"] == 1.5
+    # the saved settings are untouched, and the web page shows them
+    assert frame.cfg.public()["living_minutes"] == 5 and frame.cfg.public()["slideshow_styles"] == ["living"]
+    frame.cfg.update({"showcase_mode": False})
+    assert frame.cfg.get("living_minutes") == 5 and frame.cfg.get("clip_every_minutes") == 30
+
+
+def test_showcase_goes_through_every_style(frame):
+    frame.cfg.update({"showcase_mode": True})
+    seen = []
+    for _ in range(60):
+        frame.rotate()
+        if frame._style not in seen:
+            seen.append(frame._style)
+        if len(seen) == 4:
+            break
+    assert seen == ["classic", "story", "spotlight", "living"]
+
+
+def test_demo_mode_takes_priority_over_the_showcase(frame):
+    frame.cfg.update({"showcase_mode": True, "demo_mode": True})
+    if frame.demo.available():
+        assert not frame.showcase()

@@ -476,6 +476,8 @@ def create_app(frame: Frame) -> Flask:
         if "demo_mode" in changed:  # switch to (or away from) the samples straight away
             frame._demo_due = None
             threading.Thread(target=frame.rotate, name="demo-switch", daemon=True).start()
+        if "showcase_mode" in changed:  # start (or end) the showcase straight away
+            frame.showcase_switched()
         if "display_hw_fade" in changed:
             # the display is chosen at start-up: restart to switch (systemd starts the frame again)
             log.warning("hardware fades turned %s; restarting the frame", "on" if changed["display_hw_fade"] else "off")

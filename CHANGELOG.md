@@ -3,6 +3,7 @@
 Each version and what it brought, newest first. The full details are in the
 commit messages; releases are on the [Releases](https://github.com/Jimmy3D-xyz/pi-frame/releases) page.
 
+- **0.38.0-beta.10** (2026-11-26, test): Showcase: your own photos and videos, quickly through every style.
 - **0.38.0-beta.9** (2026-11-26, test): Video moments play in a space of the collage when one is showing.
 - **0.38.0-beta.8** (2026-11-26, test): The pictures around a video stay on a layer the video player leaves alone.
 - **0.38.0-beta.7** (2026-11-26, test): The log records what the video player does with the screen, to track down the black flash.

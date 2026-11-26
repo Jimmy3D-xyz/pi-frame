@@ -51,6 +51,7 @@ work with it unchanged.
 - **Physical buttons** for previous, next, and screen / power
 - **Live view** of what's on the frame, from any browser
 - **Demo mode**, like a TV in a shop: public-domain paintings and NASA photos, with slides about the frame
+- **Showcase**: your own photos and videos, quickly through every slideshow style and effect
 
 ## What you need
 

@@ -273,7 +273,7 @@ def test_setup_settings_need_the_admin_on_the_web_page(env):
     frame.cfg.update({"admin_password": ADMIN})
     client, _ = make(env)
     for body in ({"display_orientation": "portrait"}, {"device_name": "Hall"}, {"timezone": "UTC"},
-                 {"buttons_enabled": True}, {"presence_pin": 23}, {"image_url": "http://x/"}, {"demo_mode": True},
+                 {"buttons_enabled": True}, {"presence_pin": 23}, {"image_url": "http://x/"}, {"demo_mode": True}, {"showcase_mode": True},
                  {"display_hw_fade": False}):
         r = client.post("/api/config", json=body, headers=BROWSER)
         assert r.status_code == 403 and r.get_json()["admin"] == "locked", body

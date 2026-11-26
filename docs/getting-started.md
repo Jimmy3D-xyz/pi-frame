@@ -129,7 +129,7 @@ on the screen; open Maintenance to see why
 
 | | |
 | --- | --- |
-| [Using the frame](using.md) | Slideshow styles in detail, videos, on-screen info, demo mode, the live view, away from home |
+| [Using the frame](using.md) | Slideshow styles in detail, videos, on-screen info, demo mode and the showcase, the live view, away from home |
 | [Synced folders](synced-folders.md) | OneDrive, Google Drive, Dropbox and NAS |
 | [Screen and hardware](screen-and-hardware.md) | Resolution, brightness, buttons, the presence sensor, portrait mounting |
 | [Installing and updating](installing.md) | Every way to install, backups, moving to a new card, updates |
